@@ -50,6 +50,7 @@
 #include "mbport.h"
 #include "driver/timer.h"
 #include "port_serial_slave.h"
+#include "sdkconfig.h"
 
 #ifdef CONFIG_FMB_TIMER_PORT_ENABLED
 
@@ -63,6 +64,7 @@
 
 static const USHORT usTimerIndex = CONFIG_FMB_TIMER_INDEX; // Modbus Timer index used by stack
 static const USHORT usTimerGroupIndex = CONFIG_FMB_TIMER_GROUP; // Modbus Timer group index used by stack
+static timer_isr_handle_t xTimerIntHandle;                      // Timer interrupt handle
 
 static timg_dev_t *MB_TG[2] = {&TIMERG0, &TIMERG1};
 
@@ -121,7 +123,8 @@ BOOL xMBPortTimersInit(USHORT usTim1Timerout50us)
                     "failure to set alarm failure, timer_set_alarm_value() returned (0x%x).",
                     (uint32_t)xErr);
     // Register ISR for timer
-    xErr = timer_isr_register(usTimerGroupIndex, usTimerIndex, vTimerGroupIsr, (void*)(uint32_t)usTimerIndex, ESP_INTR_FLAG_IRAM, NULL);
+    xErr = timer_isr_register(usTimerGroupIndex, usTimerIndex, vTimerGroupIsr,
+                                (void*)(uint32_t)usTimerIndex, ESP_INTR_FLAG_LOWMED, &xTimerIntHandle);
     MB_PORT_CHECK((xErr == ESP_OK), FALSE,
                     "timer set value failure, timer_isr_register() returned (0x%x).",
                     (uint32_t)xErr);
@@ -154,6 +157,6 @@ void vMBPortTimerClose(void)
 #ifdef CONFIG_FMB_TIMER_PORT_ENABLED
     ESP_ERROR_CHECK(timer_pause(usTimerGroupIndex, usTimerIndex));
     ESP_ERROR_CHECK(timer_disable_intr(usTimerGroupIndex, usTimerIndex));
+    ESP_ERROR_CHECK(esp_intr_free(xTimerIntHandle));
 #endif
 }
-
