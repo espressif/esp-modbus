@@ -64,7 +64,6 @@ static timer_isr_handle_t xTimerIntHandle;              // Timer interrupt handl
 static timg_dev_t *MB_TG[2] = { &TIMERG0, &TIMERG1 };
 
 /* ----------------------- static functions ---------------------------------*/
-
 static void IRAM_ATTR vTimerGroupIsr(void *param)
 {
     // Retrieve the interrupt status and the counter value
