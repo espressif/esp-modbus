@@ -159,7 +159,7 @@ static esp_err_t mbc_tcp_master_start(void)
 
     status = eMBMasterEnable();
     MB_MASTER_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-                    "mb stack set slave ID failure, eMBMasterEnable() returned (0x%x).", (uint32_t)status);
+                    "mb stack enable failure, eMBMasterEnable() returned (0x%x).", (uint32_t)status);
 
     // Add slave IP address for each slave to initialize connection
     mb_slave_addr_entry_t *p_slave_info;
@@ -172,13 +172,12 @@ static esp_err_t mbc_tcp_master_start(void)
     // Add end of list condition
     (void)xMBTCPPortMasterAddSlaveIp(0xFF, NULL, 0xFF);
 
-
     // Wait for connection done event
     bool start = (bool)xMBTCPPortMasterWaitEvent(mbm_opts->mbm_event_group,
-                                                 (EventBits_t)MB_EVENT_STACK_STARTED, MB_TCP_CONNECTION_TOUT);
+                                                    (EventBits_t)MB_EVENT_STACK_STARTED, MB_TCP_CONNECTION_TOUT);
     MB_MASTER_CHECK((start), ESP_ERR_INVALID_STATE,
-                    "mb stack could not connect to slaves for %d seconds.",
-                    CONFIG_FMB_TCP_CONNECTION_TOUT_SEC);
+                            "mb stack could not connect to slaves for %d seconds.",
+                            CONFIG_FMB_TCP_CONNECTION_TOUT_SEC);
     return ESP_OK;
 }
 

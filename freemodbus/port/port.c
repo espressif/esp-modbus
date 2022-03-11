@@ -38,6 +38,7 @@
 
 /* ----------------------- Modbus includes ----------------------------------*/
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "sys/lock.h"
 #include "port.h"
 
@@ -70,6 +71,13 @@ vMBPortSetMode( UCHAR ucMode )
     ENTER_CRITICAL_SECTION();
     ucPortMode = ucMode;
     EXIT_CRITICAL_SECTION();
+}
+
+BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, ULONG xTimeout)
+{
+    BOOL xResult = (BaseType_t)xQueueReceive(xMbUartQueue, (void*)pxEvent, (TickType_t) xTimeout);
+    ESP_LOGD(__func__, "UART event: %d ", pxEvent->type);
+    return xResult;
 }
 
 #if MB_TCP_DEBUG

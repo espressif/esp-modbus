@@ -71,7 +71,7 @@ BOOL xMBMasterPortTimersInit(USHORT usTimeOut50us)
     esp_timer_create_args_t xTimerConf = {
         .callback = vTimerAlarmCBHandler,
         .arg = NULL,
-#if CONFIG_FMB_TIMER_USE_ISR_DISPATCH_METHOD
+#if (MB_TIMER_SUPPORTS_ISR_DISPATCH_METHOD && CONFIG_FMB_TIMER_USE_ISR_DISPATCH_METHOD)
         .dispatch_method = ESP_TIMER_ISR,
 #else
         .dispatch_method = ESP_TIMER_TASK,

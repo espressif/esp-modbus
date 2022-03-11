@@ -30,7 +30,7 @@ extern BOOL xMBMasterPortSerialTxPoll(void);
 #define MB_RESPONSE_TICS pdMS_TO_TICKS(CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND + 10)
 
 
-static mb_master_interface_t* mbm_interface_ptr = NULL; //&default_interface_inst;
+static mb_master_interface_t* mbm_interface_ptr = NULL;
 static const char *TAG = "MB_CONTROLLER_MASTER";
 
 // Modbus event processing task
@@ -101,7 +101,7 @@ static esp_err_t mbc_serial_master_start(void)
             "mb stack initialization failure, eMBInit() returns (0x%x).", status);
     status = eMBMasterEnable();
     MB_MASTER_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack set slave ID failure, eMBEnable() returned (0x%x).", (uint32_t)status);
+            "mb stack set slave ID failure, eMBMasterEnable() returned (0x%x).", (uint32_t)status);
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupSetBits(mbm_opts->mbm_event_group,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
