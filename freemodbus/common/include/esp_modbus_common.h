@@ -15,6 +15,7 @@ extern "C" {
 
 #if __has_include("esp_check.h")
 #include "esp_check.h"
+#include "esp_log.h"
 
 #define MB_RETURN_ON_FALSE(a, err_code, tag, format, ...) ESP_RETURN_ON_FALSE(a, err_code, tag, format __VA_OPT__(,) __VA_ARGS__)
 
@@ -24,7 +25,7 @@ extern "C" {
 
 #define MB_RETURN_ON_FALSE(a, err_code, tag, format, ...) do {                                         \
         if (!(a)) {                                                                              \
-            MB_LOGE(tag, "%s(%d): " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);        \
+            ESP_LOGE(tag, "%s(%d): " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);        \
             return err_code;                                                                               \
         }                                                                                                  \
 } while(0)
