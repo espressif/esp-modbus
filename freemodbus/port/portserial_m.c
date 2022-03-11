@@ -89,7 +89,7 @@ static USHORT usMBMasterPortSerialRxPoll(size_t xEventSize)
     USHORT usCnt = 0;
 
     if (bRxStateEnabled) {
-        while(xReadStatus && (usCnt++ <= MB_SERIAL_BUF_SIZE)) {
+        while(xReadStatus && (usCnt++ <= xEventSize)) {
             // Call the Modbus stack callback function and let it fill the stack buffers.
             xReadStatus = pxMBMasterFrameCBByteReceived(); // callback to receive FSM
         }
@@ -134,7 +134,7 @@ static void vUartTask(void* pvParameters)
     uart_event_t xEvent;
     USHORT usResult = 0;
     for(;;) {
-        if (xQueueReceive(xMbUartQueue, (void*)&xEvent, portMAX_DELAY) == pdTRUE) {
+        if (xMBPortSerialWaitEvent(xMbUartQueue, (void*)&xEvent, portMAX_DELAY)) {
             ESP_LOGD(TAG, "MB_uart[%d] event:", ucUartNumber);
             switch(xEvent.type) {
                 //Event of UART receiving data
@@ -143,6 +143,8 @@ static void vUartTask(void* pvParameters)
                     // This flag set in the event means that no more
                     // data received during configured timeout and UART TOUT feature is triggered
                     if (xEvent.timeout_flag) {
+                        // Get buffered data length
+                        ESP_ERROR_CHECK(uart_get_buffered_data_len(ucUartNumber, &xEvent.size));
                         // Read received data and send it to modbus stack
                         usResult = usMBMasterPortSerialRxPoll(xEvent.size);
                         ESP_LOGD(TAG,"Timeout occured, processed: %d bytes", usResult);
@@ -263,6 +265,24 @@ BOOL xMBMasterPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, 
         vTaskSuspend(xMbTaskHandle); // Suspend serial task while stack is not started
     }
     ESP_LOGD(MB_PORT_TAG,"%s Init serial.", __func__);
+    return TRUE;
+}
+
+/*
+ * The function is called from ASCII/RTU module to get processed data buffer. Sets the
+ * received buffer and its length using parameters.
+ */
+BOOL xMBMasterSerialPortGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength )
+{
+    return TRUE;
+}
+
+/*
+ * The function is called from ASCII/RTU module to set processed data buffer
+ * to be sent in transmitter state machine.
+ */
+BOOL xMBMasterSerialPortSendRequest( UCHAR *pucMBSerialFrame, USHORT usSerialLength )
+{
     return TRUE;
 }
 

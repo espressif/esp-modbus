@@ -38,8 +38,18 @@
 #define PORT_COMMON_H_
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"         // for queue
+
 #include "esp_log.h"                // for ESP_LOGE macro
 #include "esp_timer.h"
+#include "driver/uart.h"            // for uart_event_t
+
+#if __has_include("driver/gptimer.h")
+#include "driver/gptimer.h"
+#else
+#include "driver/timer.h"
+#endif
+
 #include "mbconfig.h"
 
 #define INLINE                      inline
@@ -173,6 +183,8 @@ void prvvMBTCPLogFrame( const CHAR * pucMsg, UCHAR * pucFrame, USHORT usFrameLen
 
 void vMBPortSetMode( UCHAR ucMode );
 UCHAR ucMBPortGetMode( void );
+
+BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, ULONG xTimeout);
 
 #ifdef __cplusplus
 PR_END_EXTERN_C

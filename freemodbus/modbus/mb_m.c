@@ -70,18 +70,18 @@
 
 /* ----------------------- Static variables ---------------------------------*/
 
-static UCHAR    ucMBMasterDestAddress;
-static BOOL     xMBRunInMasterMode = FALSE;
+static UCHAR ucMBMasterDestAddress;
+static BOOL xMBRunInMasterMode = FALSE;
 static volatile eMBMasterErrorEventType eMBMasterCurErrorType;
-static volatile USHORT  usMasterSendPDULength;
+static volatile USHORT usMasterSendPDULength;
 static volatile eMBMode eMBMasterCurrentMode;
 
 /*------------------------ Shared variables ---------------------------------*/
 
-volatile UCHAR  ucMasterSndBuf[MB_SERIAL_BUF_SIZE];
-volatile UCHAR  ucMasterRcvBuf[MB_SERIAL_BUF_SIZE];
+volatile UCHAR ucMasterSndBuf[MB_SERIAL_BUF_SIZE];
+volatile UCHAR ucMasterRcvBuf[MB_SERIAL_BUF_SIZE];
 volatile eMBMasterTimerMode eMasterCurTimerMode;
-volatile BOOL   xFrameIsBroadcast = FALSE;
+volatile BOOL xFrameIsBroadcast = FALSE;
 
 static enum
 {
@@ -152,7 +152,7 @@ static xMBFunctionHandler xMasterFuncHandlers[MB_FUNC_HANDLERS_MAX] = {
 };
 
 /* ----------------------- Start implementation -----------------------------*/
-#if MB_MASTER_TCP_ENABLED > 0
+#if MB_MASTER_TCP_ENABLED
 eMBErrorCode
 eMBMasterTCPInit( USHORT ucTCPPort )
 {
