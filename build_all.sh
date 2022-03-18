@@ -13,10 +13,16 @@ then
     set -x # Activate the expand mode if DEBUG is anything but empty.
 fi
 
-if [[ -z "${TEST_TARGETS}" ]]
+if [[ -z "${EXAMPLE_TARGETS}" || -z "${TEST_TARGETS}" ]]
 then
-    echo "TEST_TARGETS environment variable must be set before calling this script"
+    echo "EXAMPLE_TARGETS and TEST_TARGETS environment variables must be set before calling this script"
     exit 1
+fi
+
+if [[ -z "${SKIP_GNU_MAKE_BUILD}" ]]
+then
+    echo "SKIP_GNU_MAKE_BUILD not set, will build with GNU Make based build system as well."
+    export SKIP_GNU_MAKE_BUILD=0
 fi
 
 set -o errexit # Exit if command failed.
@@ -41,9 +47,23 @@ function build_for_targets
     for IDF_TARGET in ${target_list}
     do
         export IDF_TARGET
+        if [[ "${IDF_TARGET}" = "esp32" ]] && [[ "${SKIP_GNU_MAKE_BUILD}" = "0" ]]
+        then
+            echo "${STARS}"
+            echo "Building in $PWD with Make"
+            # -j option will be set via MAKEFLAGS in .gitlab-ci.yml
+            # shellcheck disable=SC2015
+            make defconfig && make || die "Make build in ${PWD} has failed"
+            rm -rf build
+        fi
+
         echo "${STARS}"
         echo "Building in $PWD with CMake for ${IDF_TARGET}"
-        idf.py set-target "${IDF_TARGET}"
+        if [[ ${IDF_TARGET} != "esp32" ]]
+        then
+            # IDF 4.0 doesn't support idf.py set-target, and only supports esp32.
+            idf.py set-target "${IDF_TARGET}"
+        fi
         idf.py build || die "CMake build in ${PWD} has failed for ${IDF_TARGET}"
         idf.py fullclean
     done
@@ -56,7 +76,7 @@ function build_folders
     for NAME in ${EXAMPLES}
     do
         cd "${NAME}"
-        build_for_targets "${TEST_TARGETS}"
+        build_for_targets "$2"
         cd ..
     done
     popd
@@ -64,9 +84,9 @@ function build_folders
 
 echo "${STARS}"
 # Build the tests
-build_folders test/serial
+build_folders test/serial "${TEST_TARGETS}"
 echo "${STARS}"
 # Build the tests
-build_folders test/tcp
+build_folders test/tcp "${TEST_TARGETS}"
 echo "${STARS}"
 
