@@ -80,6 +80,8 @@ build_idf_latest:
   variables:
     EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
     TEST_TARGETS: "esp32 esp32s3"
+    # GNU Make based build system is not supported starting from IDF v5.0
+    SKIP_GNU_MAKE_BUILD: 1
 
 push_master_to_github:
   stage: deploy
