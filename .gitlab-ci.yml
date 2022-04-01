@@ -99,25 +99,14 @@ push_master_to_github:
 
 upload_to_component_manager:
   stage: deploy
+  image: python:3.10-alpine
   tags:
     - deploy
-  only:
-    - master
-    - /^release\/v/
-    - /^v\d+\.\d+(\.\d+)?($|-)/
-  when: on_success
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$FORCE_PUSH_COMPONENT == "1"'
   script:
-    - git clone --depth 1 ${ESP_IDF_GIT} esp-idf
-    - export IDF_PATH=$PWD/esp-idf
-    - cd esp-idf
-    - ./tools/idf_tools.py --non-interactive install-python-env
-    - ./tools/idf_tools.py --non-interactive install
-    - idf_exports=$(${IDF_PATH}/tools/idf_tools.py --non-interactive export)
-    - eval "${idf_exports}"
-    - cd ..
-    - git clone $PWD esp-modbus
-    - cd esp-modbus
-    - pip install --upgrade idf-component-manager
-    - idf.py --help
+    - pip install idf-component-manager
     - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
-    - idf.py upload-component --name=esp-modbus --namespace=espressif || true
+    - python -m idf_component_manager upload-component --allow-existing --name=esp-modbus --namespace=espressif
+
