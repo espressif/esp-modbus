@@ -15,6 +15,7 @@ html_context['github_repo'] = 'esp-modbus'
 
 # Extra options required by sphinx_idf_theme
 project_slug = 'esp-modbus'
+versions_url = 'https://raw.githubusercontent.com/espressif/esp-modbus/master/docs/docs_versions.js'
 
 idf_targets = ['esp32', 'esp32s2', 'esp32c3']
 languages = ['en']
