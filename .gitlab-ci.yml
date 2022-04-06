@@ -96,7 +96,6 @@ build_docs:
   after_script: []
   script:
     - cd docs
-    - pip install -r requirements.txt
     - build-docs -l en -t esp32
 
 .deploy_docs_template:
