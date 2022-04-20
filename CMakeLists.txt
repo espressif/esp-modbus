@@ -59,7 +59,14 @@ add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${priv_incl
 
 message(STATUS "DEBUG: Use esp-modbus component folder: ${CMAKE_CURRENT_LIST_DIR}.")
 
+set(requires driver lwip)
+
+# esp_timer component was introduced in v4.2
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "4.1")
+    list(APPEND requires esp_timer)
+endif()
+
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS "${include_dirs}"
                     PRIV_INCLUDE_DIRS "${priv_include_dirs}"
-                    REQUIRES driver lwip)
+                    REQUIRES ${requires})
