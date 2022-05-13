@@ -90,6 +90,7 @@
 #define MB_TCP_SEND_TIMEOUT_MS          (500) // send event timeout in mS
 #define MB_TCP_SEND_TIMEOUT             (pdMS_TO_TICKS(MB_TCP_SEND_TIMEOUT_MS))
 #define MB_TCP_PORT_MAX_CONN            (CONFIG_FMB_TCP_PORT_MAX_CONN)
+#define MB_TCP_PORT_RESPOND_TIMEOUT     (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND * 1000)
 
 #define MB_TCP_FRAME_LOG_BUFSIZE        (256)
 
