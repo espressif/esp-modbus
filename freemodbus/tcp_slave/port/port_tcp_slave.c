@@ -61,7 +61,7 @@
 
 /* ----------------------- Defines  -----------------------------------------*/
 #define MB_TCP_DISCONNECT_TIMEOUT       ( CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000000 ) // disconnect timeout in uS
-#define MB_TCP_RESP_TIMEOUT_MS          ( MB_MASTER_TIMEOUT_MS_RESPOND - 2 ) // slave response time limit
+#define MB_TCP_RESP_TIMEOUT_MS          ( MB_MASTER_TIMEOUT_MS_RESPOND - 1 ) // slave response time limit
 #define MB_TCP_NET_LISTEN_BACKLOG       ( SOMAXCONN )
 
 /* ----------------------- Prototypes ---------------------------------------*/
