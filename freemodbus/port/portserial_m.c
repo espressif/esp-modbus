@@ -35,11 +35,11 @@
  */
 
 #include <string.h>
-#include "driver/uart.h"
-#include "soc/dport_access.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "driver/uart.h"
+#include "hal/uart_types.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 
@@ -290,7 +290,7 @@ BOOL xMBMasterPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, 
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .rx_flow_ctrl_thresh = 2,
-        .source_clk = UART_SCLK_APB,
+        .source_clk = UART_SCLK_APB
     };
     // Set UART config
     xErr = uart_param_config(ucUartNumber, &xUartConfig);
