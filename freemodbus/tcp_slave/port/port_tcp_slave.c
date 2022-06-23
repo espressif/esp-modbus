@@ -61,7 +61,7 @@
 
 /* ----------------------- Defines  -----------------------------------------*/
 #define MB_TCP_DISCONNECT_TIMEOUT       ( CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000000 ) // disconnect timeout in uS
-#define MB_TCP_RESP_TIMEOUT_MS          ( MB_MASTER_TIMEOUT_MS_RESPOND - 2 ) // slave response time limit
+#define MB_TCP_RESP_TIMEOUT_MS          ( MB_MASTER_TIMEOUT_MS_RESPOND - 1 ) // slave response time limit
 #define MB_TCP_NET_LISTEN_BACKLOG       ( SOMAXCONN )
 
 /* ----------------------- Prototypes ---------------------------------------*/
@@ -150,12 +150,13 @@ xMBTCPPortInit( USHORT usTCPPort )
     xConfig.pcBindAddr = NULL;
 
     // Create task for packet processing
-    BaseType_t xErr = xTaskCreate(vMBTCPPortServerTask,
-                                    "tcp_server_task",
+    BaseType_t xErr = xTaskCreatePinnedToCore(vMBTCPPortServerTask,
+                                    "tcp_slave_task",
                                     MB_TCP_STACK_SIZE,
                                     NULL,
                                     MB_TCP_TASK_PRIO,
-                                    &xConfig.xMbTcpTaskHandle);
+                                    &xConfig.xMbTcpTaskHandle,
+                                    MB_PORT_TASK_AFFINITY);
     vTaskSuspend(xConfig.xMbTcpTaskHandle);
     if (xErr != pdTRUE)
     {
