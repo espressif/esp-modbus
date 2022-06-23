@@ -150,12 +150,13 @@ xMBTCPPortInit( USHORT usTCPPort )
     xConfig.pcBindAddr = NULL;
 
     // Create task for packet processing
-    BaseType_t xErr = xTaskCreate(vMBTCPPortServerTask,
-                                    "tcp_server_task",
+    BaseType_t xErr = xTaskCreatePinnedToCore(vMBTCPPortServerTask,
+                                    "tcp_slave_task",
                                     MB_TCP_STACK_SIZE,
                                     NULL,
                                     MB_TCP_TASK_PRIO,
-                                    &xConfig.xMbTcpTaskHandle);
+                                    &xConfig.xMbTcpTaskHandle,
+                                    MB_PORT_TASK_AFFINITY);
     vTaskSuspend(xConfig.xMbTcpTaskHandle);
     if (xErr != pdTRUE)
     {
