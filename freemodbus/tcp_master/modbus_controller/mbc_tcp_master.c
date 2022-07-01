@@ -81,7 +81,7 @@ static void mbc_tcp_master_free_slave_list(void)
     // Initialize interface properties
     mb_master_options_t* mbm_opts = &mbm_interface_ptr->opts;
 
-    LIST_FOREACH(it, &mbm_opts->mbm_slave_list, entries) {
+    while ((it = LIST_FIRST(&mbm_opts->mbm_slave_list))) {
         LIST_REMOVE(it, entries);
         mbm_opts->mbm_slave_list_count--;
         free(it);

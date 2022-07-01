@@ -508,7 +508,7 @@ void IRAM_ATTR vMBMasterSetErrorType( eMBMasterErrorEventType errorType )
 /* Get Modbus Master send PDU's buffer address pointer.*/
 void vMBMasterGetPDUSndBuf( UCHAR ** pucFrame )
 {
-    *pucFrame = ( UCHAR * ) &ucMasterSndBuf[MB_SER_PDU_PDU_OFF];
+    *pucFrame = ( UCHAR * ) &ucMasterSndBuf[MB_SEND_BUF_PDU_OFF];
 }
 
 /* Set Modbus Master send PDU's buffer length.*/
