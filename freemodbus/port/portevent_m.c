@@ -149,7 +149,7 @@ xMBMasterPortEventGet( eMBMasterEventType* eEvent )
         xEventGroupSetBits( xEventGroupMasterConfirmHdl, *eEvent );
         xEventHappened = TRUE;
     } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event triggered = %d.", __func__, uxBits);
+        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event triggered = %" PRIu32 ".", __func__, uxBits);
         *eEvent = (eMBMasterEventType)uxBits;
         xEventHappened = FALSE;
     }
@@ -181,7 +181,7 @@ BOOL xMBMasterRunResTake( LONG lTimeOut )
                                     pdFALSE,            // Don't wait for both bits, either bit will do.
                                     lTimeOut);          // Resource wait timeout.
     MB_PORT_CHECK((uxBits == MB_EVENT_RESOURCE), FALSE , "Take resource failure.");
-    ESP_LOGD(MB_PORT_TAG,"%s:Take resource (%x) (%lu ticks).", __func__, uxBits,  lTimeOut);
+    ESP_LOGD(MB_PORT_TAG,"%s:Take resource (%" PRIu32 ") (%lu ticks).", __func__, uxBits,  lTimeOut);
     return TRUE;
 }
 
@@ -193,7 +193,7 @@ void vMBMasterRunResRelease( void )
 {
     EventBits_t uxBits = xEventGroupSetBits( xResourceMasterHdl, MB_EVENT_RESOURCE );
     MB_PORT_CHECK((uxBits == MB_EVENT_RESOURCE), ; , "Resource release failure.");
-    ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%x).", __func__, uxBits);
+    ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%" PRIx32 ").", __func__, uxBits);
 }
 
 /**
@@ -297,7 +297,7 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
             eErrStatus = MB_MRE_EXE_FUN;
         }
     } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%x", __func__, uxBits);
+        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%" PRIx32, __func__, uxBits);
         // https://github.com/espressif/esp-idf/issues/5275
         // if a no event is received, that means vMBMasterPortEventClose()
         // has been closed, so event group has been deleted by FreeRTOS, which

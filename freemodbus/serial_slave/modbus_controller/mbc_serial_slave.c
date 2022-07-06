@@ -59,15 +59,15 @@ static esp_err_t mbc_serial_slave_setup(void* comm_info)
     mb_slave_options_t* mbs_opts = &mbs_interface_ptr->opts;
     mb_slave_comm_info_t* comm_settings = (mb_slave_comm_info_t*)comm_info;
     MB_SLAVE_CHECK(((comm_settings->mode == MB_MODE_RTU) || (comm_settings->mode == MB_MODE_ASCII)),
-                ESP_ERR_INVALID_ARG, "mb incorrect mode = (0x%x).",
+                ESP_ERR_INVALID_ARG, "mb incorrect mode = (0x%" PRIx32 ").",
                 (uint32_t)comm_settings->mode);
     MB_SLAVE_CHECK((comm_settings->slave_addr <= MB_ADDRESS_MAX),
-                ESP_ERR_INVALID_ARG, "mb wrong slave address = (0x%x).",
+                ESP_ERR_INVALID_ARG, "mb wrong slave address = (0x%" PRIx32 ").",
                 (uint32_t)comm_settings->slave_addr);
     MB_SLAVE_CHECK((comm_settings->port < UART_NUM_MAX), ESP_ERR_INVALID_ARG,
-                "mb wrong port to set = (0x%x).", (uint32_t)comm_settings->port);
+                "mb wrong port to set = (0x%" PRIx32 ").", (uint32_t)comm_settings->port);
     MB_SLAVE_CHECK((comm_settings->parity <= UART_PARITY_ODD), ESP_ERR_INVALID_ARG,
-                "mb wrong parity option = (0x%x).", (uint32_t)comm_settings->parity);
+                "mb wrong parity option = (0x%" PRIx32 ").", (uint32_t)comm_settings->parity);
 
     // Set communication options of the controller
     mbs_opts->mbs_comm = *(mb_communication_info_t*)comm_settings;
@@ -95,7 +95,7 @@ static esp_err_t mbc_serial_slave_start(void)
             "mb stack initialization failure, eMBInit() returns (0x%x).", status);
     status = eMBEnable();
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack set slave ID failure, eMBEnable() returned (0x%x).", (uint32_t)status);
+            "mb stack set slave ID failure, eMBEnable() returned (0x%" PRIx32 ").", (uint32_t)status);
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupSetBits(mbs_opts->mbs_event_group,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
@@ -163,7 +163,7 @@ static esp_err_t mbc_serial_slave_destroy(void)
     (void)vEventGroupDelete(mbs_opts->mbs_event_group);
     mb_error = eMBClose();
     MB_SLAVE_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack close failure returned (0x%x).", (uint32_t)mb_error);
+            "mb stack close failure returned (0x%" PRIx32 ").", (uint32_t)mb_error);
     mbs_interface_ptr = NULL;
     vMBPortSetMode((UCHAR)MB_PORT_INACTIVE);
     return ESP_OK;
@@ -213,7 +213,7 @@ esp_err_t mbc_serial_slave_create(void** handler)
     if (status != pdPASS) {
         vTaskDelete(mbs_opts->mbs_task_handle);
         MB_SLAVE_CHECK((status == pdPASS), ESP_ERR_NO_MEM,
-                "mb controller task creation error, xTaskCreate() returns (0x%x).",
+                "mb controller task creation error, xTaskCreate() returns (0x%" PRIx32 ").",
                 (uint32_t)status);
     }
     MB_SLAVE_ASSERT(mbs_opts->mbs_task_handle != NULL); // The task is created but handle is incorrect

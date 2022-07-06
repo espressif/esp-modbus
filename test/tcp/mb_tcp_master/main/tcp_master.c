@@ -155,7 +155,7 @@ char* master_scan_addr(int* index, char* buffer)
         }
     }
 #else
-    buf_cnt = sscanf(buffer, "IP%d="IPV6STR, index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]);
+    buf_cnt = sscanf(buffer, "IP%" PRIu32 "="IPV6STR, index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]);
     if (buf_cnt == 9) {
         if (-1 == asprintf(&ip_str, IPV6STR, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
             abort();
@@ -301,7 +301,7 @@ static esp_err_t master_resolve_slave(uint8_t short_addr, mdns_result_t* result,
     char slave_name[22] = {0};
 
     if (sprintf(slave_name, "mb_slave_tcp_%02X", short_addr) < 0) {
-        ESP_LOGE(TAG, "Fail to create instance name for index: %d", short_addr);
+        ESP_LOGE(TAG, "Fail to create instance name for index: %" PRIu32 "", short_addr);
         abort();
     }
     for (; r ; r = r->next) {
@@ -362,7 +362,7 @@ static int master_create_slave_list(mdns_result_t* results, char** addr_table,
             // Resolve new slave IP address using its short address
             esp_err_t err = master_resolve_slave(slave_addr, results, &slave_ip, addr_type);
             if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Index: %d, sl_addr: %d, failed to resolve!", i, slave_addr);
+                ESP_LOGE(TAG, "Index: %" PRIu32 ", sl_addr: %" PRIu32 ", failed to resolve!", i, slave_addr);
                 // Set correspond index to NULL indicate host not resolved
                 ip_table[ip_index] = NULL;
                 continue;
@@ -378,7 +378,7 @@ static int master_create_slave_list(mdns_result_t* results, char** addr_table,
             new_slave_entry->p_data = NULL;
             LIST_INSERT_HEAD(&slave_addr_list, new_slave_entry, entries);
             ip_table[ip_index] = slave_ip;
-            ESP_LOGI(TAG, "Index: %d, sl_addr: %d, resolved to IP: [%s]",
+            ESP_LOGI(TAG, "Index: %" PRIu32 ", sl_addr: %" PRIu32 ", resolved to IP: [%s]",
                                                 i, slave_addr, slave_ip);
             cid_resolve_cnt++;
             if (ip_index < addr_table_size) {
@@ -386,12 +386,12 @@ static int master_create_slave_list(mdns_result_t* results, char** addr_table,
             }
         } else {
             ip_table[ip_index] = it ? it->ip_address : ip_table[ip_index];
-            ESP_LOGI(TAG, "Index: %d, sl_addr: %d, set to IP: [%s]",
+            ESP_LOGI(TAG, "Index: %" PRIu32 ", sl_addr: %" PRIu32 ", set to IP: [%s]",
                                     i, slave_addr, ip_table[ip_index]);
             cid_resolve_cnt++;
         }
     }
-    ESP_LOGI(TAG, "Resolved %d cids, with %d IP addresses", cid_resolve_cnt, ip_index);
+    ESP_LOGI(TAG, "Resolved %" PRIu32 " cids, with %" PRIu32 " IP addresses", cid_resolve_cnt, ip_index);
     return cid_resolve_cnt;
 }
 
@@ -500,7 +500,7 @@ static void master_operation_func(void *arg)
                     err = mbc_master_get_parameter(cid, (char*)param_descriptor->param_key,
                                                                             (uint8_t*)temp_data_ptr, &type);
                     if (err == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%08x) read successful.",
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%08" PRIx32 ") read successful.",
                                                  param_descriptor->cid,
                                                  (char*)param_descriptor->param_key,
                                                  (char*)param_descriptor->param_units,
@@ -512,7 +512,7 @@ static void master_operation_func(void *arg)
                             err = mbc_master_set_parameter(cid, (char*)param_descriptor->param_key,
                                                               (uint8_t*)temp_data_ptr, &type);
                             if (err == ESP_OK) {
-                                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%08x), write successful.",
+                                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%08" PRIx32 "), write successful.",
                                                             param_descriptor->cid,
                                                             (char*)param_descriptor->param_key,
                                                             (char*)param_descriptor->param_units,
@@ -539,7 +539,7 @@ static void master_operation_func(void *arg)
                         if ((param_descriptor->mb_param_type == MB_PARAM_HOLDING) ||
                             (param_descriptor->mb_param_type == MB_PARAM_INPUT)) {
                             value = *(float*)temp_data_ptr;
-                            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%x) read successful.",
+                            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
                                             param_descriptor->cid,
                                             (char*)param_descriptor->param_key,
                                             (char*)param_descriptor->param_units,
@@ -598,17 +598,17 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
     }
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "nvs_flash_init fail, returns(0x%x).",
+                            "nvs_flash_init fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
     result = esp_netif_init();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "esp_netif_init fail, returns(0x%x).",
+                            "esp_netif_init fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
     result = esp_event_loop_create_default();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "esp_event_loop_create_default fail, returns(0x%x).",
+                            "esp_event_loop_create_default fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
 #if CONFIG_MB_MDNS_IP_RESOLVER
     // Start mdns service and register device
@@ -620,13 +620,13 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
     result = example_connect();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "example_connect fail, returns(0x%x).",
+                                "example_connect fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)result);
 #if CONFIG_EXAMPLE_CONNECT_WIFI
    result = esp_wifi_set_ps(WIFI_PS_NONE);
    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                                    TAG,
-                                   "esp_wifi_set_ps fail, returns(0x%x).",
+                                   "esp_wifi_set_ps fail, returns(0x%" PRIx32 ").",
                                    (uint32_t)result);
 #endif
 #if CONFIG_MB_MDNS_IP_RESOLVER
@@ -635,7 +635,7 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
         res = master_query_slave_service("_modbus", "_tcp", ip_addr_type);
     }
     if (res < num_device_parameters) {
-        ESP_LOGE(TAG, "Could not resolve one or more slave IP addresses, resolved: %d out of %d.", res, num_device_parameters );
+        ESP_LOGE(TAG, "Could not resolve one or more slave IP addresses, resolved: %" PRIu32 " out of %" PRIu32 ".", res, num_device_parameters );
         ESP_LOGE(TAG, "Make sure you configured all slaves according to device parameter table and they alive in the network.");
         return ESP_ERR_NOT_FOUND;
     }
@@ -660,22 +660,22 @@ static esp_err_t destroy_services(void)
     err = example_disconnect();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                    TAG,
-                                   "example_disconnect fail, returns(0x%x).",
+                                   "example_disconnect fail, returns(0x%" PRIx32 ").",
                                    (uint32_t)err);
     err = esp_event_loop_delete_default();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                        TAG,
-                                       "esp_event_loop_delete_default fail, returns(0x%x).",
+                                       "esp_event_loop_delete_default fail, returns(0x%" PRIx32 ").",
                                        (uint32_t)err);
     err = esp_netif_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_NOT_SUPPORTED), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "esp_netif_deinit fail, returns(0x%x).",
+                                        "esp_netif_deinit fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
     err = nvs_flash_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "nvs_flash_deinit fail, returns(0x%x).",
+                                "nvs_flash_deinit fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)err);
     return err;
 }
@@ -691,26 +691,26 @@ static esp_err_t master_init(mb_communication_info_t* comm_info)
                                 "mb controller initialization fail.");
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "mb controller initialization fail, returns(0x%x).",
+                            "mb controller initialization fail, returns(0x%" PRIx32 ").",
                             (uint32_t)err);
 
     err = mbc_master_setup((void*)comm_info);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "mb controller setup fail, returns(0x%x).",
+                            "mb controller setup fail, returns(0x%" PRIx32 ").",
                             (uint32_t)err);
 
     err = mbc_master_set_descriptor(&device_parameters[0], num_device_parameters);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "mb controller set descriptor fail, returns(0x%x).",
+                                "mb controller set descriptor fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)err);
     ESP_LOGI(TAG, "Modbus master stack initialized...");
 
     err = mbc_master_start();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "mb controller start fail, returns(0x%x).",
+                            "mb controller start fail, returns(0x%" PRIx32 ").",
                             (uint32_t)err);
     vTaskDelay(5);
     return err;
@@ -721,7 +721,7 @@ static esp_err_t master_destroy(void)
     esp_err_t err = mbc_master_destroy();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "mbc_master_destroy fail, returns(0x%x).",
+                                "mbc_master_destroy fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)err);
     ESP_LOGI(TAG, "Modbus master stack destroy...");
     return err;

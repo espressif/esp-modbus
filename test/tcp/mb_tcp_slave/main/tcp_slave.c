@@ -174,7 +174,7 @@ static void slave_operation_func(void *arg)
         if(event & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
             // Get parameter information from parameter queue
             ESP_ERROR_CHECK(mbc_slave_get_param_info(&reg_info, MB_PAR_INFO_GET_TOUT));
-            ESP_LOGI(TAG, "HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+            ESP_LOGI(TAG, "HOLDING %s (%" PRIu32 " us), ADDR:%" PRIu32 ", TYPE:%" PRIu32 ", INST_ADDR:0x%.4" PRIx32 ", SIZE:%" PRIu32,
                     rw_str,
                     (uint32_t)reg_info.time_stamp,
                     (uint32_t)reg_info.mb_offset,
@@ -192,7 +192,7 @@ static void slave_operation_func(void *arg)
             }
         } else if (event & MB_EVENT_INPUT_REG_RD) {
             ESP_ERROR_CHECK(mbc_slave_get_param_info(&reg_info, MB_PAR_INFO_GET_TOUT));
-            ESP_LOGI(TAG, "INPUT READ (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+            ESP_LOGI(TAG, "INPUT READ (%" PRIu32 " us), ADDR:%" PRIu32 ", TYPE:%" PRIu32 ", INST_ADDR:0x%.4" PRIx32 ", SIZE:%" PRIu32,
                     (uint32_t)reg_info.time_stamp,
                     (uint32_t)reg_info.mb_offset,
                     (uint32_t)reg_info.type,
@@ -200,7 +200,7 @@ static void slave_operation_func(void *arg)
                     (uint32_t)reg_info.size);
         } else if (event & MB_EVENT_DISCRETE_RD) {
             ESP_ERROR_CHECK(mbc_slave_get_param_info(&reg_info, MB_PAR_INFO_GET_TOUT));
-            ESP_LOGI(TAG, "DISCRETE READ (%u us): ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+            ESP_LOGI(TAG, "DISCRETE READ (%" PRIu32 " us): ADDR:%" PRIu32 ", TYPE:%" PRIu32 ", INST_ADDR:0x%.4" PRIx32 ", SIZE:%" PRIu32,
                                 (uint32_t)reg_info.time_stamp,
                                 (uint32_t)reg_info.mb_offset,
                                 (uint32_t)reg_info.type,
@@ -208,7 +208,7 @@ static void slave_operation_func(void *arg)
                                 (uint32_t)reg_info.size);
         } else if (event & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
             ESP_ERROR_CHECK(mbc_slave_get_param_info(&reg_info, MB_PAR_INFO_GET_TOUT));
-            ESP_LOGI(TAG, "COILS %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+            ESP_LOGI(TAG, "COILS %s (%" PRIu32 " us), ADDR:%" PRIu32 ", TYPE:%" PRIu32 ", INST_ADDR:0x%.4" PRIx32 ", SIZE:%" PRIu32,
                                 rw_str,
                                 (uint32_t)reg_info.time_stamp,
                                 (uint32_t)reg_info.mb_offset,
@@ -232,17 +232,17 @@ static esp_err_t init_services(void)
     }
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "nvs_flash_init fail, returns(0x%x).",
+                            "nvs_flash_init fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
     result = esp_netif_init();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "esp_netif_init fail, returns(0x%x).",
+                            "esp_netif_init fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
     result = esp_event_loop_create_default();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                             TAG,
-                            "esp_event_loop_create_default fail, returns(0x%x).",
+                            "esp_event_loop_create_default fail, returns(0x%" PRIx32 ").",
                             (uint32_t)result);
 #if CONFIG_MB_MDNS_IP_RESOLVER
     // Start mdns service and register device
@@ -254,13 +254,13 @@ static esp_err_t init_services(void)
     result = example_connect();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "example_connect fail, returns(0x%x).",
+                                "example_connect fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)result);
 #if CONFIG_EXAMPLE_CONNECT_WIFI
     result = esp_wifi_set_ps(WIFI_PS_NONE);
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                                    TAG,
-                                   "esp_wifi_set_ps fail, returns(0x%x).",
+                                   "esp_wifi_set_ps fail, returns(0x%" PRIx32 ").",
                                    (uint32_t)result);
 #endif
     return ESP_OK;
@@ -273,22 +273,22 @@ static esp_err_t destroy_services(void)
     err = example_disconnect();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                    TAG,
-                                   "example_disconnect fail, returns(0x%x).",
+                                   "example_disconnect fail, returns(0x%" PRIx32 ").",
                                    (uint32_t)err);
     err = esp_event_loop_delete_default();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                        TAG,
-                                       "esp_event_loop_delete_default fail, returns(0x%x).",
+                                       "esp_event_loop_delete_default fail, returns(0x%" PRIx32 ").",
                                        (uint32_t)err);
     err = esp_netif_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_NOT_SUPPORTED), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "esp_netif_deinit fail, returns(0x%x).",
+                                        "esp_netif_deinit fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
     err = nvs_flash_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "nvs_flash_deinit fail, returns(0x%x).",
+                                "nvs_flash_deinit fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)err);
 #if CONFIG_MB_MDNS_IP_RESOLVER
     stop_mdns_service();
@@ -316,7 +316,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_setup((void*)comm_info);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "mbc_slave_setup fail, returns(0x%x).",
+                                        "mbc_slave_setup fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
 
     // The code below initializes Modbus register area descriptors
@@ -332,7 +332,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                     TAG,
-                                    "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                    "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                     (uint32_t)err);
 
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
@@ -342,7 +342,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                     TAG,
-                                    "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                    "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                     (uint32_t)err);
 
     // Initialization of Input Registers area
@@ -353,7 +353,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                        "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
     reg_area.type = MB_PARAM_INPUT;
     reg_area.start_offset = MB_REG_INPUT_START_AREA1;
@@ -362,7 +362,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                        "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
 
     // Initialization of Coils register area
@@ -373,7 +373,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                     TAG,
-                                    "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                    "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                     (uint32_t)err);
 
     // Initialization of Discrete Inputs register area
@@ -384,7 +384,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_set_descriptor(reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                     TAG,
-                                    "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                    "mbc_slave_set_descriptor fail, returns(0x%" PRIx32 ").",
                                     (uint32_t)err);
 
     // Set values into known state
@@ -394,7 +394,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
     err = mbc_slave_start();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                         TAG,
-                                        "mbc_slave_start fail, returns(0x%x).",
+                                        "mbc_slave_start fail, returns(0x%" PRIx32 ").",
                                         (uint32_t)err);
     vTaskDelay(5);
     return err;
@@ -405,7 +405,7 @@ static esp_err_t slave_destroy(void)
     esp_err_t err = mbc_slave_destroy();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
                                 TAG,
-                                "mbc_slave_destroy fail, returns(0x%x).",
+                                "mbc_slave_destroy fail, returns(0x%" PRIx32 ").",
                                 (uint32_t)err);
     return err;
 }

@@ -82,7 +82,7 @@ static esp_err_t mbc_tcp_slave_start(void)
 
     status = eMBEnable();
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb TCP stack start failure, eMBEnable() returned (0x%x).", (uint32_t)status);
+            "mb TCP stack start failure, eMBEnable() returned (0x%" PRIx32 ").", (uint32_t)status);
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupSetBits(mbs_opts->mbs_event_group,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
@@ -188,7 +188,7 @@ esp_err_t mbc_tcp_slave_create(void** handler)
     if (status != pdPASS) {
         vTaskDelete(mbs_opts->mbs_task_handle);
         MB_SLAVE_CHECK((status == pdPASS), ESP_ERR_NO_MEM,
-                "mb controller task creation error, xTaskCreate() returns (0x%x).",
+                "mb controller task creation error, xTaskCreate() returns (0x%" PRIx32 ").",
                 (uint32_t)status);
     }
 
