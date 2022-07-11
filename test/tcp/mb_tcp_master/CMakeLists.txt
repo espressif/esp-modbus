@@ -9,7 +9,6 @@ set(EXCLUDE_COMPONENTS examples test_app test freemodbus)
 set(MB_PARAMS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../mb_example_common")
 list(APPEND EXTRA_COMPONENT_DIRS "${MB_PARAMS_DIR}")
 
-# (Not part of the boilerplate)
 # This example uses an extra component for common functions such as Wi-Fi and Ethernet connection.
 list(APPEND EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
 
