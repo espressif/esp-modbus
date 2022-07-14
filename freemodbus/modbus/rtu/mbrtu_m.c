@@ -350,7 +350,8 @@ xMBMasterRTUTransmitFSM( void )
         }
         else
         {
-            xFrameIsBroadcast = ( ucMasterRTUSndBuf[MB_SER_PDU_ADDR_OFF] == MB_ADDRESS_BROADCAST ) ? TRUE : FALSE;
+            xFrameIsBroadcast = ( ucMasterRTUSndBuf[MB_SEND_BUF_PDU_OFF - MB_SER_PDU_PDU_OFF]
+                                                        == MB_ADDRESS_BROADCAST ) ? TRUE : FALSE;
             vMBMasterRequestSetType( xFrameIsBroadcast );
             eSndState = STATE_M_TX_XFWR;
             /* If the frame is broadcast ,master will enable timer of convert delay,
