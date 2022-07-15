@@ -437,7 +437,8 @@ xMBMasterASCIITransmitFSM( void )
         /* Notify the task which called eMBMasterASCIISend that the frame has
          * been sent. */
     case STATE_M_TX_NOTIFY:
-        xFrameIsBroadcast = ( ucMasterASCIISndBuf[MB_SER_PDU_ADDR_OFF] == MB_ADDRESS_BROADCAST ) ? TRUE : FALSE;
+        xFrameIsBroadcast = ( ucMasterASCIISndBuf[MB_SEND_BUF_PDU_OFF - MB_SER_PDU_PDU_OFF] 
+                                                    == MB_ADDRESS_BROADCAST ) ? TRUE : FALSE;
         vMBMasterRequestSetType( xFrameIsBroadcast );
         eSndState = STATE_M_TX_XFWR;
         /* If the frame is broadcast ,master will enable timer of convert delay,
