@@ -44,6 +44,7 @@ after_script:
     - build
     - internet
   script:
+    - pip install idf-component-manager --upgrade
     - ./build_all.sh
   variables:
     EXAMPLE_TARGETS: "esp32"
