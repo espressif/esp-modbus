@@ -281,23 +281,27 @@ static int vMBTCPPortMasterRxCheck(int xSd, fd_set* pxFdSet, int xTimeMs)
     return xRes;
 }
 
-static int xMBTCPPortMasterGetBuf(MbSlaveInfo_t* pxInfo, UCHAR* pucDstBuf, USHORT usLength)
+static int xMBTCPPortMasterGetBuf(MbSlaveInfo_t* pxInfo, UCHAR* pucDstBuf, USHORT usLength, uint16_t xTimeMs)
 {
     int xLength = 0;
     UCHAR* pucBuf = pucDstBuf;
     USHORT usBytesLeft = usLength;
+    struct timeval xTime;
 
     MB_PORT_CHECK((pxInfo && pxInfo->xSockId > -1), -1, "Try to read incorrect socket = #%d.", pxInfo->xSockId);
+
+    // Set receive timeout for socket <= slave respond time
+    xTime.tv_sec = xTimeMs / 1000;
+    xTime.tv_usec = (xTimeMs % 1000) * 1000;
+    setsockopt(pxInfo->xSockId, SOL_SOCKET, SO_RCVTIMEO, &xTime, sizeof(xTime));
 
     // Receive data from connected client
     while (usBytesLeft > 0) {
         xMBTCPPortMasterCheckShutdown();
-        // none blocking read from socket with timeout
-        xLength = recv(pxInfo->xSockId, pucBuf, usBytesLeft, MSG_DONTWAIT);
+        xLength = recv(pxInfo->xSockId, pucBuf, usBytesLeft, 0); 
         if (xLength < 0) {
             if (errno == EAGAIN) {
-                // Read timeout occurred, continue reading
-                continue;
+                // Read timeout occurred, check the timeout and return
             } else if (errno == ENOTCONN) {
                 // Socket connection closed
                 ESP_LOGE(TAG, "Socket(#%d)(%s) connection closed.",
@@ -316,7 +320,6 @@ static int xMBTCPPortMasterGetBuf(MbSlaveInfo_t* pxInfo, UCHAR* pucDstBuf, USHOR
         if (xMBTCPPortMasterGetRespTimeLeft(pxInfo) == 0) {
             return ERR_TIMEOUT;
         }
-        vTaskDelay(1);
     }
     return usLength;
 }
@@ -331,7 +334,8 @@ static int vMBTCPPortMasterReadPacket(MbSlaveInfo_t* pxInfo)
     if (pxInfo) {
         MB_PORT_CHECK((pxInfo->xSockId > 0), -1, "Try to read incorrect socket = #%d.", pxInfo->xSockId);
         // Read packet header
-        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[0], MB_TCP_UID);
+        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[0], 
+                                        MB_TCP_UID, xMBTCPPortMasterGetRespTimeLeft(pxInfo));
         if (xRet < 0) {
             pxInfo->xRcvErr = xRet;
             return xRet;
@@ -344,7 +348,8 @@ static int vMBTCPPortMasterReadPacket(MbSlaveInfo_t* pxInfo)
         // If we have received the MBAP header we can analyze it and calculate
         // the number of bytes left to complete the current request.
         xLength = (int)MB_TCP_GET_FIELD(pxInfo->pucRcvBuf, MB_TCP_LEN);
-        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[MB_TCP_UID], xLength);
+        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[MB_TCP_UID], 
+                                        xLength, xMBTCPPortMasterGetRespTimeLeft(pxInfo));
         if (xRet < 0) {
             pxInfo->xRcvErr = xRet;
             return xRet;
@@ -847,12 +852,13 @@ static void vMBTCPPortMasterTask(void *pvParameters)
                                     pxCurrInfo->xIndex, pxCurrInfo->xSockId, pxCurrInfo->pcIpAddr);
                     } else if ((xRet == ERR_TIMEOUT) || (xMBTCPPortMasterGetRespTimeLeft(pxCurrInfo) == 0)) {
                         // Timeout occurred when receiving frame, process respond timeout
+                        xMBTCPPortMasterFsmSetError(EV_ERROR_RESPOND_TIMEOUT, EV_MASTER_ERROR_PROCESS);
                         ESP_LOGD(TAG, MB_SLAVE_FMT(", frame read timeout."),
                                     pxCurrInfo->xIndex, pxCurrInfo->xSockId, pxCurrInfo->pcIpAddr);
                     } else if (xRet == ERR_BUF) {
                         // After retries a response with incorrect TID received, process failure.
                         xMBTCPPortMasterFsmSetError(EV_ERROR_RECEIVE_DATA, EV_MASTER_ERROR_PROCESS);
-                        ESP_LOGD(TAG, MB_SLAVE_FMT(", frame error."),
+                        ESP_LOGW(TAG, MB_SLAVE_FMT(", frame error."),
                                     pxCurrInfo->xIndex, pxCurrInfo->xSockId, pxCurrInfo->pcIpAddr);
                     } else {
                         ESP_LOGE(TAG, MB_SLAVE_FMT(", critical error=%d."),
