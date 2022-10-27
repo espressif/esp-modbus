@@ -187,13 +187,16 @@ BOOL xMBMasterRunResTake( LONG lTimeOut )
 
 /**
  * This function is release Modbus Master running resource.
- * Note:The resource is define by Operating System.If you not use OS this function can be empty.
+ * Note:The resource is define by Operating System. If you not use OS this function can be empty.
  */
 void vMBMasterRunResRelease( void )
 {
     EventBits_t uxBits = xEventGroupSetBits( xResourceMasterHdl, MB_EVENT_RESOURCE );
-    MB_PORT_CHECK((uxBits == MB_EVENT_RESOURCE), ; , "Resource release failure.");
-    ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%x).", __func__, uxBits);
+    if (uxBits != MB_EVENT_RESOURCE) {
+        // The returned resource mask may be = 0, if the task waiting for it is unblocked.
+        // This is not an error but expected behavior.
+        ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%x) fail.", __func__, uxBits);
+    }
 }
 
 /**
