@@ -164,7 +164,7 @@ eMBMasterRTUReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame, USHORT * pusLengt
     UCHAR          *pucMBRTUFrame = ( UCHAR* ) ucMasterRTURcvBuf;
     USHORT          usFrameLength = usMasterRcvBufferPos;
 
-    if( xMBMasterSerialPortGetResponse( &pucMBRTUFrame, &usFrameLength ) == FALSE )
+    if( xMBMasterPortSerialGetResponse( &pucMBRTUFrame, &usFrameLength ) == FALSE )
     {
         return MB_EIO;
     }
@@ -231,7 +231,7 @@ eMBMasterRTUSend( UCHAR ucSlaveAddress, const UCHAR * pucFrame, USHORT usLength 
         /* Activate the transmitter. */
         eSndState = STATE_M_TX_XMIT;
         
-        if ( xMBMasterSerialPortSendRequest( ( UCHAR * ) pucMasterSndBufferCur, usMasterSndBufferCount ) == FALSE )
+        if ( xMBMasterPortSerialSendRequest( ( UCHAR * ) pucMasterSndBufferCur, usMasterSndBufferCount ) == FALSE )
         {
             eStatus = MB_EIO;
         }

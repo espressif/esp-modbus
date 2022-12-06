@@ -145,9 +145,9 @@ BOOL            xMBPortSerialGetByte( CHAR * pucByte );
 
 BOOL            xMBPortSerialPutByte( CHAR ucByte );
 
-BOOL            xMBSerialPortGetRequest( UCHAR **ppucMBSerialFrame, USHORT * pusSerialLength ) __attribute__ ((weak));
+BOOL            xMBPortSerialGetRequest( UCHAR **ppucMBSerialFrame, USHORT * pusSerialLength ) __attribute__ ((weak));
 
-BOOL            xMBSerialPortSendResponse( UCHAR *pucMBSerialFrame, USHORT usSerialLength ) __attribute__ ((weak));
+BOOL            xMBPortSerialSendResponse( UCHAR *pucMBSerialFrame, USHORT usSerialLength ) __attribute__ ((weak));
 
 #if MB_MASTER_RTU_ENABLED || MB_MASTER_ASCII_ENABLED
 BOOL            xMBMasterPortSerialInit( UCHAR ucPort, ULONG ulBaudRate,
@@ -163,9 +163,11 @@ BOOL            xMBMasterPortSerialGetByte( CHAR * pucByte );
 
 BOOL            xMBMasterPortSerialPutByte( CHAR ucByte );
 
-BOOL            xMBMasterSerialPortGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength );
+BOOL            xMBMasterPortSerialGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength ); 
 
-BOOL            xMBMasterSerialPortSendRequest( UCHAR *pucMBSerialFrame, USHORT usSerialLength );
+BOOL            xMBMasterPortSerialSendRequest( UCHAR *pucMBSerialFrame, USHORT usSerialLength );
+
+void            vMBMasterRxFlush( void );
 
 #endif
 
