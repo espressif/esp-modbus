@@ -52,6 +52,9 @@
 #include "port_serial_master.h"
 
 /* ----------------------- Defines ------------------------------------------*/
+#define MB_SERIAL_RX_SEMA_TOUT_MS   (1000)
+#define MB_SERIAL_RX_SEMA_TOUT      (pdMS_TO_TICKS(MB_SERIAL_RX_SEMA_TOUT_MS))
+#define MB_SERIAL_RX_FLUSH_RETRY    (2)
 
 /* ----------------------- Static variables ---------------------------------*/
 static const CHAR *TAG = "MB_MASTER_SERIAL";
@@ -66,16 +69,67 @@ static UCHAR ucUartNumber = UART_NUM_MAX - 1;
 static BOOL bRxStateEnabled = FALSE; // Receiver enabled flag
 static BOOL bTxStateEnabled = FALSE; // Transmitter enabled flag
 
+static SemaphoreHandle_t xMasterSemaRxHandle; // Rx blocking semaphore handle
+
+static BOOL xMBMasterPortRxSemaInit( void )
+{
+    xMasterSemaRxHandle = xSemaphoreCreateBinary();
+    MB_PORT_CHECK((xMasterSemaRxHandle != NULL), FALSE , "%s: RX semaphore create failure.", __func__);
+    return TRUE;
+}
+
+static BOOL xMBMasterPortRxSemaTake( LONG lTimeOut )
+{
+    BaseType_t xStatus = pdTRUE;
+    xStatus = xSemaphoreTake(xMasterSemaRxHandle, lTimeOut );
+    MB_PORT_CHECK((xStatus == pdTRUE), FALSE , "%s: RX semaphore take failure.", __func__);
+    ESP_LOGV(MB_PORT_TAG,"%s:Take RX semaphore (%lu ticks).", __func__, lTimeOut);
+    return TRUE;
+}
+
+static void vMBMasterRxSemaRelease( void )
+{
+    BaseType_t xStatus = pdFALSE;
+    xStatus = xSemaphoreGive(xMasterSemaRxHandle);
+    if (xStatus != pdTRUE) {
+        ESP_LOGD(MB_PORT_TAG,"%s:RX semaphore is free.", __func__);
+    }
+}
+
+static BOOL vMBMasterRxSemaIsBusy( void )
+{
+    BaseType_t xStatus = pdFALSE;
+    xStatus = (uxSemaphoreGetCount(xMasterSemaRxHandle) == 0) ? TRUE : FALSE;
+    return xStatus;
+}
+
+void vMBMasterRxFlush( void )
+{
+    size_t xSize = 1;
+    esp_err_t xErr = ESP_OK;
+    for (int xCount = 0; (xCount < MB_SERIAL_RX_FLUSH_RETRY) && xSize; xCount++) {
+        xErr = uart_get_buffered_data_len(ucUartNumber, &xSize);
+        MB_PORT_CHECK((xErr == ESP_OK), ; , "mb flush serial fail, error = 0x%x.", xErr);
+        BaseType_t xStatus = xQueueReset(xMbUartQueue);
+        if (xStatus) {
+            xErr = uart_flush_input(ucUartNumber);
+            MB_PORT_CHECK((xErr == ESP_OK), ; , "mb flush serial fail, error = 0x%x.", xErr);
+        }
+    }
+}
+
 void vMBMasterPortSerialEnable(BOOL bRxEnable, BOOL bTxEnable)
 {
     // This function can be called from xMBRTUTransmitFSM() of different task
     if (bTxEnable) {
+        vMBMasterRxFlush();
         bTxStateEnabled = TRUE;
     } else {
         bTxStateEnabled = FALSE;
     }
     if (bRxEnable) {
         bRxStateEnabled = TRUE;
+        vMBMasterRxSemaRelease();
         vTaskResume(xMbTaskHandle); // Resume receiver task
     } else {
         vTaskSuspend(xMbTaskHandle); // Block receiver task
@@ -88,12 +142,12 @@ static USHORT usMBMasterPortSerialRxPoll(size_t xEventSize)
     BOOL xStatus = TRUE;
     USHORT usCnt = 0;
 
-    if (bRxStateEnabled) {
+    xStatus = xMBMasterPortRxSemaTake(MB_SERIAL_RX_SEMA_TOUT);
+    if (xStatus) {
         while(xStatus && (usCnt++ <= xEventSize)) {
             // Call the Modbus stack callback function and let it fill the stack buffers.
             xStatus = pxMBMasterFrameCBByteReceived(); // callback to receive FSM
         }
-
         // The buffer is transferred into Modbus stack and is not needed here any more
         uart_flush_input(ucUartNumber);
         ESP_LOGD(TAG, "Received data: %d(bytes in buffer)\n", (uint32_t)usCnt);
@@ -147,13 +201,17 @@ static void vUartTask(void* pvParameters)
                     // This flag set in the event means that no more
                     // data received during configured timeout and UART TOUT feature is triggered
                     if (xEvent.timeout_flag) {
+                        // Response is received but previous packet processing is pending
+                        // Do not wait completion of processing and just discard received data as incorrect
+                        if (vMBMasterRxSemaIsBusy()) {
+                            vMBMasterRxFlush();
+                            break;
+                        }
                         // Get buffered data length
                         ESP_ERROR_CHECK(uart_get_buffered_data_len(ucUartNumber, &xEvent.size));
                         // Read received data and send it to modbus stack
                         usResult = usMBMasterPortSerialRxPoll(xEvent.size);
                         ESP_LOGD(TAG,"Timeout occured, processed: %d bytes", usResult);
-                        // Block receiver task until data is not processed
-                        vTaskSuspend(NULL);
                     }
                     break;
                 //Event of HW FIFO overflow detected
@@ -253,7 +311,8 @@ BOOL xMBMasterPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, 
 
     // Set always timeout flag to trigger timeout interrupt even after rx fifo full
     uart_set_always_rx_timeout(ucUartNumber, true);
-
+    MB_PORT_CHECK((xMBMasterPortRxSemaInit()), FALSE,
+                        "mb serial RX semaphore create fail.");
     // Create a task to handle UART events
     BaseType_t xStatus = xTaskCreatePinnedToCore(vUartTask, "uart_queue_task",
                                                     MB_SERIAL_TASK_STACK_SIZE,
@@ -269,24 +328,6 @@ BOOL xMBMasterPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, 
         vTaskSuspend(xMbTaskHandle); // Suspend serial task while stack is not started
     }
     ESP_LOGD(MB_PORT_TAG,"%s Init serial.", __func__);
-    return TRUE;
-}
-
-/*
- * The function is called from ASCII/RTU module to get processed data buffer. Sets the
- * received buffer and its length using parameters.
- */
-BOOL xMBMasterSerialPortGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength )
-{
-    return TRUE;
-}
-
-/*
- * The function is called from ASCII/RTU module to set processed data buffer
- * to be sent in transmitter state machine.
- */
-BOOL xMBMasterSerialPortSendRequest( UCHAR *pucMBSerialFrame, USHORT usSerialLength )
-{
     return TRUE;
 }
 

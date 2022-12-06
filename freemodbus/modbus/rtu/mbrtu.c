@@ -158,7 +158,7 @@ eMBRTUReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame, USHORT * pusLength )
     UCHAR          *pucMBRTUFrame = ( UCHAR* ) ucRTUBuf;
     USHORT          usFrameLength = usRcvBufferPos;
 
-    if( xMBSerialPortGetRequest( &pucMBRTUFrame, &usFrameLength ) == FALSE )
+    if( xMBPortSerialGetRequest( &pucMBRTUFrame, &usFrameLength ) == FALSE )
     {
         return MB_EIO;
     }
@@ -222,7 +222,7 @@ eMBRTUSend( UCHAR ucSlaveAddress, const UCHAR * pucFrame, USHORT usLength )
         eSndState = STATE_TX_XMIT;
         EXIT_CRITICAL_SECTION(  );
 
-        if( xMBSerialPortSendResponse( ( UCHAR * ) pucSndBufferCur, usSndBufferCount ) == FALSE )
+        if( xMBPortSerialSendResponse( ( UCHAR * ) pucSndBufferCur, usSndBufferCount ) == FALSE )
         {
             eStatus = MB_EIO;
         }

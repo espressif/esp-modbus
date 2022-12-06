@@ -157,7 +157,7 @@ eMBMasterASCIIReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame, USHORT * pusLen
     UCHAR          *pucMBASCIIFrame = ( UCHAR* ) ucMasterASCIIRcvBuf;
     USHORT          usFrameLength = usMasterRcvBufferPos;
 
-    if( xMBMasterSerialPortGetResponse( &pucMBASCIIFrame, &usFrameLength ) == FALSE )
+    if( xMBMasterPortSerialGetResponse( &pucMBASCIIFrame, &usFrameLength ) == FALSE )
     {
         return MB_EIO;
     }
@@ -181,8 +181,8 @@ eMBMasterASCIIReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame, USHORT * pusLen
 
        /* Return the start of the Modbus PDU to the caller. */
        *pucFrame = ( UCHAR * ) & pucMBASCIIFrame[MB_SER_PDU_PDU_OFF];
-   } else {
-        eStatus = MB_EIO;
+    } else {
+      eStatus = MB_EIO;
     }
     EXIT_CRITICAL_SECTION(  );
     return eStatus;
@@ -219,7 +219,7 @@ eMBMasterASCIISend( UCHAR ucSlaveAddress, const UCHAR * pucFrame, USHORT usLengt
         eSndState = STATE_M_TX_START;
         EXIT_CRITICAL_SECTION(  );
 
-        if ( xMBMasterSerialPortSendRequest( ( UCHAR * ) pucMasterSndBufferCur, usMasterSndBufferCount ) == FALSE )
+        if ( xMBMasterPortSerialSendRequest( ( UCHAR * ) pucMasterSndBufferCur, usMasterSndBufferCount ) == FALSE )
         {
             eStatus = MB_EIO;
         }

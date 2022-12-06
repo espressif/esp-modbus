@@ -260,17 +260,6 @@ BOOL xMBPortSerialInit(UCHAR ucPORT, ULONG ulBaudRate,
     return TRUE;
 }
 
-BOOL xMBSerialPortGetRequest( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength )
-{
-    BOOL eStatus = TRUE;
-    return eStatus;
-}
-
-BOOL xMBSerialPortSendResponse( UCHAR *pucMBSerialFrame, USHORT usSerialLength )
-{
-    return TRUE;
-}
-
 void vMBPortSerialClose(void)
 {
     (void)vTaskSuspend(xMbTaskHandle);
