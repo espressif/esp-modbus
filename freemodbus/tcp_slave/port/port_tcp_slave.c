@@ -205,6 +205,10 @@ static int xMBTCPPortAcceptConnection(int xListenSockId, char** pcIPAddr)
             inet6_ntoa_r(((struct sockaddr_in6 *)&xSrcAddr)->sin6_addr, cAddrStr, sizeof(cAddrStr) - 1);
         }
 #endif
+        else {
+            // Make sure ss_family is valid
+            abort();
+        }
         ESP_LOGI(TAG, "Socket (#%d), accept client connection from address: %s", xSockId, cAddrStr);
         pcStr = calloc(1, strlen(cAddrStr) + 1);
         if (pcStr && pcIPAddr) {
