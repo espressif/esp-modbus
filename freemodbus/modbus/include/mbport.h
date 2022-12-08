@@ -163,7 +163,7 @@ BOOL            xMBMasterPortSerialGetByte( CHAR * pucByte );
 
 BOOL            xMBMasterPortSerialPutByte( CHAR ucByte );
 
-BOOL            xMBMasterPortSerialGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength ); 
+BOOL            xMBMasterPortSerialGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength );
 
 BOOL            xMBMasterPortSerialSendRequest( UCHAR *pucMBSerialFrame, USHORT usSerialLength );
 
