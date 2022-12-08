@@ -363,8 +363,8 @@ eMBMasterPoll( void )
                     MB_PORT_CHECK(ucMBRcvFrame, MB_EILLSTATE, "Receive buffer initialization fail.");
                     MB_PORT_CHECK(ucMBSendFrame, MB_EILLSTATE, "Send buffer initialization fail.");
                     // Check if the frame is for us. If not ,send an error process event.
-                    if ( ( eStatus == MB_ENOERR ) && ( ucRcvAddress == ucMBMasterGetDestAddress() ) )
-                    {
+                    if ( ( eStatus == MB_ENOERR ) && ( ( ucRcvAddress == ucMBMasterGetDestAddress() )
+                                                    || ( ucRcvAddress == MB_TCP_PSEUDO_ADDRESS) ) ) {
                         if ( ( ucMBRcvFrame[MB_PDU_FUNC_OFF]  & ~MB_FUNC_ERROR ) == ( ucMBSendFrame[MB_PDU_FUNC_OFF] ) ) {
                             ESP_LOGD(MB_PORT_TAG, "%s: Packet data received successfully (%u).", __func__, eStatus);
                             ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)ucMBRcvFrame, (uint16_t)usLength, ESP_LOG_DEBUG);
@@ -376,9 +376,7 @@ eMBMasterPoll( void )
                             vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                             ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         }
-                    }
-                    else
-                    {
+                    } else {
                         vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                         ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         ESP_LOGD( MB_PORT_TAG, "%s: Packet data receive failed (addr=%u)(%u).",

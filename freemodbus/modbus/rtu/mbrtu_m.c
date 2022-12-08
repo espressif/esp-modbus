@@ -230,12 +230,12 @@ eMBMasterRTUSend( UCHAR ucSlaveAddress, const UCHAR * pucFrame, USHORT usLength 
 
         /* Activate the transmitter. */
         eSndState = STATE_M_TX_XMIT;
-        
+
         if ( xMBMasterPortSerialSendRequest( ( UCHAR * ) pucMasterSndBufferCur, usMasterSndBufferCount ) == FALSE )
         {
             eStatus = MB_EIO;
         }
-        
+
         // The place to enable RS485 driver
         vMBMasterPortSerialEnable( FALSE, TRUE );
     }

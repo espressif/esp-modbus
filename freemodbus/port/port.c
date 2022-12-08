@@ -91,7 +91,7 @@ BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, U
  * received buffer and its length using parameters.
  */
 __attribute__ ((weak))
-BOOL xMBMasterPortSerialGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength ) 
+BOOL xMBMasterPortSerialGetResponse( UCHAR **ppucMBSerialFrame, USHORT * usSerialLength )
 {
     ESP_LOGD(MB_PORT_TAG, " %s default", __func__);
     return TRUE;

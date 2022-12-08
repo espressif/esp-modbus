@@ -565,7 +565,7 @@ static void vMBTCPPortServerTask(void *pvParameters)
                                                                             pxClientInfo->xSockId, pxClientInfo->pcIpAddr, xErr);
                                         break;
                                 }
-                                
+
                                 if (xShutdownSemaphore) {
                                     xSemaphoreGive(xShutdownSemaphore);
                                     vTaskDelete(NULL);

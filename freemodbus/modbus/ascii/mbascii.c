@@ -158,7 +158,7 @@ eMBASCIIReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame, USHORT * pusLength )
     {
         return MB_EIO;
     }
-    
+
     ENTER_CRITICAL_SECTION(  );
     assert( usFrameLength < MB_SER_PDU_SIZE_MAX );
 
@@ -193,7 +193,7 @@ eMBASCIISend( UCHAR ucSlaveAddress, const UCHAR * pucFrame, USHORT usLength )
     eMBErrorCode    eStatus = MB_ENOERR;
     UCHAR           usLRC;
 
-   
+
     /* Check if the receiver is still in idle state. If not we where too
      * slow with processing the received frame and the master sent another
      * frame on the network. We have to abort sending the frame.

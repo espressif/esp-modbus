@@ -298,7 +298,7 @@ static int xMBTCPPortMasterGetBuf(MbSlaveInfo_t* pxInfo, UCHAR* pucDstBuf, USHOR
     // Receive data from connected client
     while (usBytesLeft > 0) {
         xMBTCPPortMasterCheckShutdown();
-        xLength = recv(pxInfo->xSockId, pucBuf, usBytesLeft, 0); 
+        xLength = recv(pxInfo->xSockId, pucBuf, usBytesLeft, 0);
         if (xLength < 0) {
             if (errno == EAGAIN) {
                 // Read timeout occurred, check the timeout and return
@@ -334,7 +334,7 @@ static int vMBTCPPortMasterReadPacket(MbSlaveInfo_t* pxInfo)
     if (pxInfo) {
         MB_PORT_CHECK((pxInfo->xSockId > 0), -1, "Try to read incorrect socket = #%d.", pxInfo->xSockId);
         // Read packet header
-        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[0], 
+        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[0],
                                         MB_TCP_UID, xMBTCPPortMasterGetRespTimeLeft(pxInfo));
         if (xRet < 0) {
             pxInfo->xRcvErr = xRet;
@@ -348,7 +348,7 @@ static int vMBTCPPortMasterReadPacket(MbSlaveInfo_t* pxInfo)
         // If we have received the MBAP header we can analyze it and calculate
         // the number of bytes left to complete the current request.
         xLength = (int)MB_TCP_GET_FIELD(pxInfo->pucRcvBuf, MB_TCP_LEN);
-        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[MB_TCP_UID], 
+        xRet = xMBTCPPortMasterGetBuf(pxInfo, &pxInfo->pucRcvBuf[MB_TCP_UID],
                                         xLength, xMBTCPPortMasterGetRespTimeLeft(pxInfo));
         if (xRet < 0) {
             pxInfo->xRcvErr = xRet;
