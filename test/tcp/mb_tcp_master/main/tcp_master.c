@@ -429,7 +429,7 @@ static void master_destroy_slave_list(char** table, size_t ip_table_size)
 {
 #if CONFIG_MB_MDNS_IP_RESOLVER
     slave_addr_entry_t *it;
-    LIST_FOREACH(it, &slave_addr_list, entries) {
+    while ((it = LIST_FIRST(&slave_addr_list))) {
         LIST_REMOVE(it, entries);
         free(it);
     }

@@ -69,7 +69,7 @@ static void mbc_slave_free_descriptors(void) {
     mb_slave_options_t* mbs_opts = &slave_interface_ptr->opts;
 
     for (int descr_type = 0; descr_type < MB_PARAM_COUNT; descr_type++) {
-        for (it = LIST_FIRST(&mbs_opts->mbs_area_descriptors[descr_type]); it != NULL; it = LIST_NEXT(it, entries)) {
+        while ((it = LIST_FIRST(&mbs_opts->mbs_area_descriptors[descr_type]))) {
             LIST_REMOVE(it, entries);
             free(it);
         }
