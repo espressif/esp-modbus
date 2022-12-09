@@ -3,10 +3,11 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := modbus_master
+PROJECT_NAME := modbus_tcp_master
 
 EXTRA_COMPONENT_DIRS := ../../../
 EXTRA_COMPONENT_DIRS += ../../mb_example_common
-EXCLUDE_COMPONENTS := examples test freemodbus
+EXTRA_COMPONENT_DIRS += $(IDF_PATH)/examples/common_components/protocol_examples_common
+EXCLUDE_COMPONENTS := tests freemodbus
 
 include $(IDF_PATH)/make/project.mk

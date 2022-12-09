@@ -84,9 +84,9 @@ function build_folders
 
 echo "${STARS}"
 # Build the tests
-build_folders test/serial "${TEST_TARGETS}"
+build_folders tests/serial "${TEST_TARGETS}"
 echo "${STARS}"
 # Build the tests
-build_folders test/tcp "${TEST_TARGETS}"
+build_folders tests/tcp "${TEST_TARGETS}"
 echo "${STARS}"
 
