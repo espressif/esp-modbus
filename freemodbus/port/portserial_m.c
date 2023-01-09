@@ -78,6 +78,14 @@ static BOOL xMBMasterPortRxSemaInit( void )
     return TRUE;
 }
 
+static void vMBMasterPortRxSemaClose( void )
+{
+    if (xMasterSemaRxHandle) {
+        vSemaphoreDelete(xMasterSemaRxHandle);
+        xMasterSemaRxHandle = NULL;
+    }
+}
+
 static BOOL xMBMasterPortRxSemaTake( LONG lTimeOut )
 {
     BaseType_t xStatus = pdTRUE;
@@ -337,6 +345,7 @@ BOOL xMBMasterPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, 
 
 void vMBMasterPortSerialClose(void)
 {
+    vMBMasterPortRxSemaClose();
     (void)vTaskDelete(xMbTaskHandle);
     ESP_ERROR_CHECK(uart_driver_delete(ucUartNumber));
 }
