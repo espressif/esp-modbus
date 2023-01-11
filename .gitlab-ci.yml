@@ -28,7 +28,6 @@ after_script:
   # Just for cleaning space, no other causes
   - git clean -ffdx
 
-
 # This template gets expanded multiple times, once for every IDF version.
 # IDF version is specified by setting the espressif/idf image tag.
 #
@@ -59,26 +58,36 @@ build_idf_v4.2:
   image: espressif/idf:release-v4.2
   variables:
     EXAMPLE_TARGETS: "esp32 esp32s2"
+    TEST_TARGETS: "esp32 esp32s2"
 
 build_idf_v4.3:
   extends: .build_template
   image: espressif/idf:release-v4.3
   variables:
     EXAMPLE_TARGETS: "esp32 esp32s2 esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32c3"
 
 build_idf_v4.4:
   extends: .build_template
   image: espressif/idf:release-v4.4
   variables:
     EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
-    TEST_TARGETS: "esp32 esp32s3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
+
+build_idf_v5.0:
+  extends: .build_template
+  image: espressif/idf:release-v5.0
+  variables:
+    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+    SKIP_GNU_MAKE_BUILD: 1
 
 build_idf_latest:
   extends: .build_template
   image: espressif/idf:latest
   variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3 esp32c2"
-    TEST_TARGETS: "esp32 esp32s3 esp32c2"
+    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6"
     # GNU Make based build system is not supported starting from IDF v5.0
     SKIP_GNU_MAKE_BUILD: 1
 
