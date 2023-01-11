@@ -222,7 +222,11 @@ BOOL xMBPortSerialInit(UCHAR ucPORT, ULONG ulBaudRate,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .rx_flow_ctrl_thresh = 2,
-        .source_clk = UART_SCLK_APB
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+        .source_clk = UART_SCLK_DEFAULT,
+#else
+        .source_clk = UART_SCLK_APB,
+#endif
     };
     // Set UART config
     xErr = uart_param_config(ucUartNumber, &xUartConfig);
