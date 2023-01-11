@@ -4,8 +4,8 @@ menu "Modbus Example Configuration"
         int "UART port number"
         range 0 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
         default 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
-        range 0 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3
-        default 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3
+        range 0 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        default 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
         help
             UART communication port number for Modbus example.
 
@@ -23,7 +23,8 @@ menu "Modbus Example Configuration"
         range 0 46 if IDF_TARGET_ESP32S2
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
-        default 8 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        default 8 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
         help
             GPIO number for UART RX pin. See UART documentation for more information
             about available pin numbers for UART.
@@ -35,7 +36,8 @@ menu "Modbus Example Configuration"
         range 0 46 if IDF_TARGET_ESP32S2
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
-        default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
         help
             GPIO number for UART TX pin. See UART documentation for more information
             about available pin numbers for UART.
@@ -47,7 +49,8 @@ menu "Modbus Example Configuration"
         range 0 46 if IDF_TARGET_ESP32S2
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
-        default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
         help
             GPIO number for UART RTS pin. This pin is connected to
             ~RE/DE pin of RS485 transceiver to switch direction.

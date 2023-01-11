@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-S2 | ESP32-S3 | ESP32-C3 |
-| ----------------- | ----- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-S2 | ESP32-S3 | ESP32-C3 | ESP32-C2 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- |
 
 # Modbus Slave Example
 
@@ -47,7 +47,7 @@ Configure the UART pins used for modbus communication using the command and tabl
 ```
   --------------------------------------------------------------------------------------------------------------------------
   |  UART Interface       | #define            | Default ESP32 Pin     | Default pins for      | External RS485 Driver Pin |
-  |                       |                    |                       | ESP32-S2(S3, C3)      |                           |
+  |                       |                    |                       | ESP32-S2(S3, C3, C2)  |                           |
   | ----------------------|--------------------|-----------------------|-----------------------|---------------------------|
   | Transmit Data (TxD)   | CONFIG_MB_UART_TXD | GPIO23                | GPIO9                 | DI                        |
   | Receive Data (RxD)    | CONFIG_MB_UART_RXD | GPIO22                | GPIO8                 | RO                        |
