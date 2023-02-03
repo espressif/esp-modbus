@@ -94,12 +94,14 @@ typedef struct {
     mb_param_perms_t    access;             /*!< Access permissions based on mode */
 } mb_parameter_descriptor_t;
 
-/**
+typedef enum eMbCommands_t mb_function_codes_t;
+
+/**<
  * @brief Modbus register request type structure
  */
 typedef struct {
     uint8_t slave_addr;             /*!< Modbus slave address */
-    uint8_t command;                /*!< Modbus command to send */
+    mb_function_codes_t command;    /*!< Modbus command to send */
     uint16_t reg_start;             /*!< Modbus start register */
     uint16_t reg_size;              /*!< Modbus number of registers */
 } mb_param_request_t;

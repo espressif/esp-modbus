@@ -9,14 +9,17 @@
 
 #include "driver/uart.h"                    // for UART types
 
+#include "port.h"
+#include "mbproto.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #if __has_include("esp_check.h")
+
 #include "esp_check.h"
 #include "esp_log.h"
-
 #define MB_RETURN_ON_FALSE(a, err_code, tag, format, ...) ESP_RETURN_ON_FALSE(a, err_code, tag, format __VA_OPT__(,) __VA_ARGS__)
 
 #else
