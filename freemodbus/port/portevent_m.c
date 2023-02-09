@@ -292,12 +292,12 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
         xEventGroupSetBits( xEventGroupMasterConfirmHdl, (xRecvedEvent & MB_EVENT_REQ_MASK) );
         if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_PROCESS_SUCCESS)) {
             eErrStatus = MB_MRE_NO_ERR;
-        } else if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_ERROR_RESPOND_TIMEOUT)) {
-            eErrStatus = MB_MRE_TIMEDOUT;
         } else if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_ERROR_RECEIVE_DATA)) {
             eErrStatus = MB_MRE_REV_DATA;
         } else if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_ERROR_EXECUTE_FUNCTION)) {
             eErrStatus = MB_MRE_EXE_FUN;
+        } else if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_ERROR_RESPOND_TIMEOUT)) {
+            eErrStatus = MB_MRE_TIMEDOUT;
         }
     } else {
         ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%x", __func__, uxBits);

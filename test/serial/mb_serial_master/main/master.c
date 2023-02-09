@@ -256,7 +256,7 @@ static esp_err_t master_init(void)
             .mode = MB_MODE_RTU,
 #endif
             .baudrate = MB_DEV_SPEED,
-            .parity = MB_PARITY_NONE
+            .parity = UART_PARITY_EVEN
     };
     void* master_handler = NULL;
 

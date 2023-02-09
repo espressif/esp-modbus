@@ -108,7 +108,7 @@ void app_main(void)
     comm_info.slave_addr = MB_SLAVE_ADDR;
     comm_info.port = MB_PORT_NUM;
     comm_info.baudrate = MB_DEV_SPEED;
-    comm_info.parity = MB_PARITY_NONE;
+    comm_info.parity = UART_PARITY_EVEN;
     ESP_ERROR_CHECK(mbc_slave_setup((void*)&comm_info));
 
     // The code below initializes Modbus register area descriptors

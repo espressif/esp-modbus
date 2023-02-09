@@ -159,6 +159,17 @@ typedef struct {
     BOOL xTimerState;
 } xTimerContext_t;
 
+typedef struct {
+    QueueHandle_t xMbUartQueue;             /*!< A queue to handle UART event. */
+    TaskHandle_t  xMbTaskHandle;            /*!< Serial task handle */
+    UCHAR ucUartNumber;                     /*!< The UART hardware port number */
+    BOOL bRxStateEnabled;                   /*!< Receiver enabled flag */
+    BOOL bTxStateEnabled;                   /*!< Transmitter enabled flag */
+    SemaphoreHandle_t xRxSemaHandle;        /*!< Rx blocking semaphore handle */
+    ULONG ulParityErrors;                   /*!< Parity errors counter */
+    ULONG ulFrameErrors;                    /*!< Frame errors counter */
+} MBMSerialContext_t;
+
 void vMBPortEnterCritical(void);
 void vMBPortExitCritical(void);
 
