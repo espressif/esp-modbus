@@ -1,11 +1,14 @@
 stages:
   - build
+  - target_test
   - deploy
 
 variables:
   # System environment
+  TARGET_TEST_ENV_IMAGE: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:2"
   ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.0:2-2"
   ESP_DOCS_PATH: "$CI_PROJECT_DIR"
+  TEST_DIR: "$CI_PROJECT_DIR/test"
 
   # GitLab-CI environment
   GET_SOURCES_ATTEMPTS: "10"
@@ -28,68 +31,156 @@ after_script:
   # Just for cleaning space, no other causes
   - git clean -ffdx
 
-# This template gets expanded multiple times, once for every IDF version.
-# IDF version is specified by setting the espressif/idf image tag.
-#
-# EXAMPLE_TARGETS sets the list of IDF_TARGET values to build examples for.
-# It should be equal to the list of targets supported by the specific IDF version.
-#
-# TEST_TARGETS sets the list of IDF_TARGET values to build the test_app for.
-# It should contain only the targets with optimized assembly implementations.
-#
 .build_template:
   stage: build
   tags:
     - build
-    - internet
-  script:
-    - pip install idf-component-manager --upgrade
-    - ./build_all.sh
   variables:
-    EXAMPLE_TARGETS: "esp32"
+    SIZE_INFO_LOCATION: "${TEST_DIR}/size_info.txt"
+    IDF_CCACHE_ENABLE: "1"
+  after_script:
+    # Show ccache statistics if enabled globally
+    - test "$CI_CCACHE_STATS" == 1 && test -n "$(which ccache)" && ccache --show-stats || true
+  dependencies: []
+
+.before_script_build_jobs:
+  before_script:
+    - pip install idf-component-manager --upgrade
+    - pip install "idf_build_apps~=0.3.0"
+
+# This template gets expanded multiple times, once for every IDF version.
+# IDF version is specified by setting the espressif/idf image tag.
+#
+# TEST_TARGETS sets the list of IDF_TARGET values to build the test for.
+# It should contain only the targets with optimized assembly implementations.
+#
+.build_pytest_template:
+  stage: build
+  extends:
+    - .build_template
+    - .before_script_build_jobs
+  artifacts:
+    paths:
+      - "**/build*/size.json"
+      - "**/build*/build.log"
+      - "**/build*/build_log.txt"
+      - "**/build*/*.bin"
+      - "**/build*/*.elf"
+      - "**/build*/*.map"
+      - "**/build*/flasher_args.json"
+      - "**/build*/flash_project_args"
+      - "**/build*/config/sdkconfig.json"
+      - "**/build*/bootloader/*.bin"
+      - "**/build*/partition_table/*.bin"
+      - $SIZE_INFO_LOCATION
+    when: always
+    expire_in: 3 days
+  script:
+    # CI specific options start from "--collect-size-info xxx". could ignore when running locally
+    # The script below will build all test applications defined in environment variable $TEST_TARGETS
+    - cd ${TEST_DIR}
+    - python -m idf_build_apps build -v -p .
+      --recursive
+      --target all
+      --default-build-targets ${TEST_TARGETS}
+      --config "sdkconfig.ci.*=" --build-dir "build_@t_@w"
+      --check-warnings
+      --ignore-warning-file ../tools/ignore_build_warnings.txt
+      --collect-size-info $SIZE_INFO_LOCATION
+      --parallel-count ${CI_NODE_TOTAL:-1}
+      --parallel-index ${CI_NODE_INDEX:-1}
+  variables:
     TEST_TARGETS: "esp32"
 
-build_idf_v4.1:
-  extends: .build_template
-  image: espressif/idf:release-v4.1
-
-build_idf_v4.2:
-  extends: .build_template
-  image: espressif/idf:release-v4.2
-  variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2"
-    TEST_TARGETS: "esp32 esp32s2"
-
-build_idf_v4.3:
-  extends: .build_template
-  image: espressif/idf:release-v4.3
-  variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2 esp32c3"
-    TEST_TARGETS: "esp32 esp32s2 esp32c3"
-
-build_idf_v4.4:
-  extends: .build_template
-  image: espressif/idf:release-v4.4
-  variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
-
-build_idf_v5.0:
-  extends: .build_template
-  image: espressif/idf:release-v5.0
-  variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
-    SKIP_GNU_MAKE_BUILD: 1
-
 build_idf_latest:
-  extends: .build_template
+  extends: .build_pytest_template
   image: espressif/idf:latest
   variables:
-    EXAMPLE_TARGETS: "esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6"
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6"
-    # GNU Make based build system is not supported starting from IDF v5.0
-    SKIP_GNU_MAKE_BUILD: 1
+    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c2,esp32c3,esp32c6"
+
+build_idf_v5.0:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.0
+  variables:
+    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c2,esp32c3"
+    
+build_idf_v4.4:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v4.4
+  variables:
+    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c3"
+
+build_idf_v4.3:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v4.3
+  variables:
+    TEST_TARGETS: "esp32,esp32s2,esp32c3"
+
+build_idf_v4.2:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v4.2
+  variables:
+    TEST_TARGETS: "esp32,esp32s2"
+
+.target_test_template:
+  image: $TARGET_TEST_ENV_IMAGE
+  stage: target_test
+  timeout: 1 hour
+  variables:
+    GIT_DEPTH: 1
+    SUBMODULES_TO_FETCH: "none"
+  cache:
+    # Usually do not need submodule-cache in target_test
+    - key: pip-cache
+      paths:
+        - .cache/pip
+      policy: pull
+
+.before_script_pytest_jobs:
+  before_script:
+    # Get ESP-IDF and install the tools.
+    - cd /opt/
+    - git clone -b ${IDF_BRANCH} --depth 1 https://github.com/espressif/esp-idf.git
+    - cd esp-idf
+    - export IDF_PATH=${PWD}
+    - export IDF_DESCRIBE=`git describe`
+    - export IDF_VERSION=${IDF_DESCRIBE%-*}
+    - tools/idf_tools.py --non-interactive install cmake
+    - tools/idf_tools.py install-python-env
+    - tools/idf_tools.py --non-interactive install && eval "$(tools/idf_tools.py --non-interactive export)" || exit 1
+    - 'echo "ESP-IDF: ${IDF_VERSION}" >> ${TEST_DIR}/idf_version_info.txt'
+    - pip install "pytest-embedded-serial-esp~=1.2.3" "pytest-embedded-idf~=1.2.3"
+
+.test_template:
+  stage: target_test
+  image: ${TARGET_TEST_ENV_IMAGE}
+  extends:
+    - .before_script_pytest_jobs
+  tags:
+    - multi_dut_modbus_${TEST_PORT}
+  artifacts:
+    paths:
+      - "${TEST_DIR}/*/*.log"
+      - "${TEST_DIR}/*.txt"
+      - "${TEST_DIR}/*/results_*.xml"
+      - "${TEST_DIR}/pytest_embedded_log/"
+    reports:
+      junit: ${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VERSION}.xml
+    when: always
+    expire_in: 1 week
+  script:
+    - cd ${TEST_DIR}/${TEST_PORT}
+    - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VERSION}.xml --target=${IDF_TARGET}
+    - ls -lh > test_dir.txt
+
+test_examples:
+  extends: .test_template
+  parallel:
+    matrix:
+      - IDF_BRANCH: ["release/v4.4", "release/v5.0", "master"]
+        IDF_TARGET: ["esp32"]
+        TEST_PORT: ["serial", "tcp"]
+  after_script: []
 
 build_docs:
   stage: build
@@ -168,4 +259,3 @@ upload_to_component_manager:
     - pip install idf-component-manager
     - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
     - python -m idf_component_manager upload-component --allow-existing --name=esp-modbus --namespace=espressif
-
