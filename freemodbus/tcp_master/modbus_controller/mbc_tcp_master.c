@@ -255,68 +255,73 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
     MB_MASTER_CHECK((request != NULL), ESP_ERR_INVALID_ARG, "mb request structure.");
     MB_MASTER_CHECK((data_ptr != NULL), ESP_ERR_INVALID_ARG, "mb incorrect data pointer.");
 
-    eMBMasterReqErrCode mb_error = MB_MRE_NO_REG;
+    eMBMasterReqErrCode mb_error = MB_MRE_MASTER_BUSY;
     esp_err_t error = ESP_FAIL;
 
-    uint8_t mb_slave_addr = request->slave_addr;
-    uint8_t mb_command = request->command;
-    uint16_t mb_offset = request->reg_start;
-    uint16_t mb_size = request->reg_size;
+    if (xMBMasterRunResTake(MB_RESPONSE_TIMEOUT)) {
+        
+        uint8_t mb_slave_addr = request->slave_addr;
+        uint8_t mb_command = request->command;
+        uint16_t mb_offset = request->reg_start;
+        uint16_t mb_size = request->reg_size;
+        
+        // Set the buffer for callback function processing of received data
+        mbm_opts->mbm_reg_buffer_ptr = (uint8_t*)data_ptr;
+        mbm_opts->mbm_reg_buffer_size = mb_size;
 
-    // Set the buffer for callback function processing of received data
-    mbm_opts->mbm_reg_buffer_ptr = (uint8_t*)data_ptr;
-    mbm_opts->mbm_reg_buffer_size = mb_size;
+        vMBMasterRunResRelease();
 
-    // Calls appropriate request function to send request and waits response
-    switch(mb_command)
-    {
-    case MB_FUNC_READ_COILS:
-        mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                         (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_WRITE_SINGLE_COIL:
-        mb_error = eMBMasterReqWriteCoil((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                         *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_WRITE_MULTIPLE_COILS:
-        mb_error = eMBMasterReqWriteMultipleCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                  (USHORT)mb_size, (UCHAR *)data_ptr,
-                                                  (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_READ_DISCRETE_INPUTS:
-        mb_error = eMBMasterReqReadDiscreteInputs((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                  (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_READ_HOLDING_REGISTER:
-        mb_error = eMBMasterReqReadHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                   (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_WRITE_REGISTER:
-        mb_error = eMBMasterReqWriteHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                    *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
+        // Calls appropriate request function to send request and waits response
+        switch(mb_command)
+        {
+        case MB_FUNC_READ_COILS:
+            mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_WRITE_SINGLE_COIL:
+            mb_error = eMBMasterReqWriteCoil((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_WRITE_MULTIPLE_COILS:
+            mb_error = eMBMasterReqWriteMultipleCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                        (USHORT)mb_size, (UCHAR *)data_ptr,
+                                                        (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_READ_DISCRETE_INPUTS:
+            mb_error = eMBMasterReqReadDiscreteInputs((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                        (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_READ_HOLDING_REGISTER:
+            mb_error = eMBMasterReqReadHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                        (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_WRITE_REGISTER:
+            mb_error = eMBMasterReqWriteHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                        *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
 
-    case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
-        mb_error = eMBMasterReqWriteMultipleHoldingRegister((UCHAR)mb_slave_addr,
-                                                            (USHORT)mb_offset, (USHORT)mb_size,
-                                                            (USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_READWRITE_MULTIPLE_REGISTERS:
-        mb_error = eMBMasterReqReadWriteMultipleHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                                (USHORT)mb_size, (USHORT *)data_ptr,
+        case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
+            mb_error = eMBMasterReqWriteMultipleHoldingRegister((UCHAR)mb_slave_addr,
                                                                 (USHORT)mb_offset, (USHORT)mb_size,
-                                                                (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    case MB_FUNC_READ_INPUT_REGISTER:
-        mb_error = eMBMasterReqReadInputRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                 (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
-        break;
-    default:
-        ESP_LOGE(TAG, "%s: Incorrect function in request (%u) ",
-                 __FUNCTION__, mb_command);
-        mb_error = MB_MRE_NO_REG;
-        break;
-    }
+                                                                (USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_READWRITE_MULTIPLE_REGISTERS:
+            mb_error = eMBMasterReqReadWriteMultipleHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                                    (USHORT)mb_size, (USHORT *)data_ptr,
+                                                                    (USHORT)mb_offset, (USHORT)mb_size,
+                                                                    (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        case MB_FUNC_READ_INPUT_REGISTER:
+            mb_error = eMBMasterReqReadInputRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
+                                                        (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+            break;
+        default:
+            ESP_LOGE(TAG, "%s: Incorrect function in request (%u) ",
+                        __FUNCTION__, mb_command);
+            mb_error = MB_MRE_NO_REG;
+            break;
+        }
+    } 
 
     // Propagate the Modbus errors to higher level
     switch(mb_error)
