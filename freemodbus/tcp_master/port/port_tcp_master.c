@@ -682,6 +682,8 @@ static void vMBTCPPortMasterTask(void *pvParameters)
             ESP_LOGE(TAG, "Fail to register slave IP.");
         } else {
             if (xSlaveAddrInfo.pcIPAddr == NULL && xMbPortConfig.usMbSlaveInfoCount && xSlaveAddrInfo.usIndex == 0xFF) {
+                // Init start timeout that allows to initialize the main FSM
+                xMBMasterPortEventPost(EV_MASTER_READY);
                 break;
             }
             if (xMbPortConfig.usMbSlaveInfoCount > MB_TCP_PORT_MAX_CONN) {
@@ -1020,10 +1022,12 @@ BOOL MB_PORT_ISR_ATTR
 xMBMasterTCPTimerExpired(void)
 {
     BOOL xNeedPoll = FALSE;
+    eMBMasterTimerMode eTimerMode = xMBMasterGetCurTimerMode();
 
     vMBMasterPortTimersDisable();
+
     // If timer mode is respond timeout, the master event then turns EV_MASTER_EXECUTE status.
-    if (xMBMasterGetCurTimerMode() == MB_TMODE_RESPOND_TIMEOUT) {
+    if (eTimerMode == MB_TMODE_RESPOND_TIMEOUT) {
         vMBMasterSetErrorType(EV_ERROR_RESPOND_TIMEOUT);
         xNeedPoll = xMBMasterPortEventPost(EV_MASTER_ERROR_PROCESS);
     }

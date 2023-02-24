@@ -177,7 +177,7 @@ eMBMasterTCPInit( USHORT ucTCPPort )
 
         // initialize the OS resource for modbus master.
         vMBMasterOsResInit();
-        if( xMBMasterPortTimersInit( MB_MASTER_TIMEOUT_MS_RESPOND * MB_TIMER_TICS_PER_MS ) != TRUE )
+        if (xMBMasterPortTimersInit(MB_MASTER_TIMEOUT_MS_RESPOND * MB_TIMER_TICS_PER_MS) != TRUE)
         {
             eStatus = MB_EPORTERR;
         }
@@ -338,6 +338,8 @@ eMBMasterPoll( void )
             // together (even from one subset mask) than process them consistently
             if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_READY ) ) {
                 ESP_LOGD(MB_PORT_TAG, "%s:EV_MASTER_READY", __func__);
+                vMBMasterSetErrorType( EV_ERROR_INIT );
+                vMBMasterRunResRelease( );
                 MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_READY );
             } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_TRANSMIT ) ) {
                 ESP_LOGD(MB_PORT_TAG, "%s:EV_MASTER_FRAME_TRANSMIT", __func__);
@@ -359,8 +361,8 @@ eMBMasterPoll( void )
                 MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_FRAME_SENT );
             } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_RECEIVED ) ) {
                 if (xTransactionIsActive) {
+                    ESP_LOGD( MB_PORT_TAG, "%s:EV_MASTER_FRAME_RECEIVED", __func__ );
                     eStatus = peMBMasterFrameReceiveCur( &ucRcvAddress, &ucMBRcvFrame, &usLength);
-                    MB_PORT_CHECK(ucMBRcvFrame, MB_EILLSTATE, "Receive buffer initialization fail.");
                     MB_PORT_CHECK(ucMBSendFrame, MB_EILLSTATE, "Send buffer initialization fail.");
                     // Check if the frame is for us. If not ,send an error process event.
                     if ( ( eStatus == MB_ENOERR ) && ( ( ucRcvAddress == ucMBMasterGetDestAddress() )

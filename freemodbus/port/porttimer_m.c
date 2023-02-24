@@ -101,14 +101,12 @@ static BOOL xMBMasterPortTimersEnable(uint64_t xToutUs)
 
 void vMBMasterPortTimersT35Enable(void)
 {
-#if CONFIG_FMB_TIMER_PORT_ENABLED
     uint64_t xToutUs = (pxTimerContext->usT35Ticks * MB_TIMER_TICK_TIME_US);
 
     // Set current timer mode, don't change it.
     vMBMasterSetCurTimerMode(MB_TMODE_T35);
     // Set timer alarm
     (void)xMBMasterPortTimersEnable(xToutUs);
-#endif
 }
 
 void vMBMasterPortTimersConvertDelayEnable(void)

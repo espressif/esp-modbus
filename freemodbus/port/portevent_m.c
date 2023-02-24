@@ -160,7 +160,6 @@ xMBMasterPortEventGet( eMBMasterEventType* eEvent )
 void vMBMasterOsResInit( void )
 {
     xResourceMasterHdl = xEventGroupCreate();
-    xEventGroupSetBits(xResourceMasterHdl, MB_EVENT_RESOURCE);
     MB_PORT_CHECK((xResourceMasterHdl != NULL), ; , "Resource create error.");
 }
 
