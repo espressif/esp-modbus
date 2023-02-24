@@ -137,7 +137,7 @@ eMBMasterASCIIStart( void )
     ENTER_CRITICAL_SECTION(  );
     eRcvState = STATE_M_RX_IDLE;
     vMBMasterPortSerialEnable( TRUE, FALSE );
-    vMBMasterPortTimersT35Enable(  );
+    xMBMasterPortEventPost(EV_MASTER_READY);
     EXIT_CRITICAL_SECTION(  );
 }
 
