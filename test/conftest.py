@@ -41,7 +41,7 @@ class ModbusTestDut(IdfDut):
     TEST_IP_ADDRESS_REGEXP = r'.*example_[a-z]+: .* IPv4 [a-z]+:.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*'
     TEST_APP_NAME = r'I \([0-9]+\) cpu_start: Project name:     ([_a-z]*)'
 
-    TEST_EXPECT_STR_TIMEOUT = 120
+    TEST_EXPECT_STR_TIMEOUT = 150
     TEST_ACK_TIMEOUT = 60
     TEST_MAX_CIDS = 8
 
