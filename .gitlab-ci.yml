@@ -172,6 +172,12 @@ build_idf_v4.2:
     - cd ${TEST_DIR}/${TEST_PORT}
     - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VERSION}.xml --target=${IDF_TARGET}
     - ls -lh > test_dir.txt
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 test_examples:
   extends: .test_template
@@ -216,6 +222,12 @@ build_docs:
     - export GIT_VER=$(git describe --always)
     - pip install -r ${CI_PROJECT_DIR}/docs/requirements.txt
     - deploy-docs
+  retry:
+    max: 2
+    when:
+      - script_failure
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 deploy_docs_preview:
   extends:
