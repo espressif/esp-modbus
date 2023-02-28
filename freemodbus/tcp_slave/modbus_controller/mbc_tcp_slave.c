@@ -72,7 +72,7 @@ static esp_err_t mbc_tcp_slave_start(void)
     eMBErrorCode status = MB_EIO;
 
     // Initialize Modbus stack using mbcontroller parameters
-    status = eMBTCPInit((USHORT)mbs_opts->mbs_comm.ip_port);
+    status = eMBTCPInit((UCHAR)mbs_opts->mbs_comm.slave_uid, (USHORT)mbs_opts->mbs_comm.ip_port);
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
             "mb stack initialization failure, eMBInit() returns (0x%x).", status);
 

@@ -165,6 +165,7 @@ eMBErrorCode    eMBInit( eMBMode eMode, UCHAR ucSlaveAddress,
  * frame processing is still disabled until eMBEnable( ) is called.
  *
  * \param usTCPPort The TCP port to listen on.
+ * \param ucSlaveUid The UID field for slave to listen on.
  * \return If the protocol stack has been initialized correctly the function
  *   returns eMBErrorCode::MB_ENOERR. Otherwise one of the following error
  *   codes is returned:
@@ -172,7 +173,7 @@ eMBErrorCode    eMBInit( eMBMode eMode, UCHAR ucSlaveAddress,
  *        slave addresses are in the range 1 - 247.
  *    - eMBErrorCode::MB_EPORTERR IF the porting layer returned an error.
  */
-eMBErrorCode    eMBTCPInit( USHORT usTCPPort );
+eMBErrorCode    eMBTCPInit( UCHAR ucSlaveUid, USHORT usTCPPort );
 
 /*! \ingroup modbus
  * \brief Release resources used by the protocol stack.

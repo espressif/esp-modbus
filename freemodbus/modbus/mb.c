@@ -202,11 +202,16 @@ eMBInit( eMBMode eMode, UCHAR ucSlaveAddress, UCHAR ucPort, ULONG ulBaudRate, eM
 
 #if MB_TCP_ENABLED > 0
 eMBErrorCode
-eMBTCPInit( USHORT ucTCPPort )
+eMBTCPInit( UCHAR ucSlaveUid, USHORT ucTCPPort )
 {
     eMBErrorCode    eStatus = MB_ENOERR;
 
-    if( ( eStatus = eMBTCPDoInit( ucTCPPort ) ) != MB_ENOERR )
+    /* Check preconditions */
+    if( ucSlaveUid > MB_ADDRESS_MAX )
+    {
+        eStatus = MB_EINVAL;
+    }
+    else if( ( eStatus = eMBTCPDoInit( ucTCPPort ) ) != MB_ENOERR )
     {
         eMBState = STATE_DISABLED;
     }
@@ -222,7 +227,7 @@ eMBTCPInit( USHORT ucTCPPort )
         peMBFrameReceiveCur = eMBTCPReceive;
         peMBFrameSendCur = eMBTCPSend;
         pvMBFrameCloseCur = MB_PORT_HAS_CLOSE ? vMBTCPPortClose : NULL;
-        ucMBAddress = MB_TCP_PSEUDO_ADDRESS;
+        ucMBAddress = ucSlaveUid;
         eMBCurrentMode = MB_TCP;
         eMBState = STATE_DISABLED;
     }
@@ -371,7 +376,8 @@ eMBPoll( void )
             if( eStatus == MB_ENOERR )
             {
                 /* Check if the frame is for us. If not ignore the frame. */
-                if( ( ucRcvAddress == ucMBAddress ) || ( ucRcvAddress == MB_ADDRESS_BROADCAST ) )
+                if( ( ucRcvAddress == ucMBAddress ) || ( ucRcvAddress == MB_ADDRESS_BROADCAST ) 
+                                            || ( ucRcvAddress == MB_TCP_PSEUDO_ADDRESS ) )
                 {
                     ( void )xMBPortEventPost( EV_EXECUTE );
                     ESP_LOG_BUFFER_HEX_LEVEL(MB_PORT_TAG, &ucMBFrame[MB_PDU_FUNC_OFF], usLength, ESP_LOG_DEBUG);
@@ -401,8 +407,8 @@ eMBPoll( void )
             }
 
             /* If the request was not sent to the broadcast address we
-             * return a reply. */
-            if( ucRcvAddress != MB_ADDRESS_BROADCAST )
+             * return a reply. In case of TCP the slave answers to broadcast address. */
+            if( ( ucRcvAddress != MB_ADDRESS_BROADCAST ) || ( eMBCurrentMode == MB_TCP ) )
             {
                 if( eException != MB_EX_NONE )
                 {

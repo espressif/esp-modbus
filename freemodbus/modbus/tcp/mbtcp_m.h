@@ -50,7 +50,7 @@ void            eMBMasterTCPStart( void );
 void            eMBMasterTCPStop( void );
 eMBErrorCode    eMBMasterTCPReceive( UCHAR * pucRcvAddress, UCHAR ** pucFrame,
                                USHORT * pusLength );
-eMBErrorCode    eMBMasterTCPSend( UCHAR _unused, const UCHAR * pucFrame,
+eMBErrorCode    eMBMasterTCPSend( UCHAR ucAddress, const UCHAR * pucFrame,
                             USHORT usLength );
 BOOL            xMBMasterTCPTimerExpired(void);
 
