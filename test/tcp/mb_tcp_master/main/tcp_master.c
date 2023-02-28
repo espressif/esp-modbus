@@ -73,7 +73,7 @@ static const char *TAG = "MASTER_TEST";
 // Enumeration of modbus device addresses accessed by master device
 // Each address in the table is a index of TCP slave ip address in mb_communication_info_t::tcp_ip_addr table
 enum {
-    MB_DEVICE_ADDR1 = 1, // Slave address 1
+    MB_DEVICE_ADDR1 = 1, // Slave UID = 1
     MB_DEVICE_ADDR2 = 200,
     MB_DEVICE_ADDR3 = 35
 };
@@ -750,7 +750,6 @@ void app_main(void)
     comm_info.ip_netif_ptr = (void*)get_example_netif();
 
     ESP_ERROR_CHECK(master_init(&comm_info));
-    vTaskDelay(50);
 
     master_operation_func(NULL);
     ESP_ERROR_CHECK(master_destroy());

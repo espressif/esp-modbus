@@ -124,10 +124,14 @@ eMBTCPReceive( UCHAR * pucRcvAddress, UCHAR ** ppucFrame, USHORT * pusLength )
             *pusLength = usLength - MB_TCP_FUNC;
             eStatus = MB_ENOERR;
 
-            /* Modbus TCP does not use any addresses. Fake the source address such
-             * that the processing part deals with this frame.
+            /* The regular Modbus TCP does not use any addresses. Fake the MBAP UID in this case.
+             * The MBAP UID field support is used for RTU over TCP option if enabled.
              */
+#if MB_TCP_UID_ENABLED
+            *pucRcvAddress = pucMBTCPFrame[MB_TCP_UID];
+#else
             *pucRcvAddress = MB_TCP_PSEUDO_ADDRESS;
+#endif
         }
     }
     else
@@ -152,6 +156,7 @@ eMBTCPSend( UCHAR _unused, const UCHAR * pucFrame, USHORT usLength )
      */
     pucMBTCPFrame[MB_TCP_LEN] = ( usLength + 1 ) >> 8U;
     pucMBTCPFrame[MB_TCP_LEN + 1] = ( usLength + 1 ) & 0xFF;
+
     if( xMBTCPPortSendResponse( pucMBTCPFrame, usTCPLength ) == FALSE )
     {
         eStatus = MB_EIO;

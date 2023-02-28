@@ -86,6 +86,10 @@ PR_BEGIN_EXTERN_C
 
 #endif
 
+/*! \brief The option is required for support of RTU over TCP.
+ */
+#define MB_TCP_UID_ENABLED                      (  CONFIG_FMB_TCP_UID_ENABLED )
+
 /*! \brief This option defines the number of data bits per ASCII character.
  *
  * A parity bit is added before the stop bit which keeps the actual byte size at 10 bits.

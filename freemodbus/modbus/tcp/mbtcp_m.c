@@ -123,10 +123,14 @@ eMBMasterTCPReceive( UCHAR * pucRcvAddress, UCHAR ** ppucFrame, USHORT * pusLeng
             *pusLength = usLength - MB_TCP_FUNC;
             eStatus = MB_ENOERR;
 
-            /* Modbus TCP does not use any addresses. Fake the source address such
-             * that the processing part deals with this frame.
+            /* Get MBAP UID field if its support is enabled.
+             * Otherwise just ignore this field.
              */
+#if MB_TCP_UID_ENABLED
+            *pucRcvAddress = pucMBTCPFrame[MB_TCP_UID];
+#else
             *pucRcvAddress = MB_TCP_PSEUDO_ADDRESS;
+#endif
         }
     }
     else
@@ -137,20 +141,27 @@ eMBMasterTCPReceive( UCHAR * pucRcvAddress, UCHAR ** ppucFrame, USHORT * pusLeng
 }
 
 eMBErrorCode
-eMBMasterTCPSend( UCHAR _unused, const UCHAR * pucFrame, USHORT usLength )
+eMBMasterTCPSend( UCHAR ucAddress, const UCHAR * pucFrame, USHORT usLength )
 {
     eMBErrorCode    eStatus = MB_ENOERR;
     UCHAR          *pucMBTCPFrame = ( UCHAR * ) pucFrame - MB_TCP_FUNC;
     USHORT          usTCPLength = usLength + MB_TCP_FUNC;
 
-    /* The MBAP header is already initialized because the caller calls this
-     * function with the buffer returned by the previous call. Therefore we
-     * only have to update the length in the header. Note that the length
-     * header includes the size of the Modbus PDU and the UID Byte. Therefore
-     * the length is usLength plus one.
+    /* Note that the length in the MBAP header includes the size of the Modbus PDU 
+     * and the UID Byte. Therefore the length is usLength plus one.
      */
     pucMBTCPFrame[MB_TCP_LEN] = ( usLength + 1 ) >> 8U;
     pucMBTCPFrame[MB_TCP_LEN + 1] = ( usLength + 1 ) & 0xFF;
+    
+    /* Set UID field in the MBAP if it is supported.
+     * If the RTU over TCP is not supported, the UID = 0 or 0xFF.
+     */
+#if MB_TCP_UID_ENABLED
+    pucMBTCPFrame[MB_TCP_UID] = ucAddress;
+#else
+    pucMBTCPFrame[MB_TCP_UID] = 0x00;
+#endif
+
     if( xMBMasterTCPPortSendResponse( pucMBTCPFrame, usTCPLength ) == FALSE )
     {
         eStatus = MB_EIO;

@@ -52,6 +52,8 @@
                                                 | MB_EVENT_COILS_WR)
 #define MB_READ_WRITE_MASK                  (MB_READ_MASK | MB_WRITE_MASK)
 
+#define MB_SLAVE_ADDR (CONFIG_MB_SLAVE_ADDR)
+
 static const char *TAG = "SLAVE_TEST";
 
 static portMUX_TYPE param_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -68,8 +70,6 @@ static portMUX_TYPE param_lock = portMUX_INITIALIZER_UNLOCKED;
 #if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
 #define MB_DEVICE_ID (uint32_t)CONFIG_FMB_CONTROLLER_SLAVE_ID
 #endif
-
-#define MB_SLAVE_ADDR (CONFIG_MB_SLAVE_ADDR)
 
 #define MB_MDNS_INSTANCE(pref) pref"mb_slave_tcp"
 
@@ -315,6 +315,7 @@ static esp_err_t slave_init(mb_communication_info_t* comm_info)
 
     comm_info->ip_addr = NULL; // Bind to any address
     comm_info->ip_netif_ptr = (void*)get_example_netif();
+    comm_info->slave_uid = MB_SLAVE_ADDR;
 
     // Setup communication parameters and start stack
     err = mbc_slave_setup((void*)comm_info);
@@ -423,6 +424,7 @@ void app_main(void)
     ESP_ERROR_CHECK(init_services());
 
     // Set UART log level
+
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
     mb_communication_info_t comm_info = { 0 };

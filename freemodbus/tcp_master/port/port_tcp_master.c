@@ -989,6 +989,7 @@ xMBMasterTCPPortSendResponse( UCHAR * pucMBTCPFrame, USHORT usTCPLength )
             // Apply TID field to the frame before send
             pucMBTCPFrame[MB_TCP_TID] = (UCHAR)(pxInfo->usTidCnt >> 8U);
             pucMBTCPFrame[MB_TCP_TID + 1] = (UCHAR)(pxInfo->usTidCnt & 0xFF);
+
             int xRes = xMBMasterTCPPortWritePoll(pxInfo, pucMBTCPFrame, usTCPLength, MB_TCP_SEND_TIMEOUT_MS);
             if (xRes < 0) {
                 ESP_LOGE(TAG, MB_SLAVE_FMT(", send data failure, err(errno) = %d(%d)."),

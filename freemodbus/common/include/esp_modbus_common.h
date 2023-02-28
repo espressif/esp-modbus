@@ -143,6 +143,7 @@ typedef union {
     // TCP/UDP communication structure
     struct {
         mb_mode_type_t ip_mode;                /*!< Modbus communication mode */
+        uint8_t slave_uid;                     /*!< Modbus slave address field for UID */
         uint16_t ip_port;                      /*!< Modbus port */
         mb_tcp_addr_type_t ip_addr_type;       /*!< Modbus address type */
         void* ip_addr;                         /*!< Modbus address table for connection */

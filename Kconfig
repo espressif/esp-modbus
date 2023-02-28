@@ -16,7 +16,7 @@ menu "Modbus configuration"
 
     config FMB_TCP_PORT_MAX_CONN
         int "Maximum allowed connections for TCP stack"
-        range 1 6
+        range 1 8
         default 5
         depends on FMB_COMM_MODE_TCP_EN
         help
@@ -34,6 +34,14 @@ menu "Modbus configuration"
                 Modbus TCP connection timeout in seconds.
                 Once expired the current connection with the client will be closed
                 and Modbus slave will be waiting for new connection to accept.
+    
+    config FMB_TCP_UID_ENABLED
+        bool "Modbus TCP enable UID (Unit Identifier) support"
+        default n
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                If this option is set the Modbus stack uses UID (Unit Identifier) field in MBAP frame.
+                Else the UID is ignored by master and slave.
 
     config FMB_COMM_MODE_RTU_EN
         bool "Enable Modbus stack support for RTU mode"
