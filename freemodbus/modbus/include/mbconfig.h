@@ -39,6 +39,7 @@
 #ifndef _MB_CONFIG_H
 #define _MB_CONFIG_H
 
+#include <inttypes.h>  // needs to be included for default system types (such as PRIxx)
 #include "sdkconfig.h" // for KConfig options
 
 #if __has_include("esp_idf_version.h")

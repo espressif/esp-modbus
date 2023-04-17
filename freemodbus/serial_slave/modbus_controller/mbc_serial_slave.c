@@ -59,15 +59,14 @@ static esp_err_t mbc_serial_slave_setup(void* comm_info)
     mb_slave_options_t* mbs_opts = &mbs_interface_ptr->opts;
     mb_slave_comm_info_t* comm_settings = (mb_slave_comm_info_t*)comm_info;
     MB_SLAVE_CHECK(((comm_settings->mode == MB_MODE_RTU) || (comm_settings->mode == MB_MODE_ASCII)),
-                ESP_ERR_INVALID_ARG, "mb incorrect mode = (0x%x).",
-                (uint32_t)comm_settings->mode);
+                ESP_ERR_INVALID_ARG, "mb incorrect mode = (%u).",
+                (unsigned)comm_settings->mode);
     MB_SLAVE_CHECK((comm_settings->slave_addr <= MB_ADDRESS_MAX),
-                ESP_ERR_INVALID_ARG, "mb wrong slave address = (0x%x).",
-                (uint32_t)comm_settings->slave_addr);
+                    ESP_ERR_INVALID_ARG, "mb wrong slave address = (%u).", (unsigned)comm_settings->slave_addr);
     MB_SLAVE_CHECK((comm_settings->port < UART_NUM_MAX), ESP_ERR_INVALID_ARG,
-                "mb wrong port to set = (0x%x).", (uint32_t)comm_settings->port);
+                    "mb wrong port to set = (%u).", (unsigned)comm_settings->port);
     MB_SLAVE_CHECK((comm_settings->parity <= UART_PARITY_ODD), ESP_ERR_INVALID_ARG,
-                "mb wrong parity option = (0x%x).", (uint32_t)comm_settings->parity);
+                    "mb wrong parity option = (%u).", (unsigned)comm_settings->parity);
 
     // Set communication options of the controller
     mbs_opts->mbs_comm = *(mb_communication_info_t*)comm_settings;
@@ -92,10 +91,10 @@ static esp_err_t mbc_serial_slave_start(void)
                          MB_PORT_PARITY_GET(comm_info->parity));
 
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack initialization failure, eMBInit() returns (0x%x).", status);
+                    "mb stack initialization failure, eMBInit() returns (0x%x).", (int)status);
     status = eMBEnable();
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack set slave ID failure, eMBEnable() returned (0x%x).", (uint32_t)status);
+                    "mb stack set slave ID failure, eMBEnable() returned (0x%x).", (int)status);
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupSetBits(mbs_opts->mbs_event_group,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
@@ -154,7 +153,7 @@ static esp_err_t mbc_serial_slave_destroy(void)
     EventBits_t flag = xEventGroupClearBits(mbs_opts->mbs_event_group,
                                     (EventBits_t)MB_EVENT_STACK_STARTED);
     MB_SLAVE_CHECK((flag & MB_EVENT_STACK_STARTED),
-                ESP_ERR_INVALID_STATE, "mb stack stop event failure.");
+                        ESP_ERR_INVALID_STATE, "mb stack stop event failure.");
     // Disable and then destroy the Modbus stack
     mb_error = eMBDisable();
     MB_SLAVE_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
@@ -163,7 +162,7 @@ static esp_err_t mbc_serial_slave_destroy(void)
     (void)vEventGroupDelete(mbs_opts->mbs_event_group);
     mb_error = eMBClose();
     MB_SLAVE_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack close failure returned (0x%x).", (uint32_t)mb_error);
+                        "mb stack close failure returned (0x%x).", (int)mb_error);
     mbs_interface_ptr = NULL;
     vMBPortSetMode((UCHAR)MB_PORT_INACTIVE);
     return ESP_OK;
@@ -201,7 +200,7 @@ esp_err_t mbc_serial_slave_create(void** handler)
                                                 MB_CONTROLLER_NOTIFY_QUEUE_SIZE,
                                                 sizeof(mb_param_info_t));
     MB_SLAVE_CHECK((mbs_opts->mbs_notification_queue_handle != NULL),
-            ESP_ERR_NO_MEM, "mb notify queue creation error.");
+                        ESP_ERR_NO_MEM, "mb notify queue creation error.");
     // Create Modbus controller task
     status = xTaskCreatePinnedToCore((void*)&modbus_slave_task,
                             "modbus_slave_task",
@@ -213,8 +212,7 @@ esp_err_t mbc_serial_slave_create(void** handler)
     if (status != pdPASS) {
         vTaskDelete(mbs_opts->mbs_task_handle);
         MB_SLAVE_CHECK((status == pdPASS), ESP_ERR_NO_MEM,
-                "mb controller task creation error, xTaskCreate() returns (0x%x).",
-                (uint32_t)status);
+                            "mb controller task creation error, xTaskCreate() returns (0x%x).", (int)status);
     }
     MB_SLAVE_ASSERT(mbs_opts->mbs_task_handle != NULL); // The task is created but handle is incorrect
 

@@ -71,4 +71,4 @@ idf_component_register(SRCS "${srcs}"
                     PRIV_INCLUDE_DIRS "${priv_include_dirs}"
                     REQUIRES ${requires}
                     PRIV_REQUIRES esp_netif)
-target_compile_options(${COMPONENT_LIB} PRIVATE "-Wno-format")
+

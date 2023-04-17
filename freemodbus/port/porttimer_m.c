@@ -52,7 +52,7 @@ static void IRAM_ATTR vTimerAlarmCBHandler(void *param)
 {
     pxMBMasterPortCBTimerExpired(); // Timer expired callback function
     pxTimerContext->xTimerState = TRUE;
-    ESP_EARLY_LOGD(TAG, "Timer mode: (%d) triggered", xMBMasterGetCurTimerMode());
+    ESP_EARLY_LOGD(TAG, "Timer mode: (%u) triggered", (unsigned)xMBMasterGetCurTimerMode());
 }
 
 BOOL xMBMasterPortTimersInit(USHORT usTimeOut50us)

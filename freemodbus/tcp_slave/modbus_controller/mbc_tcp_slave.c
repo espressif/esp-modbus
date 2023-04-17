@@ -54,9 +54,9 @@ static esp_err_t mbc_tcp_slave_setup(void* comm_info)
                     "mb wrong communication settings.");
     mb_communication_info_t* comm_settings = (mb_communication_info_t*)comm_info;
     MB_SLAVE_CHECK((comm_settings->ip_mode == MB_MODE_TCP),
-                ESP_ERR_INVALID_ARG, "mb incorrect mode = (0x%x).", (uint8_t)comm_settings->ip_mode);
+                        ESP_ERR_INVALID_ARG, "mb incorrect mode = (%u).", (unsigned)comm_settings->ip_mode);
     MB_SLAVE_CHECK(((comm_settings->ip_addr_type == MB_IPV4) || (comm_settings->ip_addr_type == MB_IPV6)),
-                    ESP_ERR_INVALID_ARG, "mb incorrect addr type = (0x%x).", (uint8_t)comm_settings->ip_addr_type);
+                        ESP_ERR_INVALID_ARG, "mb incorrect addr type = (%u).", (unsigned)comm_settings->ip_addr_type);
     MB_SLAVE_CHECK((comm_settings->ip_netif_ptr != NULL),
                         ESP_ERR_INVALID_ARG, "mb incorrect iface address.");
     // Set communication options of the controller
@@ -74,7 +74,7 @@ static esp_err_t mbc_tcp_slave_start(void)
     // Initialize Modbus stack using mbcontroller parameters
     status = eMBTCPInit((UCHAR)mbs_opts->mbs_comm.slave_uid, (USHORT)mbs_opts->mbs_comm.ip_port);
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb stack initialization failure, eMBInit() returns (0x%x).", status);
+                    "mb stack initialization failure, eMBInit() returns (0x%x).", (int)status);
 
     eMBPortProto proto = (mbs_opts->mbs_comm.ip_mode == MB_MODE_TCP) ? MB_PROTO_TCP : MB_PROTO_UDP;
     eMBPortIpVer ip_ver = (mbs_opts->mbs_comm.ip_addr_type == MB_IPV4) ? MB_PORT_IPV4 : MB_PORT_IPV6;
@@ -82,12 +82,12 @@ static esp_err_t mbc_tcp_slave_start(void)
 
     status = eMBEnable();
     MB_SLAVE_CHECK((status == MB_ENOERR), ESP_ERR_INVALID_STATE,
-            "mb TCP stack start failure, eMBEnable() returned (0x%x).", (uint32_t)status);
+                    "mb TCP stack start failure, eMBEnable() returned (0x%x).", (int)status);
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupSetBits(mbs_opts->mbs_event_group,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
     MB_SLAVE_CHECK((flag & MB_EVENT_STACK_STARTED),
-                ESP_ERR_INVALID_STATE, "mb stack start event set error.");
+                    ESP_ERR_INVALID_STATE, "mb stack start event set error.");
     return ESP_OK;
 }
 
@@ -101,7 +101,7 @@ static esp_err_t mbc_tcp_slave_destroy(void)
     EventBits_t flag = xEventGroupClearBits(mbs_opts->mbs_event_group,
                                     (EventBits_t)MB_EVENT_STACK_STARTED);
     MB_SLAVE_CHECK((flag & MB_EVENT_STACK_STARTED),
-                ESP_ERR_INVALID_STATE, "mb stack stop event failure.");
+                    ESP_ERR_INVALID_STATE, "mb stack stop event failure.");
     // Disable and then destroy the Modbus stack
     mb_error = eMBDisable();
     MB_SLAVE_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
@@ -132,7 +132,7 @@ static esp_err_t mbc_tcp_slave_get_param_info(mb_param_info_t* reg_info, uint32_
     mb_slave_options_t* mbs_opts = &mbs_interface_ptr->opts;
     esp_err_t err = ESP_ERR_TIMEOUT;
     MB_SLAVE_CHECK((mbs_opts->mbs_notification_queue_handle != NULL),
-                ESP_ERR_INVALID_ARG, "mb queue handle is invalid.");
+                    ESP_ERR_INVALID_ARG, "mb queue handle is invalid.");
     MB_SLAVE_CHECK((reg_info != NULL), ESP_ERR_INVALID_ARG, "mb register information is invalid.");
     BaseType_t status = xQueueReceive(mbs_opts->mbs_notification_queue_handle,
                                         reg_info, pdMS_TO_TICKS(timeout));
@@ -170,13 +170,13 @@ esp_err_t mbc_tcp_slave_create(void** handler)
     // Parameter change notification queue
     mbs_opts->mbs_event_group = xEventGroupCreate();
     MB_SLAVE_CHECK((mbs_opts->mbs_event_group != NULL),
-            ESP_ERR_NO_MEM, "mb event group error.");
+                    ESP_ERR_NO_MEM, "mb event group error.");
     // Parameter change notification queue
     mbs_opts->mbs_notification_queue_handle = xQueueCreate(
                                                 MB_CONTROLLER_NOTIFY_QUEUE_SIZE,
                                                 sizeof(mb_param_info_t));
     MB_SLAVE_CHECK((mbs_opts->mbs_notification_queue_handle != NULL),
-            ESP_ERR_NO_MEM, "mb notify queue creation error.");
+                    ESP_ERR_NO_MEM, "mb notify queue creation error.");
     // Create Modbus controller task
     status = xTaskCreatePinnedToCore((void*)&modbus_tcp_slave_task,
                             "modbus_tcp_slave_task",
@@ -188,8 +188,7 @@ esp_err_t mbc_tcp_slave_create(void** handler)
     if (status != pdPASS) {
         vTaskDelete(mbs_opts->mbs_task_handle);
         MB_SLAVE_CHECK((status == pdPASS), ESP_ERR_NO_MEM,
-                "mb controller task creation error, xTaskCreate() returns (0x%x).",
-                (uint32_t)status);
+                        "mb controller task creation error, xTaskCreate() returns (%u).", (unsigned)status);
     }
 
     // The task is created but handle is incorrect

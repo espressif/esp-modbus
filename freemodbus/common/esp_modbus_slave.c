@@ -106,7 +106,7 @@ esp_err_t mbc_slave_destroy(void)
     MB_SLAVE_CHECK((error == ESP_OK),
                     ESP_ERR_INVALID_STATE,
                     "Slave destroy failure error=(0x%x).",
-                    error);
+                    (int)error);
     // Destroy all opened descriptors
     mbc_slave_free_descriptors();
     free(slave_interface_ptr);
@@ -130,7 +130,7 @@ esp_err_t mbc_slave_setup(void* comm_info)
     MB_SLAVE_CHECK((error == ESP_OK),
                     ESP_ERR_INVALID_STATE,
                     "Slave setup failure error=(0x%x).",
-                    error);
+                    (int)error);
     return error;
 }
 
@@ -155,7 +155,7 @@ esp_err_t mbc_slave_start(void)
     MB_SLAVE_CHECK((error == ESP_OK),
                     ESP_ERR_INVALID_STATE,
                     "Slave start failure error=(0x%x).",
-                    error);
+                    (int)error);
     return error;
 }
 
@@ -190,7 +190,7 @@ esp_err_t mbc_slave_get_param_info(mb_param_info_t* reg_info, uint32_t timeout)
     MB_SLAVE_CHECK((error == ESP_OK),
                     ESP_ERR_INVALID_STATE,
                     "Slave get parameter info failure error=(0x%x).",
-                    error);
+                    (int)error);
     return error;
 }
 
@@ -209,7 +209,7 @@ esp_err_t mbc_slave_set_descriptor(mb_register_area_descriptor_t descr_data)
         MB_SLAVE_CHECK((error == ESP_OK),
                         ESP_ERR_INVALID_STATE,
                         "Slave set descriptor failure error=(0x%x).",
-                        (uint16_t)error);
+                        (int)error);
     } else {
         mb_slave_options_t* mbs_opts = &slave_interface_ptr->opts;
         // Check if the address is already in the descriptor list
@@ -252,8 +252,8 @@ static esp_err_t mbc_slave_send_param_info(mb_event_group_t par_type, uint16_t m
     par_info.mb_offset = mb_offset;
     BaseType_t status = xQueueSend(mbs_opts->mbs_notification_queue_handle, &par_info, MB_PAR_INFO_TOUT);
     if (pdTRUE == status) {
-        ESP_LOGD(TAG, "Queue send parameter info (type, address, size): %d, 0x%.4x, %d",
-                par_type, (uint32_t)par_address, par_size);
+        ESP_LOGD(TAG, "Queue send parameter info (type, address, size): %d, 0x%" PRIx32 ", %u",
+                    (int)par_type, (uint32_t)par_address, (unsigned)par_size);
         error = ESP_OK;
     } else if (errQUEUE_FULL == status) {
         ESP_LOGD(TAG, "Parameter queue is overflowed.");
@@ -269,7 +269,7 @@ static esp_err_t mbc_slave_send_param_access_notification(mb_event_group_t event
     esp_err_t err = ESP_FAIL;
     mb_event_group_t bits = (mb_event_group_t)xEventGroupSetBits(mbs_opts->mbs_event_group, (EventBits_t)event);
     if (bits & event) {
-        ESP_LOGD(TAG, "The MB_REG_CHANGE_EVENT = 0x%.2x is set.", (uint8_t)event);
+        ESP_LOGD(TAG, "The MB_REG_CHANGE_EVENT = 0x%.2x is set.", (int)event);
         err = ESP_OK;
     }
     return err;

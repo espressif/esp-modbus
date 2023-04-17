@@ -45,7 +45,6 @@
 #include "port.h"
 #include "mbport.h"
 #include "freertos/semphr.h"
-#include "port_serial_master.h"
 
 #if MB_MASTER_RTU_ENABLED || MB_MASTER_ASCII_ENABLED || MB_MASTER_TCP_ENABLED
 /* ----------------------- Defines ------------------------------------------*/
@@ -149,7 +148,7 @@ xMBMasterPortEventGet( eMBMasterEventType* eEvent )
         xEventGroupSetBits( xEventGroupMasterConfirmHdl, *eEvent );
         xEventHappened = TRUE;
     } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event triggered = %d.", __func__, uxBits);
+        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event triggered = %u.", __func__, (unsigned)uxBits);
         *eEvent = (eMBMasterEventType)uxBits;
         xEventHappened = FALSE;
     }
@@ -180,7 +179,7 @@ BOOL xMBMasterRunResTake( LONG lTimeOut )
                                     pdFALSE,            // Don't wait for both bits, either bit will do.
                                     lTimeOut);          // Resource wait timeout.
     MB_PORT_CHECK((uxBits == MB_EVENT_RESOURCE), FALSE , "Take resource failure.");
-    ESP_LOGD(MB_PORT_TAG,"%s:Take resource (%x) (%lu ticks).", __func__, uxBits,  lTimeOut);
+    ESP_LOGD(MB_PORT_TAG,"%s:Take resource (%" PRIx32 ") (%" PRIu32 " ticks).", __func__, (uint32_t)uxBits, (uint32_t)lTimeOut);
     return TRUE;
 }
 
@@ -194,7 +193,7 @@ void vMBMasterRunResRelease( void )
     if (uxBits != MB_EVENT_RESOURCE) {
         // The returned resource mask may be = 0, if the task waiting for it is unblocked.
         // This is not an error but expected behavior.
-        ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%x) fail.", __func__, uxBits);
+        ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%" PRIx32 ") fail.", __func__, (uint32_t)uxBits);
     }
 }
 
@@ -227,7 +226,7 @@ void vMBMasterErrorCBReceiveData(UCHAR ucDestAddress, const UCHAR* pucPDUData, U
     BOOL ret = xMBMasterPortEventPost(EV_MASTER_ERROR_RECEIVE_DATA);
     MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_ERROR_RECEIVE_DATA' failed!", __func__);
     ESP_LOGD(MB_PORT_TAG,"%s:Callback receive data timeout failure.", __func__);
-    ESP_LOG_BUFFER_HEX_LEVEL("Err rcv buf", (void*)pucPDUData, (uint16_t)ucPDULength, ESP_LOG_DEBUG);
+    ESP_LOG_BUFFER_HEX_LEVEL("Err rcv buf", (void *)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
 }
 
 /**
@@ -245,7 +244,7 @@ void vMBMasterErrorCBExecuteFunction(UCHAR ucDestAddress, const UCHAR* pucPDUDat
     BOOL ret = xMBMasterPortEventPost(EV_MASTER_ERROR_EXECUTE_FUNCTION);
     MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_ERROR_EXECUTE_FUNCTION' failed!", __func__);
     ESP_LOGD(MB_PORT_TAG,"%s:Callback execute data handler failure.", __func__);
-    ESP_LOG_BUFFER_HEX_LEVEL("Exec func buf", (void*)pucPDUData, (uint16_t)ucPDULength, ESP_LOG_DEBUG);
+    ESP_LOG_BUFFER_HEX_LEVEL("Exec func buf", (void*)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
 }
 
 /**
@@ -283,10 +282,10 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
                                                 portMAX_DELAY );    // Wait forever for either bit to be set.
     xRecvedEvent = (eMBMasterEventType)(uxBits);
     if (xRecvedEvent) {
-        ESP_LOGD(MB_PORT_TAG,"%s: returned event = 0x%x", __func__, xRecvedEvent);
+        ESP_LOGD(MB_PORT_TAG,"%s: returned event = 0x%x", __func__, (int)xRecvedEvent);
         if (!(xRecvedEvent & MB_EVENT_REQ_MASK)) {
             // if we wait for certain event bits but get from poll subset
-            ESP_LOGE(MB_PORT_TAG,"%s: incorrect event set = 0x%x", __func__, xRecvedEvent);
+            ESP_LOGE(MB_PORT_TAG,"%s: incorrect event set = 0x%x", __func__, (int)xRecvedEvent);
         }
         xEventGroupSetBits( xEventGroupMasterConfirmHdl, (xRecvedEvent & MB_EVENT_REQ_MASK) );
         if (MB_PORT_CHECK_EVENT(xRecvedEvent, EV_MASTER_PROCESS_SUCCESS)) {
@@ -299,7 +298,7 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
             eErrStatus = MB_MRE_EXE_FUN;
         }
     } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%x", __func__, uxBits);
+        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%" PRIx32 "", __func__, (uint32_t)uxBits);
         // https://github.com/espressif/esp-idf/issues/5275
         // if a no event is received, that means vMBMasterPortEventClose()
         // has been closed, so event group has been deleted by FreeRTOS, which
