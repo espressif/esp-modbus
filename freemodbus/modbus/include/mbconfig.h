@@ -99,6 +99,9 @@ PR_BEGIN_EXTERN_C
 #define MB_ASCII_BITS_PER_SYMB                  (  CONFIG_FMB_SERIAL_ASCII_BITS_PER_SYMB )
 #endif
 
+#define MB_EVENT_QUEUE_SIZE                     ( CONFIG_FMB_CONTROLLER_NOTIFY_QUEUE_SIZE )
+#define MB_EVENT_QUEUE_TIMEOUT                  ( pdMS_TO_TICKS( CONFIG_FMB_EVENT_QUEUE_TIMEOUT ) )
+
 /*! \brief The character timeout value for Modbus ASCII.
  *
  * The character timeout value is not fixed for Modbus ASCII and is therefore

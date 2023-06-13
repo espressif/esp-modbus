@@ -36,8 +36,9 @@
  */
 
 /* ----------------------- System includes ----------------------------------*/
-#include "stdlib.h"
-#include "string.h"
+#include <stdatomic.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* ----------------------- Platform includes --------------------------------*/
 #include "port.h"
@@ -316,171 +317,171 @@ eMBMasterPoll( void )
     static UCHAR    ucFunctionCode;
     static USHORT   usLength;
     static eMBException eException;
-    static BOOL     xTransactionIsActive = FALSE;
+    static uint64_t xCurTransactionId = 0;
     int             i;
     int             j;
     eMBErrorCode    eStatus = MB_ENOERR;
-    eMBMasterEventType    eEvent;
+    xMBMasterEventType      xEvent;
     eMBMasterErrorEventType errorType;
 
     /* Check if the protocol stack is ready. */
-    if( eMBState != STATE_ENABLED )
-    {
+    if( eMBState != STATE_ENABLED ) {
         return MB_EILLSTATE;
     }
 
     /* Check if there is a event available. If not return control to caller.
      * Otherwise we will handle the event. */
-    if ( xMBMasterPortEventGet( &eEvent ) == TRUE )
-    {
-        while( eEvent ) {
+    if ( xMBMasterPortEventGet( &xEvent ) == TRUE ) {
+        switch( xEvent.eEvent ) {
             // In some cases it is possible that more than one event set
             // together (even from one subset mask) than process them consistently
-            if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_READY ) ) {
-                ESP_LOGD(MB_PORT_TAG, "%s:EV_MASTER_READY", __func__);
+            case EV_MASTER_READY:
+                ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_READY", xEvent.xTransactionId);
                 vMBMasterSetErrorType( EV_ERROR_INIT );
                 vMBMasterRunResRelease( );
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_READY );
-            } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_TRANSMIT ) ) {
-                ESP_LOGD(MB_PORT_TAG, "%s:EV_MASTER_FRAME_TRANSMIT", __func__);
+                break;
+            case EV_MASTER_FRAME_TRANSMIT:
+                ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_FRAME_TRANSMIT", xEvent.xTransactionId);
                 /* Master is busy now. */
                 vMBMasterGetPDUSndBuf( &ucMBSendFrame );
                 ESP_LOG_BUFFER_HEX_LEVEL("POLL transmit buffer", (void*)ucMBSendFrame, usMBMasterGetPDUSndLength(), ESP_LOG_DEBUG);
                 eStatus = peMBMasterFrameSendCur( ucMBMasterGetDestAddress(), ucMBSendFrame, usMBMasterGetPDUSndLength() );
-                if (eStatus != MB_ENOERR)
-                {
+                if (eStatus != MB_ENOERR) {
                     vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                     ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
-                    ESP_LOGE( MB_PORT_TAG, "%s:Frame send error. %u", __func__, (unsigned)eStatus );
+                    ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ":Frame send error = %d", xEvent.xTransactionId, (unsigned)eStatus );
                 }
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_FRAME_TRANSMIT );
-            } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_SENT ) ) {
-                ESP_LOGD( MB_PORT_TAG, "%s:EV_MASTER_FRAME_SENT", __func__ );
-                ESP_LOG_BUFFER_HEX_LEVEL("POLL sent buffer", (void*)ucMBSendFrame, usMBMasterGetPDUSndLength(), ESP_LOG_DEBUG);
-                xTransactionIsActive = TRUE;
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_FRAME_SENT );
-            } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_RECEIVED ) ) {
-                if (xTransactionIsActive) {
-                    ESP_LOGD( MB_PORT_TAG, "%s:EV_MASTER_FRAME_RECEIVED", __func__ );
-                    eStatus = peMBMasterFrameReceiveCur( &ucRcvAddress, &ucMBRcvFrame, &usLength);
+                xCurTransactionId = xEvent.xTransactionId;
+                break;
+            case EV_MASTER_FRAME_SENT:
+                if (xCurTransactionId == xEvent.xTransactionId) {
+                    ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_FRAME_SENT", xEvent.xTransactionId );
+                    ESP_LOG_BUFFER_HEX_LEVEL("POLL sent buffer", (void*)ucMBSendFrame, usMBMasterGetPDUSndLength(), ESP_LOG_DEBUG);
+                }
+                break;
+            case EV_MASTER_FRAME_RECEIVED:
+                ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_FRAME_RECEIVED", xEvent.xTransactionId );
+                eStatus = peMBMasterFrameReceiveCur( &ucRcvAddress, &ucMBRcvFrame, &usLength);
+                if (xCurTransactionId == xEvent.xTransactionId) {
                     MB_PORT_CHECK(ucMBSendFrame, MB_EILLSTATE, "Send buffer initialization fail.");
                     // Check if the frame is for us. If not ,send an error process event.
                     if ( ( eStatus == MB_ENOERR ) && ( ( ucRcvAddress == ucMBMasterGetDestAddress() )
                                                     || ( ucRcvAddress == MB_TCP_PSEUDO_ADDRESS) ) ) {
                         if ( ( ucMBRcvFrame[MB_PDU_FUNC_OFF]  & ~MB_FUNC_ERROR ) == ( ucMBSendFrame[MB_PDU_FUNC_OFF] ) ) {
-                            ESP_LOGD(MB_PORT_TAG, "%s: Packet data received successfully (%u).", __func__, (unsigned)eStatus);
-                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)ucMBRcvFrame, (unsigned)usLength, ESP_LOG_DEBUG);
-
+                            ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ": Packet data received successfully (%u).", xEvent.xTransactionId, (unsigned)eStatus);
+                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)ucMBRcvFrame, (uint16_t)usLength, ESP_LOG_DEBUG);
                             ( void ) xMBMasterPortEventPost( EV_MASTER_EXECUTE );
                         } else {
                             ESP_LOGE( MB_PORT_TAG, "Drop incorrect frame, receive_func(%u) != send_func(%u)",
-                                            (UCHAR)ucMBRcvFrame[MB_PDU_FUNC_OFF], (UCHAR)ucMBSendFrame[MB_PDU_FUNC_OFF]);
+                                            ucMBRcvFrame[MB_PDU_FUNC_OFF], ucMBSendFrame[MB_PDU_FUNC_OFF]);
                             vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                             ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         }
                     } else {
                         vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                         ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
-                        ESP_LOGD( MB_PORT_TAG, "%s: Packet data receive failed (addr=%u)(%u).",
-                                               __func__, (unsigned)ucRcvAddress, (unsigned)eStatus);
+                        ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ": Packet data receive failed (addr=%u)(%u).",
+                                               xEvent.xTransactionId, (unsigned)ucRcvAddress, (unsigned)eStatus);
                     }
                 } else {
                     // Ignore the `EV_MASTER_FRAME_RECEIVED` event because the respond timeout occurred
                     // and this is likely respond to previous transaction
-                    ESP_LOGE( MB_PORT_TAG, "Drop data received outside of transaction.");
+                    ESP_LOGE( MB_PORT_TAG, "Drop data received outside of transaction (%" PRIu64 ")", xEvent.xTransactionId );
                 }
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_FRAME_RECEIVED );
-            } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_EXECUTE ) ) {
-                MB_PORT_CHECK(ucMBRcvFrame, MB_EILLSTATE, "receive buffer initialization fail.");
-                ESP_LOGD(MB_PORT_TAG, "%s:EV_MASTER_EXECUTE", __func__);
-                ucFunctionCode = ucMBRcvFrame[MB_PDU_FUNC_OFF];
-                eException = MB_EX_ILLEGAL_FUNCTION;
-                /* If receive frame has exception. The receive function code highest bit is 1.*/
-                if (ucFunctionCode & MB_FUNC_ERROR)
-                {
-                    eException = (eMBException)ucMBRcvFrame[MB_PDU_DATA_OFF];
-                } else {
-                    for ( i = 0; i < MB_FUNC_HANDLERS_MAX; i++ )
-                    {
-                        /* No more function handlers registered. Abort. */
-                        if (xMasterFuncHandlers[i].ucFunctionCode == 0)
+                break;
+            case EV_MASTER_EXECUTE:
+                if (xCurTransactionId == xEvent.xTransactionId) {
+                    MB_PORT_CHECK(ucMBRcvFrame, MB_EILLSTATE, "receive buffer initialization fail.");
+                    ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_EXECUTE", xEvent.xTransactionId);
+                    ucFunctionCode = ucMBRcvFrame[MB_PDU_FUNC_OFF];
+                    eException = MB_EX_ILLEGAL_FUNCTION;
+                    /* If receive frame has exception. The receive function code highest bit is 1.*/
+                    if (ucFunctionCode & MB_FUNC_ERROR) {
+                        eException = (eMBException)ucMBRcvFrame[MB_PDU_DATA_OFF];
+                    } else {
+                        for ( i = 0; i < MB_FUNC_HANDLERS_MAX; i++ )
                         {
-                            break;
-                        }
-                        if (xMasterFuncHandlers[i].ucFunctionCode == ucFunctionCode)
-                        {
-                            vMBMasterSetCBRunInMasterMode(TRUE);
-                            /* If master request is broadcast,
-                             * the master need execute function for all slave.
-                             */
-                            if ( xMBMasterRequestIsBroadcast() )
-                            {
-                                usLength = usMBMasterGetPDUSndLength();
-                                for(j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++)
-                                {
-                                    vMBMasterSetDestAddress(j);
-                                    eException = xMasterFuncHandlers[i].pxHandler(ucMBRcvFrame, &usLength);
+                            /* No more function handlers registered. Abort. */
+                            if (xMasterFuncHandlers[i].ucFunctionCode == 0) {
+                                break;
+                            }
+                            if (xMasterFuncHandlers[i].ucFunctionCode == ucFunctionCode) {
+                                vMBMasterSetCBRunInMasterMode(TRUE);
+                                /* If master request is broadcast,
+                                * the master need execute function for all slave.
+                                */
+                                if ( xMBMasterRequestIsBroadcast() ) {
+                                    usLength = usMBMasterGetPDUSndLength();
+                                    for(j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++)
+                                    {
+                                        vMBMasterSetDestAddress(j);
+                                        eException = xMasterFuncHandlers[i].pxHandler(ucMBRcvFrame, &usLength);
+                                    }
+                                } else {
+                                    eException = xMasterFuncHandlers[i].pxHandler( ucMBRcvFrame, &usLength );
                                 }
+                                vMBMasterSetCBRunInMasterMode( FALSE );
+                                break;
                             }
-                            else
-                            {
-                                eException = xMasterFuncHandlers[i].pxHandler( ucMBRcvFrame, &usLength );
-                            }
-                            vMBMasterSetCBRunInMasterMode( FALSE );
-                            break;
                         }
                     }
-                }
-                /* If master has exception, will send error process event. Otherwise the master is idle.*/
-                if ( eException != MB_EX_NONE )
-                {
-                    vMBMasterSetErrorType( EV_ERROR_EXECUTE_FUNCTION );
-                    ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
-                }
-                else
-                {
-                    if ( eMBMasterGetErrorType( ) == EV_ERROR_INIT ) {
-                        vMBMasterSetErrorType(EV_ERROR_OK);
-                        ESP_LOGD( MB_PORT_TAG, "%s: set event EV_ERROR_OK", __func__ );
+                    /* If master has exception, will send error process event. Otherwise the master is idle.*/
+                    if ( eException != MB_EX_NONE ) {
+                        vMBMasterSetErrorType( EV_ERROR_EXECUTE_FUNCTION );
                         ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
+                    } else {
+                        if ( eMBMasterGetErrorType( ) == EV_ERROR_INIT ) {
+                            vMBMasterSetErrorType(EV_ERROR_OK);
+                            ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":set event EV_ERROR_OK", xEvent.xTransactionId );
+                            ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
+                        }
                     }
+                } else {
+                    ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_EXECUTE is expired", xEvent.xTransactionId );
                 }
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_EXECUTE );
-            } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_ERROR_PROCESS ) ) {
-                ESP_LOGD( MB_PORT_TAG, "%s:EV_MASTER_ERROR_PROCESS", __func__ );
-                /* Execute specified error process callback function. */
-                errorType = eMBMasterGetErrorType( );
-                vMBMasterGetPDUSndBuf( &ucMBSendFrame );
-                switch ( errorType )
-                {
-                    case EV_ERROR_RESPOND_TIMEOUT:
-                        vMBMasterErrorCBRespondTimeout( ucMBMasterGetDestAddress( ),
-                                ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
-                        break;
-                    case EV_ERROR_RECEIVE_DATA:
-                        vMBMasterErrorCBReceiveData( ucMBMasterGetDestAddress( ),
-                                ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
-                        break;
-                    case EV_ERROR_EXECUTE_FUNCTION:
-                        vMBMasterErrorCBExecuteFunction( ucMBMasterGetDestAddress( ),
-                                ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
-                        break;
-                    case EV_ERROR_OK:
-                        vMBMasterCBRequestSuccess( );
-                        break;
-                    default:
-                        ESP_LOGE( MB_PORT_TAG, "%s: incorrect error type = %u.", __func__, (unsigned)errorType);
-                        break;
+                break;
+            case EV_MASTER_ERROR_PROCESS:
+                if (xCurTransactionId == xEvent.xTransactionId) {
+                    ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_ERROR_PROCESS", xEvent.xTransactionId);
+                    /* Execute specified error process callback function. */
+                    errorType = eMBMasterGetErrorType( );
+                    vMBMasterGetPDUSndBuf( &ucMBSendFrame );
+                    switch ( errorType )
+                    {
+                        case EV_ERROR_RESPOND_TIMEOUT:
+                            vMBMasterErrorCBRespondTimeout( ucMBMasterGetDestAddress( ),
+                                    ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            break;
+                        case EV_ERROR_RECEIVE_DATA:
+                            vMBMasterErrorCBReceiveData( ucMBMasterGetDestAddress( ),
+                                    ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            break;
+                        case EV_ERROR_EXECUTE_FUNCTION:
+                            vMBMasterErrorCBExecuteFunction( ucMBMasterGetDestAddress( ),
+                                    ucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            break;
+                        case EV_ERROR_OK:
+                            vMBMasterCBRequestSuccess( );
+                            break;
+                        default:
+                            ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ":incorrect error type = %d.", xEvent.xTransactionId, (int)errorType);
+                            break;
+                    }
                 }
                 vMBMasterPortTimersDisable( );
+                uint64_t xProcTime = xCurTransactionId ? ( xEvent.xPostTimestamp - xCurTransactionId ) : 0;
+                ESP_LOGD( MB_PORT_TAG, "Transaction (%" PRIu64 "), processing time(us) = %" PRId64, xCurTransactionId, xProcTime );
+                xCurTransactionId = 0;
                 vMBMasterSetErrorType( EV_ERROR_INIT );
-                MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_ERROR_PROCESS );
                 vMBMasterRunResRelease( );
-            }
+                break;
+            default:
+                ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ":Unexpected event triggered 0x%02x.", xEvent.xTransactionId, (int)xEvent.eEvent );
+                break;
         }
     } else {
         // Something went wrong and task unblocked but there are no any correct events set
-        ESP_LOGE( MB_PORT_TAG, "%s: Unexpected event triggered 0x%02x.", __func__, (int)eEvent );
+        ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ": Unexpected event triggered 0x%02x.", xEvent.xTransactionId, (int)xEvent.eEvent );
         eStatus = MB_EILLSTATE;
     }
     return eStatus;
@@ -489,37 +490,37 @@ eMBMasterPoll( void )
 // Get whether the Modbus Master is run in master mode.
 BOOL xMBMasterGetCBRunInMasterMode( void )
 {
-    return xMBRunInMasterMode;
+    return atomic_load(&xMBRunInMasterMode);
 }
 
 // Set whether the Modbus Master is run in master mode.
 void vMBMasterSetCBRunInMasterMode( BOOL IsMasterMode )
 {
-    xMBRunInMasterMode = IsMasterMode;
+    atomic_store(&(xMBRunInMasterMode), IsMasterMode);
 }
 
 // Get Modbus Master send destination address.
 UCHAR ucMBMasterGetDestAddress( void )
 {
-    return ucMBMasterDestAddress;
+    return atomic_load(&ucMBMasterDestAddress);
 }
 
 // Set Modbus Master send destination address.
 void vMBMasterSetDestAddress( UCHAR Address )
 {
-    ucMBMasterDestAddress = Address;
+    atomic_store(&(ucMBMasterDestAddress), Address);
 }
 
 // Get Modbus Master current error event type.
 eMBMasterErrorEventType inline eMBMasterGetErrorType( void )
 {
-    return eMBMasterCurErrorType;
+    return atomic_load(&eMBMasterCurErrorType);
 }
 
 // Set Modbus Master current error event type.
 void IRAM_ATTR vMBMasterSetErrorType( eMBMasterErrorEventType errorType )
 {
-    eMBMasterCurErrorType = errorType;
+    atomic_store(&(eMBMasterCurErrorType), errorType);
 }
 
 /* Get Modbus Master send PDU's buffer address pointer.*/
@@ -531,25 +532,25 @@ void vMBMasterGetPDUSndBuf( UCHAR ** pucFrame )
 /* Set Modbus Master send PDU's buffer length.*/
 void vMBMasterSetPDUSndLength( USHORT SendPDULength )
 {
-    usMasterSendPDULength = SendPDULength;
+    atomic_store(&(usMasterSendPDULength), SendPDULength);
 }
 
 /* Get Modbus Master send PDU's buffer length.*/
 USHORT usMBMasterGetPDUSndLength( void )
 {
-    return usMasterSendPDULength;
+    return atomic_load(&usMasterSendPDULength);
 }
 
 /* Set Modbus Master current timer mode.*/
 void vMBMasterSetCurTimerMode( eMBMasterTimerMode eMBTimerMode )
 {
-    eMasterCurTimerMode = eMBTimerMode;
+    atomic_store(&(eMasterCurTimerMode), eMBTimerMode);
 }
 
 /* Get Modbus Master current timer mode.*/
 eMBMasterTimerMode MB_PORT_ISR_ATTR xMBMasterGetCurTimerMode( void )
 {
-    return eMasterCurTimerMode;
+    return atomic_load(&eMasterCurTimerMode);
 }
 
 /* The master request is broadcast? */
@@ -561,7 +562,7 @@ BOOL MB_PORT_ISR_ATTR xMBMasterRequestIsBroadcast( void )
 /* The master request is broadcast? */
 void vMBMasterRequestSetType( BOOL xIsBroadcast )
 {
-    xFrameIsBroadcast = xIsBroadcast;
+    atomic_store(&(xFrameIsBroadcast), xIsBroadcast);
 }
 
 // Get Modbus Master communication mode.

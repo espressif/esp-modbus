@@ -508,7 +508,6 @@ static esp_err_t mbc_tcp_master_get_parameter(uint16_t cid, char* name, uint8_t*
         } else {
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
                      __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
-            error = ESP_ERR_INVALID_RESPONSE;
         }
         free(pdata);
         // Set the type of parameter found in the table
