@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 set(EXTRA_COMPONENT_DIRS "../../../")
-set(EXCLUDE_COMPONENTS examples test_app test freemodbus)
+set(EXCLUDE_COMPONENTS freemodbus)
 
 # Include parameters from common modbus folder
 set(MB_PARAMS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../mb_example_common")

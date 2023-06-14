@@ -46,7 +46,7 @@ after_script:
 .before_script_build_jobs:
   before_script:
     - pip install idf-component-manager --upgrade
-    - pip install "idf_build_apps~=0.3.0"
+    - pip install "idf_build_apps~=1.0.1"
 
 # This template gets expanded multiple times, once for every IDF version.
 # IDF version is specified by setting the espressif/idf image tag.
@@ -87,6 +87,8 @@ after_script:
       --check-warnings
       --ignore-warning-file ../tools/ignore_build_warnings.txt
       --collect-size-info $SIZE_INFO_LOCATION
+      --manifest-rootpath .
+      --manifest-file .build-test-rules.yml
       --parallel-count ${CI_NODE_TOTAL:-1}
       --parallel-index ${CI_NODE_INDEX:-1}
   variables:
@@ -96,31 +98,31 @@ build_idf_latest:
   extends: .build_pytest_template
   image: espressif/idf:latest
   variables:
-    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c2,esp32c3,esp32c6"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
 
 build_idf_v5.0:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.0
   variables:
-    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c2,esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
     
 build_idf_v4.4:
   extends: .build_pytest_template
   image: espressif/idf:release-v4.4
   variables:
-    TEST_TARGETS: "esp32,esp32s2,esp32s3,esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
 
 build_idf_v4.3:
   extends: .build_pytest_template
   image: espressif/idf:release-v4.3
   variables:
-    TEST_TARGETS: "esp32,esp32s2,esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32c3"
 
 build_idf_v4.2:
   extends: .build_pytest_template
   image: espressif/idf:release-v4.2
   variables:
-    TEST_TARGETS: "esp32,esp32s2"
+    TEST_TARGETS: "esp32 esp32s2"
 
 .target_test_template:
   image: $TARGET_TEST_ENV_IMAGE
