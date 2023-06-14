@@ -1,11 +1,21 @@
 menu "Modbus Example Configuration"
 
+    config MB_UART_PORT_ONE
+        bool
+        default y
+        depends on (ESP_CONSOLE_UART_NUM !=1) && (SOC_UART_NUM > 1)
+
+    config MB_UART_PORT_TWO
+        bool
+        default y
+        depends on (ESP_CONSOLE_UART_NUM !=2) && (SOC_UART_NUM > 2)
+
     config MB_UART_PORT_NUM
         int "UART port number"
-        range 0 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
-        default 2 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
-        range 0 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C6
-        default 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C6
+        range 0 2 if MB_UART_PORT_TWO
+        default 2 if MB_UART_PORT_TWO
+        range 0 1 if MB_UART_PORT_ONE
+        default 1 if MB_UART_PORT_ONE
         help
             UART communication port number for Modbus example.
 
@@ -25,7 +35,9 @@ menu "Modbus Example Configuration"
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
         range 0 20 if IDF_TARGET_ESP32C2
-        default 8 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        default 8 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32H2
         help
             GPIO number for UART RX pin. See UART documentation for more information
             about available pin numbers for UART.
@@ -39,7 +51,9 @@ menu "Modbus Example Configuration"
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
         range 0 20 if IDF_TARGET_ESP32C2
-        default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32H2
         help
             GPIO number for UART TX pin. See UART documentation for more information
             about available pin numbers for UART.
@@ -53,7 +67,9 @@ menu "Modbus Example Configuration"
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
         range 0 20 if IDF_TARGET_ESP32C2
-        default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        default 10 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32H2
         help
             GPIO number for UART RTS pin. This pin is connected to
             ~RE/DE pin of RS485 transceiver to switch direction.
