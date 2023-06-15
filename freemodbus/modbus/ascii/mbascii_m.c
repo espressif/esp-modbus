@@ -274,8 +274,8 @@ xMBMasterASCIIReceiveFSM( void )
             usMasterRcvBufferPos = 0;
             eBytePos = BYTE_HIGH_NIBBLE;
             eRcvState = STATE_M_RX_RCV;
+            eSndState = STATE_M_TX_IDLE;
         }
-        eSndState = STATE_M_TX_IDLE;
         break;
 
         /* A new character is received. If the character is a ':' the input
