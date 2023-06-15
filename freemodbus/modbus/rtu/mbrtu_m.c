@@ -284,12 +284,12 @@ xMBMasterRTUReceiveFSM( void )
          * Disable timer of respond timeout and change the transmiter state to idle.
          */
         vMBMasterPortTimersDisable( );
-        eSndState = STATE_M_TX_IDLE;
 
         usMasterRcvBufferPos = 0;
         if( xStatus && ucByte ) {
             ucMasterRTURcvBuf[usMasterRcvBufferPos++] = ucByte;
             eRcvState = STATE_M_RX_RCV;
+            eSndState = STATE_M_TX_IDLE;
         }
 
         /* Enable t3.5 timers. */
