@@ -89,7 +89,7 @@ xMBPortEventPost( eMBEventType eEvent )
             portYIELD_FROM_ISR();
         }
         if (xStatus != pdTRUE) {
-            ESP_EARLY_LOGV(MB_PORT_TAG, "%s: Post message failure = %d.", __func__, xStatus);
+            ESP_EARLY_LOGV(MB_PORT_TAG, "%s: Post message failure = %u.", __func__, (unsigned)xStatus);
             return FALSE;
         }
     }

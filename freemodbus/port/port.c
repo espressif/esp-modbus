@@ -78,7 +78,7 @@ vMBPortSetMode( UCHAR ucMode )
 BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, ULONG xTimeout)
 {
     BOOL xResult = (BaseType_t)xQueueReceive(xMbUartQueue, (void*)pxEvent, (TickType_t) xTimeout);
-    ESP_LOGD(MB_PORT_TAG, "%s, UART event: %d ", __func__, pxEvent->type);
+    ESP_LOGD(MB_PORT_TAG, "%s, UART event: %u ", __func__, (unsigned)pxEvent->type);
     return xResult;
 }
 

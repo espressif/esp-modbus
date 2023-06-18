@@ -351,7 +351,7 @@ eMBMasterPoll( void )
                 {
                     vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                     ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
-                    ESP_LOGE( MB_PORT_TAG, "%s:Frame send error. %d", __func__, eStatus );
+                    ESP_LOGE( MB_PORT_TAG, "%s:Frame send error. %u", __func__, (unsigned)eStatus );
                 }
                 MB_PORT_CLEAR_EVENT( eEvent, EV_MASTER_FRAME_TRANSMIT );
             } else if ( MB_PORT_CHECK_EVENT( eEvent, EV_MASTER_FRAME_SENT ) ) {
@@ -368,13 +368,13 @@ eMBMasterPoll( void )
                     if ( ( eStatus == MB_ENOERR ) && ( ( ucRcvAddress == ucMBMasterGetDestAddress() )
                                                     || ( ucRcvAddress == MB_TCP_PSEUDO_ADDRESS) ) ) {
                         if ( ( ucMBRcvFrame[MB_PDU_FUNC_OFF]  & ~MB_FUNC_ERROR ) == ( ucMBSendFrame[MB_PDU_FUNC_OFF] ) ) {
-                            ESP_LOGD(MB_PORT_TAG, "%s: Packet data received successfully (%u).", __func__, eStatus);
-                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)ucMBRcvFrame, (uint16_t)usLength, ESP_LOG_DEBUG);
+                            ESP_LOGD(MB_PORT_TAG, "%s: Packet data received successfully (%u).", __func__, (unsigned)eStatus);
+                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)ucMBRcvFrame, (unsigned)usLength, ESP_LOG_DEBUG);
 
                             ( void ) xMBMasterPortEventPost( EV_MASTER_EXECUTE );
                         } else {
                             ESP_LOGE( MB_PORT_TAG, "Drop incorrect frame, receive_func(%u) != send_func(%u)",
-                                            ucMBRcvFrame[MB_PDU_FUNC_OFF], ucMBSendFrame[MB_PDU_FUNC_OFF]);
+                                            (UCHAR)ucMBRcvFrame[MB_PDU_FUNC_OFF], (UCHAR)ucMBSendFrame[MB_PDU_FUNC_OFF]);
                             vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                             ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         }
@@ -382,7 +382,7 @@ eMBMasterPoll( void )
                         vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                         ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         ESP_LOGD( MB_PORT_TAG, "%s: Packet data receive failed (addr=%u)(%u).",
-                                               __func__, ucRcvAddress, eStatus);
+                                               __func__, (unsigned)ucRcvAddress, (unsigned)eStatus);
                     }
                 } else {
                     // Ignore the `EV_MASTER_FRAME_RECEIVED` event because the respond timeout occurred
@@ -469,7 +469,7 @@ eMBMasterPoll( void )
                         vMBMasterCBRequestSuccess( );
                         break;
                     default:
-                        ESP_LOGE( MB_PORT_TAG, "%s: incorrect error type = %d.", __func__, errorType);
+                        ESP_LOGE( MB_PORT_TAG, "%s: incorrect error type = %u.", __func__, (unsigned)errorType);
                         break;
                 }
                 vMBMasterPortTimersDisable( );
@@ -480,7 +480,7 @@ eMBMasterPoll( void )
         }
     } else {
         // Something went wrong and task unblocked but there are no any correct events set
-        ESP_LOGE( MB_PORT_TAG, "%s: Unexpected event triggered 0x%02x.", __func__, eEvent );
+        ESP_LOGE( MB_PORT_TAG, "%s: Unexpected event triggered 0x%02x.", __func__, (int)eEvent );
         eStatus = MB_EILLSTATE;
     }
     return eStatus;
