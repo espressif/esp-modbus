@@ -252,7 +252,9 @@ xMBMasterRTUReceiveFSM( void )
     BOOL            xStatus = FALSE;
     UCHAR           ucByte;
 
-    assert(( eSndState == STATE_M_TX_IDLE ) || ( eSndState == STATE_M_TX_XFWR ));
+    if ( ( eSndState != STATE_M_TX_IDLE ) && ( eSndState != STATE_M_TX_XFWR ) ) {
+        return FALSE;
+    }
 
     /* Always read the character. */
     xStatus = xMBMasterPortSerialGetByte( ( CHAR * ) & ucByte );
@@ -328,7 +330,9 @@ xMBMasterRTUTransmitFSM( void )
     BOOL xNeedPoll = TRUE;
     BOOL xFrameIsBroadcast = FALSE;
 
-    assert( eRcvState == STATE_M_RX_IDLE );
+    if ( eRcvState != STATE_M_RX_IDLE ) {
+        return FALSE;
+    }
 
     switch ( eSndState )
     {

@@ -29,9 +29,10 @@
 
 /*-----------------------Master mode use these variables----------------------*/
 
-// The response time is average processing time + data transmission
-#define MB_RESPONSE_TIMEOUT pdMS_TO_TICKS(CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND)
-#define MB_TCP_CONNECTION_TOUT pdMS_TO_TICKS(CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000)
+#define MB_TCP_CONNECTION_TOUT  (pdMS_TO_TICKS(CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000))
+
+// Actual wait time depends on the response timer
+#define MB_TCP_API_RESP_TICS    (pdMS_TO_TICKS(MB_MAX_RESPONSE_TIME_MS))
 
 static mb_master_interface_t* mbm_interface_ptr = NULL;
 static const char *TAG = "MB_CONTROLLER_MASTER";
@@ -257,7 +258,7 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
     eMBMasterReqErrCode mb_error = MB_MRE_MASTER_BUSY;
     esp_err_t error = ESP_FAIL;
 
-    if (xMBMasterRunResTake(MB_RESPONSE_TIMEOUT)) {
+    if (xMBMasterRunResTake(MB_TCP_API_RESP_TICS)) {
         
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
@@ -275,44 +276,44 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
         {
             case MB_FUNC_READ_COILS:
                 mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                    (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+                                                    (USHORT)mb_size, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_WRITE_SINGLE_COIL:
                 mb_error = eMBMasterReqWriteCoil((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                    *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+                                                    *(USHORT *)data_ptr, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_WRITE_MULTIPLE_COILS:
                 mb_error = eMBMasterReqWriteMultipleCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                             (USHORT)mb_size, (UCHAR *)data_ptr,
-                                                            (LONG)MB_RESPONSE_TIMEOUT);
+                                                            (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_READ_DISCRETE_INPUTS:
                 mb_error = eMBMasterReqReadDiscreteInputs((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                            (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+                                                            (USHORT)mb_size, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_READ_HOLDING_REGISTER:
                 mb_error = eMBMasterReqReadHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                            (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+                                                            (USHORT)mb_size, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_WRITE_REGISTER:
                 mb_error = eMBMasterReqWriteHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                            *(USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+                                                            *(USHORT *)data_ptr, (LONG)MB_TCP_API_RESP_TICS);
                 break;
 
             case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
                 mb_error = eMBMasterReqWriteMultipleHoldingRegister((UCHAR)mb_slave_addr,
                                                                     (USHORT)mb_offset, (USHORT)mb_size,
-                                                                    (USHORT *)data_ptr, (LONG)MB_RESPONSE_TIMEOUT);
+                                                                    (USHORT *)data_ptr, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_READWRITE_MULTIPLE_REGISTERS:
                 mb_error = eMBMasterReqReadWriteMultipleHoldingRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                                         (USHORT)mb_size, (USHORT *)data_ptr,
                                                                         (USHORT)mb_offset, (USHORT)mb_size,
-                                                                        (LONG)MB_RESPONSE_TIMEOUT);
+                                                                        (LONG)MB_TCP_API_RESP_TICS);
                 break;
             case MB_FUNC_READ_INPUT_REGISTER:
                 mb_error = eMBMasterReqReadInputRegister((UCHAR)mb_slave_addr, (USHORT)mb_offset,
-                                                            (USHORT)mb_size, (LONG)MB_RESPONSE_TIMEOUT);
+                                                            (USHORT)mb_size, (LONG)MB_TCP_API_RESP_TICS);
                 break;
             default:
                 ESP_LOGE(TAG, "%s: Incorrect function in request (%u) ", __FUNCTION__, (unsigned)mb_command);
@@ -507,7 +508,6 @@ static esp_err_t mbc_tcp_master_get_parameter(uint16_t cid, char* name, uint8_t*
         } else {
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
                      __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
-            error = ESP_ERR_INVALID_RESPONSE;
         }
         free(pdata);
         // Set the type of parameter found in the table

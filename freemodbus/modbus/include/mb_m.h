@@ -103,7 +103,7 @@ typedef enum
 	MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
 	MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
 	MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast ,then delay sometime.*/
-}eMBMasterTimerMode;
+} eMBMasterTimerMode;
 
 /* ----------------------- Function prototypes ------------------------------*/
 /*! \ingroup modbus

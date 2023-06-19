@@ -35,26 +35,24 @@
  */
 
 /* ----------------------- Modbus includes ----------------------------------*/
-#include "mb_m.h"
-#include "mbport.h"
-#include "mbconfig.h"
+
+#include <stdatomic.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
+
+#include "mb_m.h"
+#include "mbport.h"
+#include "mbconfig.h"
+
 #include "port.h"
 #include "mbport.h"
 #include "freertos/semphr.h"
 
 #if MB_MASTER_RTU_ENABLED || MB_MASTER_ASCII_ENABLED || MB_MASTER_TCP_ENABLED
 /* ----------------------- Defines ------------------------------------------*/
-// Event bit mask for xMBMasterPortEventGet()
-#define MB_EVENT_POLL_MASK  (EventBits_t)( EV_MASTER_READY | \
-                                            EV_MASTER_FRAME_RECEIVED | \
-                                            EV_MASTER_EXECUTE | \
-                                            EV_MASTER_FRAME_SENT | \
-                                            EV_MASTER_FRAME_TRANSMIT | \
-                                            EV_MASTER_ERROR_PROCESS )
 
 // Event bit mask for eMBMasterWaitRequestFinish()
 #define MB_EVENT_REQ_MASK   (EventBits_t)( EV_MASTER_PROCESS_SUCCESS | \
@@ -62,12 +60,13 @@
                                             EV_MASTER_ERROR_RECEIVE_DATA | \
                                             EV_MASTER_ERROR_EXECUTE_FUNCTION )
 
-#define MB_EVENT_RESOURCE   (EventBits_t)( 0x0080 )
-
 /* ----------------------- Variables ----------------------------------------*/
-static EventGroupHandle_t xResourceMasterHdl;
+static SemaphoreHandle_t xResourceMasterHdl;
 static EventGroupHandle_t xEventGroupMasterHdl;
 static EventGroupHandle_t xEventGroupMasterConfirmHdl;
+static QueueHandle_t xQueueMasterHdl;
+
+static uint64_t xTransactionID = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
 
@@ -78,45 +77,60 @@ xMBMasterPortEventInit( void )
     xEventGroupMasterConfirmHdl = xEventGroupCreate();
     MB_PORT_CHECK((xEventGroupMasterHdl != NULL) && (xEventGroupMasterConfirmHdl != NULL),
                     FALSE, "mb stack event group creation error.");
+    xQueueMasterHdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(xMBMasterEventType));
+    MB_PORT_CHECK(xQueueMasterHdl, FALSE, "mb stack event group creation error.");
+    vQueueAddToRegistry(xQueueMasterHdl, "MbMasterPortEventQueue");
+    xTransactionID = 0;
     return TRUE;
 }
 
 BOOL MB_PORT_ISR_ATTR
-xMBMasterPortEventPost( eMBMasterEventType eEvent )
+xMBMasterPortEventPost( eMBMasterEventEnum eEvent)
 {
-    BOOL bStatus = FALSE;
-    eMBMasterEventType eTempEvent = eEvent;
+    BaseType_t xStatus, xHigherPriorityTaskWoken = pdFALSE;
+    assert(xQueueMasterHdl != NULL);
+    xMBMasterEventType xEvent;
+    xEvent.xPostTimestamp = esp_timer_get_time();
+    
+    if (eEvent & EV_MASTER_TRANS_START) {
+        atomic_store(&(xTransactionID), xEvent.xPostTimestamp);
+    }
+    xEvent.eEvent = (eEvent & ~EV_MASTER_TRANS_START);
 
-    if( (BOOL)xPortInIsrContext() == TRUE )
-    {
-        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-        BaseType_t xResult = xEventGroupSetBitsFromISR( xEventGroupMasterHdl,
-                                                        (EventBits_t) eTempEvent,
-                                                        &xHigherPriorityTaskWoken );
-        // Was the message posted successfully?
-        if( xResult == pdPASS ) {
-            // If xHigherPriorityTaskWoken is now set to pdTRUE
-            // then a context switch should be requested.
-            if (xHigherPriorityTaskWoken) portYIELD_FROM_ISR();
-            bStatus = TRUE;
-        } else {
-            bStatus = FALSE;
+    if( (BOOL)xPortInIsrContext() == TRUE ) {
+        xStatus = xQueueSendFromISR(xQueueMasterHdl, (const void*)&xEvent, &xHigherPriorityTaskWoken);
+        if ( xHigherPriorityTaskWoken ) {
+            portYIELD_FROM_ISR();
         }
+        if (xStatus != pdTRUE) {
+            ESP_EARLY_LOGV(MB_PORT_TAG, "%s: Post message failure = %d.", __func__, xStatus);
+            return FALSE;
+        }
+    } else {
+        xStatus = xQueueSend(xQueueMasterHdl, (const void*)&xEvent, MB_EVENT_QUEUE_TIMEOUT);
+        MB_PORT_CHECK((xStatus == pdTRUE), FALSE, "%s: Post message failure.", __func__);
     }
-    else
-    {
-        // Set event bits if the function is called from task
-        // The return result is not checked here because
-        // It might be that event bit was cleared automatically as a
-        // task that was waiting for the bit was removed from the Blocked state.
-        (void) xEventGroupSetBits( xEventGroupMasterHdl, (EventBits_t)eTempEvent );
-        bStatus = TRUE;
-    }
-    return bStatus;
+    return TRUE;
 }
 
-eMBMasterEventType
-xMBMasterPortFsmWaitConfirmation( eMBMasterEventType eEventMask, ULONG ulTimeout)
+BOOL
+xMBMasterPortEventGet(xMBMasterEventType *peEvent)
+{
+    assert(xQueueMasterHdl != NULL);
+    BOOL xEventHappened = FALSE;
+
+    if (xQueueReceive(xQueueMasterHdl, peEvent, portMAX_DELAY) == pdTRUE) {
+        peEvent->xTransactionId = atomic_load(&xTransactionID);
+        // Set event bits in confirmation group (for synchronization with port task)
+        xEventGroupSetBits(xEventGroupMasterConfirmHdl, peEvent->eEvent);
+        peEvent->xGetTimestamp = esp_timer_get_time();
+        xEventHappened = TRUE;
+    }
+    return xEventHappened;
+}
+
+eMBMasterEventEnum
+xMBMasterPortFsmWaitConfirmation( eMBMasterEventEnum eEventMask, ULONG ulTimeout)
 {
     EventBits_t uxBits;
     uxBits = xEventGroupWaitBits( xEventGroupMasterConfirmHdl,  // The event group being tested.
@@ -128,38 +142,19 @@ xMBMasterPortFsmWaitConfirmation( eMBMasterEventType eEventMask, ULONG ulTimeout
         // Clear confirmation events that where set in the mask
         xEventGroupClearBits( xEventGroupMasterConfirmHdl, (uxBits & eEventMask) );
     }
-    return (eMBMasterEventType)(uxBits & eEventMask);
+    return (eMBMasterEventEnum)(uxBits & eEventMask);
 }
 
-BOOL
-xMBMasterPortEventGet( eMBMasterEventType* eEvent )
+uint64_t xMBMasterPortGetTransactionId( )
 {
-    EventBits_t uxBits;
-    BOOL    xEventHappened = FALSE;
-    uxBits = xEventGroupWaitBits( xEventGroupMasterHdl, // The event group being tested.
-                                    MB_EVENT_POLL_MASK, // The bits within the event group to wait for.
-                                    pdTRUE,             // Masked bits should be cleared before returning.
-                                    pdFALSE,            // Don't wait for both bits, either bit will do.
-                                    portMAX_DELAY);     // Wait forever for either bit to be set.
-    // Check if poll event is correct
-    if (MB_PORT_CHECK_EVENT(uxBits, MB_EVENT_POLL_MASK)) {
-        *eEvent = (eMBMasterEventType)(uxBits & MB_EVENT_POLL_MASK);
-        // Set event bits in confirmation group (for synchronization with port task)
-        xEventGroupSetBits( xEventGroupMasterConfirmHdl, *eEvent );
-        xEventHappened = TRUE;
-    } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event triggered = %u.", __func__, (unsigned)uxBits);
-        *eEvent = (eMBMasterEventType)uxBits;
-        xEventHappened = FALSE;
-    }
-    return xEventHappened;
+    return atomic_load(&xTransactionID);
 }
 
 // This function is initialize the OS resource for modbus master.
 void vMBMasterOsResInit( void )
 {
-    xResourceMasterHdl = xEventGroupCreate();
-    MB_PORT_CHECK((xResourceMasterHdl != NULL), ; , "Resource create error.");
+    xResourceMasterHdl = xSemaphoreCreateBinary();
+    MB_PORT_CHECK((xResourceMasterHdl != NULL), ; , "%s: Resource create error.", __func__);
 }
 
 /**
@@ -172,14 +167,10 @@ void vMBMasterOsResInit( void )
  */
 BOOL xMBMasterRunResTake( LONG lTimeOut )
 {
-    EventBits_t uxBits;
-    uxBits = xEventGroupWaitBits( xResourceMasterHdl,   // The event group being tested.
-                                    MB_EVENT_RESOURCE,  // The bits within the event group to wait for.
-                                    pdTRUE,             // Masked bits should be cleared before returning.
-                                    pdFALSE,            // Don't wait for both bits, either bit will do.
-                                    lTimeOut);          // Resource wait timeout.
-    MB_PORT_CHECK((uxBits == MB_EVENT_RESOURCE), FALSE , "Take resource failure.");
-    ESP_LOGD(MB_PORT_TAG,"%s:Take resource (%" PRIx32 ") (%" PRIu32 " ticks).", __func__, (uint32_t)uxBits, (uint32_t)lTimeOut);
+    BaseType_t xStatus = pdTRUE;
+    xStatus = xSemaphoreTake( xResourceMasterHdl, lTimeOut );
+    MB_PORT_CHECK((xStatus == pdTRUE), FALSE , "%s: Resource take failure.", __func__);
+    ESP_LOGD(MB_PORT_TAG,"%s:Take MB resource (%lu ticks).", __func__, lTimeOut);
     return TRUE;
 }
 
@@ -189,11 +180,10 @@ BOOL xMBMasterRunResTake( LONG lTimeOut )
  */
 void vMBMasterRunResRelease( void )
 {
-    EventBits_t uxBits = xEventGroupSetBits( xResourceMasterHdl, MB_EVENT_RESOURCE );
-    if (uxBits != MB_EVENT_RESOURCE) {
-        // The returned resource mask may be = 0, if the task waiting for it is unblocked.
-        // This is not an error but expected behavior.
-        ESP_LOGD(MB_PORT_TAG,"%s: Release resource (%" PRIx32 ") fail.", __func__, (uint32_t)uxBits);
+    BaseType_t xStatus = pdFALSE;
+    xStatus = xSemaphoreGive( xResourceMasterHdl );
+    if (xStatus != pdTRUE) {
+        ESP_LOGD(MB_PORT_TAG,"%s: Release resource fail.", __func__);
     }
 }
 
@@ -208,8 +198,7 @@ void vMBMasterRunResRelease( void )
  */
 void vMBMasterErrorCBRespondTimeout(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
 {
-    BOOL ret = xMBMasterPortEventPost(EV_MASTER_ERROR_RESPOND_TIMEOUT);
-    MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_ERROR_RESPOND_TIMEOUT' failed!", __func__);
+    (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RESPOND_TIMEOUT );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback respond timeout.", __func__);
 }
 
@@ -223,8 +212,7 @@ void vMBMasterErrorCBRespondTimeout(UCHAR ucDestAddress, const UCHAR* pucPDUData
  */
 void vMBMasterErrorCBReceiveData(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
 {
-    BOOL ret = xMBMasterPortEventPost(EV_MASTER_ERROR_RECEIVE_DATA);
-    MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_ERROR_RECEIVE_DATA' failed!", __func__);
+    (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RECEIVE_DATA );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback receive data timeout failure.", __func__);
     ESP_LOG_BUFFER_HEX_LEVEL("Err rcv buf", (void *)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
 }
@@ -241,8 +229,7 @@ void vMBMasterErrorCBReceiveData(UCHAR ucDestAddress, const UCHAR* pucPDUData, U
  */
 void vMBMasterErrorCBExecuteFunction(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
 {
-    BOOL ret = xMBMasterPortEventPost(EV_MASTER_ERROR_EXECUTE_FUNCTION);
-    MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_ERROR_EXECUTE_FUNCTION' failed!", __func__);
+    xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_EXECUTE_FUNCTION );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback execute data handler failure.", __func__);
     ESP_LOG_BUFFER_HEX_LEVEL("Exec func buf", (void*)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
 }
@@ -252,13 +239,9 @@ void vMBMasterErrorCBExecuteFunction(UCHAR ucDestAddress, const UCHAR* pucPDUDat
  * @note There functions will block modbus master poll while execute OS waiting.
  * So,for real-time of system. Do not execute too much waiting process.
  */
-void vMBMasterCBRequestSuccess( void ) {
-     /**
-     * @note This code is use OS's event mechanism for modbus master protocol stack.
-     * If you don't use OS, you can change it.
-     */
-    BOOL ret = xMBMasterPortEventPost(EV_MASTER_PROCESS_SUCCESS);
-    MB_PORT_CHECK((ret == TRUE), ; , "%s: Post event 'EV_MASTER_PROCESS_SUCCESS' failed!", __func__);
+void vMBMasterCBRequestSuccess( void ) 
+{
+    (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_PROCESS_SUCCESS );
     ESP_LOGD(MB_PORT_TAG,"%s: Callback request success.", __func__);
 }
 
@@ -273,14 +256,14 @@ void vMBMasterCBRequestSuccess( void ) {
  */
 eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
     eMBMasterReqErrCode eErrStatus = MB_MRE_NO_ERR;
-    eMBMasterEventType xRecvedEvent;
+    eMBMasterEventEnum xRecvedEvent;
 
     EventBits_t uxBits = xEventGroupWaitBits( xEventGroupMasterHdl, // The event group being tested.
                                                 MB_EVENT_REQ_MASK,  // The bits within the event group to wait for.
                                                 pdTRUE,             // Masked bits should be cleared before returning.
                                                 pdFALSE,            // Don't wait for both bits, either bit will do.
                                                 portMAX_DELAY );    // Wait forever for either bit to be set.
-    xRecvedEvent = (eMBMasterEventType)(uxBits);
+    xRecvedEvent = (eMBMasterEventEnum)(uxBits);
     if (xRecvedEvent) {
         ESP_LOGD(MB_PORT_TAG,"%s: returned event = 0x%x", __func__, (int)xRecvedEvent);
         if (!(xRecvedEvent & MB_EVENT_REQ_MASK)) {
@@ -298,7 +281,7 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
             eErrStatus = MB_MRE_EXE_FUN;
         }
     } else {
-        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%" PRIx32 "", __func__, (uint32_t)uxBits);
+        ESP_LOGE(MB_PORT_TAG,"%s: Incorrect event or timeout xRecvedEvent = 0x%x", __func__, (int)uxBits);
         // https://github.com/espressif/esp-idf/issues/5275
         // if a no event is received, that means vMBMasterPortEventClose()
         // has been closed, so event group has been deleted by FreeRTOS, which
@@ -311,9 +294,22 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
 
 void vMBMasterPortEventClose(void)
 {
-    vEventGroupDelete(xEventGroupMasterHdl);
-    vEventGroupDelete(xEventGroupMasterConfirmHdl);
-    vEventGroupDelete(xResourceMasterHdl);
+    if (xQueueMasterHdl) {
+        vEventGroupDelete(xEventGroupMasterHdl);
+        xQueueMasterHdl = NULL;
+    }
+    if (xQueueMasterHdl) {
+        vQueueDelete(xQueueMasterHdl);
+        xQueueMasterHdl = NULL;
+    }
+    if (xEventGroupMasterConfirmHdl) {
+        vEventGroupDelete(xEventGroupMasterConfirmHdl);
+        xEventGroupMasterConfirmHdl = NULL;
+    }
+    if (xResourceMasterHdl) {
+        vSemaphoreDelete(xResourceMasterHdl);
+        xResourceMasterHdl = NULL;
+    }
 }
 
 #endif

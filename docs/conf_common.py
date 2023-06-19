@@ -29,5 +29,5 @@ html_static_path = ['../_static']
 project_slug = 'esp-modbus'
 versions_url = './_static/modbus_docs_versions.js'
 
-idf_targets = ['esp32', 'esp32s2', 'esp32c3']
+idf_targets = [ 'esp32' ]
 languages = ['en']
