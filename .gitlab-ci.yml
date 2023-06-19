@@ -194,7 +194,7 @@ build_docs:
   script:
     - cd docs
     - pip install -r requirements.txt
-    - build-docs -l en -t esp32
+    - ./generate_docs
 
 .deploy_docs_template:
   stage: deploy
