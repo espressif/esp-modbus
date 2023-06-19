@@ -118,12 +118,6 @@ build_idf_v4.3:
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32c3"
 
-build_idf_v4.2:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v4.2
-  variables:
-    TEST_TARGETS: "esp32 esp32s2"
-
 .target_test_template:
   image: $TARGET_TEST_ENV_IMAGE
   stage: target_test
@@ -200,7 +194,7 @@ build_docs:
   script:
     - cd docs
     - pip install -r requirements.txt
-    - build-docs -l en -t esp32
+    - ./generate_docs
 
 .deploy_docs_template:
   stage: deploy

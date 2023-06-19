@@ -91,6 +91,10 @@
 #define MB_TCP_SEND_TIMEOUT             (pdMS_TO_TICKS(MB_TCP_SEND_TIMEOUT_MS))
 #define MB_TCP_PORT_MAX_CONN            (CONFIG_FMB_TCP_PORT_MAX_CONN)
 
+// Set the API unlock time to maximum response time
+// The actual release time will be dependent on the timer time
+#define MB_MAX_RESPONSE_TIME_MS         (5000)
+
 #define MB_TCP_FRAME_LOG_BUFSIZE        (256)
 
 #define MB_PORT_HAS_CLOSE               (1) // Define to explicitly close port on destroy

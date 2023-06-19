@@ -655,7 +655,7 @@ static int xMBTCPPortMasterCheckConnState(fd_set *pxFdSet)
     return xCount;
 }
 
-static void xMBTCPPortMasterFsmSetError(eMBMasterErrorEventType xErrType, eMBMasterEventType xPostEvent)
+static void xMBTCPPortMasterFsmSetError(eMBMasterErrorEventType xErrType, eMBMasterEventEnum xPostEvent)
 {
     vMBMasterPortTimersDisable();
     vMBMasterSetErrorType(xErrType);
@@ -861,7 +861,7 @@ static void vMBTCPPortMasterTask(void *pvParameters)
                     } else if (xRet == ERR_BUF) {
                         // After retries a response with incorrect TID received, process failure.
                         xMBTCPPortMasterFsmSetError(EV_ERROR_RECEIVE_DATA, EV_MASTER_ERROR_PROCESS);
-                        ESP_LOGW(TAG, MB_SLAVE_FMT(", frame error."),
+                        ESP_LOGD(TAG, MB_SLAVE_FMT(", frame error."),
                                     (int)pxCurrInfo->xIndex, (int)pxCurrInfo->xSockId, pxCurrInfo->pcIpAddr);
                     } else {
                         ESP_LOGE(TAG, MB_SLAVE_FMT(", critical error=%d."),

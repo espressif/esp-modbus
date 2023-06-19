@@ -44,13 +44,10 @@
 #include "mb.h"
 #include "mbport.h"
 #include "port.h"
-#include "sdkconfig.h"
+#include "mbconfig.h"
 #include "port_serial_slave.h"
 /* ----------------------- Variables ----------------------------------------*/
 static QueueHandle_t xQueueHdl;
-
-#define MB_EVENT_QUEUE_SIZE     (6)
-#define MB_EVENT_QUEUE_TIMEOUT  (pdMS_TO_TICKS(CONFIG_FMB_EVENT_QUEUE_TIMEOUT))
 
 /* ----------------------- Start implementation -----------------------------*/
 BOOL
