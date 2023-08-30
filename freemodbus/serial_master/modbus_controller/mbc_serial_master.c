@@ -566,7 +566,7 @@ eMBErrorCode eMBRegCoilsCBSerialMaster(UCHAR* pucRegBuffer, USHORT usAddress,
         switch (eMode) {
             case MB_REG_WRITE:
                 while (usCoils > 0) {
-                    UCHAR ucResult = xMBUtilGetBits((UCHAR*)pucRegCoilsBuf, iRegIndex, 1);
+                    UCHAR ucResult = xMBUtilGetBits((UCHAR*)pucRegCoilsBuf, iRegIndex - (usAddress % 8), 1);
                     xMBUtilSetBits(pucRegBuffer, iRegIndex - (usAddress % 8) , 1, ucResult);
                     iRegIndex++;
                     usCoils--;
@@ -575,7 +575,7 @@ eMBErrorCode eMBRegCoilsCBSerialMaster(UCHAR* pucRegBuffer, USHORT usAddress,
             case MB_REG_READ:
                 while (usCoils > 0) {
                     UCHAR ucResult = xMBUtilGetBits(pucRegBuffer, iRegIndex - (usAddress % 8), 1);
-                    xMBUtilSetBits((uint8_t*)pucRegCoilsBuf, iRegIndex, 1, ucResult);
+                    xMBUtilSetBits((uint8_t*)pucRegCoilsBuf, iRegIndex - (usAddress % 8), 1, ucResult);
                     iRegIndex++;
                     usCoils--;
                 }
@@ -621,7 +621,7 @@ eMBErrorCode eMBRegDiscreteCBSerialMaster(UCHAR * pucRegBuffer, USHORT usAddress
         iRegBitIndex = (USHORT)(usAddress) % 8; // Get bit index
         while (iNReg > 1)
         {
-            xMBUtilSetBits(pucDiscreteInputBuf++, iRegBitIndex, 8, *pucRegBuffer++);
+            xMBUtilSetBits(pucDiscreteInputBuf++, iRegBitIndex - ((USHORT)(usAddress) % 8), 8, *pucRegBuffer++);
             iNReg--;
         }
         // last discrete
@@ -629,7 +629,7 @@ eMBErrorCode eMBRegDiscreteCBSerialMaster(UCHAR * pucRegBuffer, USHORT usAddress
         // xMBUtilSetBits has bug when ucNBits is zero
         if (usNDiscrete != 0)
         {
-            xMBUtilSetBits(pucDiscreteInputBuf, iRegBitIndex, usNDiscrete, *pucRegBuffer++);
+            xMBUtilSetBits(pucDiscreteInputBuf, iRegBitIndex - ((USHORT)(usAddress) % 8), usNDiscrete, *pucRegBuffer++);
         }
     } else {
         eStatus = MB_ENOREG;
