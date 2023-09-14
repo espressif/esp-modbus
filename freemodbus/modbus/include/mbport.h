@@ -149,6 +149,8 @@ void            vMBPortClose( void );
 
 void            xMBPortSerialClose( void );
 
+//eMBErrorCode    eMBRegisterCB( UCHAR ucFunctionCode, pxMBFunctionHandler pxHandler );
+
 void            vMBPortSerialEnable( BOOL xRxEnable, BOOL xTxEnable );
 
 BOOL            xMBPortSerialGetByte( CHAR * pucByte );

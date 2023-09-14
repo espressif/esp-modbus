@@ -132,7 +132,7 @@ PR_BEGIN_EXTERN_C
  * the sum of all enabled functions in this file and custom function
  * handlers. If set to small adding more functions will fail.
  */
-#define MB_FUNC_HANDLERS_MAX                    ( 16 )
+#define MB_FUNC_HANDLERS_MAX                    (  CONFIG_FMB_FUNC_HANDLERS_MAX )
 
 /*! \brief Number of bytes which should be allocated for the <em>Report Slave ID
  *    </em>command.

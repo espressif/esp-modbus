@@ -292,11 +292,23 @@ static esp_err_t master_init(void)
     return err;
 }
 
+//#include "port.h"
+#include "mb_m.h"
+
+eMBException functionHandler( UCHAR * pucFrame, USHORT * pusLength )
+{
+    return MB_EX_GATEWAY_PATH_FAILED;
+}
+
+extern eMBErrorCode eMBRegisterCB( UCHAR ucFunctionCode, pxMBFunctionHandler pxHandler );
+
 void app_main(void)
 {
     // Initialization of device peripheral and objects
     ESP_ERROR_CHECK(master_init());
     vTaskDelay(10);
+
+    eMBRegisterCB(10, &functionHandler);
 
     master_operation_func(NULL);
 }

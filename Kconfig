@@ -211,5 +211,13 @@ menu "Modbus configuration"
                 to send timeout events from the callback function called from ISR.
                 This option has dependency with the UART_ISR_IN_IRAM option which places UART interrupt
                 handler into IRAM to prevent delays related to processing of UART events.
+    
+    config FMB_FUNC_HANDLERS_MAX
+        int "Number "
+        range 0 100
+        default 16
+        help
+                Modbus stack event queue timeout in milliseconds. This may help to optimize
+                Modbus stack event processing time.
 
 endmenu
