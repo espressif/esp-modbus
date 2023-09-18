@@ -292,15 +292,18 @@ static esp_err_t master_init(void)
     return err;
 }
 
-//#include "port.h"
-#include "mb_m.h"
+#include "port.h"
+#include "mbport.h"
+//#include "mb_m.h"
 
-eMBException functionHandler( UCHAR * pucFrame, USHORT * pusLength )
-{
-    return MB_EX_GATEWAY_PATH_FAILED;
-}
+// eMBException functionHandler( UCHAR * pucFrame, USHORT * pusLength )
+// {
+//     return MB_EX_GATEWAY_PATH_FAILED;
+// }
 
-extern eMBErrorCode eMBRegisterCB( UCHAR ucFunctionCode, pxMBFunctionHandler pxHandler );
+//extern void vMBMasterRxFlush( void );
+
+// extern eMBErrorCode eMBRegisterCB( UCHAR ucFunctionCode, pxMBFunctionHandler pxHandler );
 
 void app_main(void)
 {
@@ -308,7 +311,8 @@ void app_main(void)
     ESP_ERROR_CHECK(master_init());
     vTaskDelay(10);
 
-    eMBRegisterCB(10, &functionHandler);
+    //eMBRegisterCB(10, &functionHandler);
+    vMBMasterRxFlush();
 
     master_operation_func(NULL);
 }
