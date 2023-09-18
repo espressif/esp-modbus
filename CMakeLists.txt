@@ -43,7 +43,7 @@ set(srcs
     "common/esp_modbus_master_serial.c"
     "common/esp_modbus_slave_serial.c")
 
-set(include_dirs common/include port modbus/include)
+set(include_dirs common/include modbus/include port) # Add the modbus/include to public include path
 
 set(priv_include_dirs common modbus modbus/ascii modbus/functions
                       modbus/rtu modbus/tcp)

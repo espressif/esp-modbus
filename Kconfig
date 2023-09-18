@@ -213,11 +213,11 @@ menu "Modbus configuration"
                 handler into IRAM to prevent delays related to processing of UART events.
     
     config FMB_FUNC_HANDLERS_MAX
-        int "Number "
+        int "The maximum number of modbus function handlers"
         range 0 100
         default 16
         help
-                Modbus stack event queue timeout in milliseconds. This may help to optimize
-                Modbus stack event processing time.
+                Maximum namber of Modbus function handlers in function handler list.
+                It allows to register additional custom function handlers for master and slave accordingly.
 
 endmenu

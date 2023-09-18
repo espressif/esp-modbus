@@ -50,8 +50,8 @@
 #include "driver/timer.h"
 #endif
 
-//#include "mbconfig.h"
-#include "sdkconfig.h"
+#include "mbconfig.h"
+//#include "sdkconfig.h"
 
 #define INLINE                      inline
 #define PR_BEGIN_EXTERN_C           extern "C" {
