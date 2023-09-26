@@ -5,7 +5,6 @@ stages:
 
 variables:
   # System environment
-  TARGET_TEST_ENV_IMAGE: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:2"
   ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.0:2-2"
   ESP_DOCS_PATH: "$CI_PROJECT_DIR"
   TEST_DIR: "$CI_PROJECT_DIR/test"
@@ -48,6 +47,20 @@ after_script:
     - pip install idf-component-manager --upgrade
     - pip install "idf_build_apps~=1.0.1"
 
+.check_idf_ver: &check_idf_ver |
+  export IDF_PATH=$(find /opt -type d -name "*idf*" \
+                  \( -exec test -f '{}/tools/idf.py' \; -and -exec test -f '{}/tools/idf_tools.py' \; \
+                  \) -print -quit)
+  if [ -z "${IDF_PATH}" ];then
+    echo "IDF version is not found."
+  else
+    cd ${IDF_PATH}
+    export IDF_DESCRIBE=$(git describe)
+    export IDF_VERSION=${IDF_DESCRIBE%-*}
+    echo "ESP-IDF: $IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
+    echo "ESP-IDF: $IDF_VERSION"
+  fi
+
 # This template gets expanded multiple times, once for every IDF version.
 # IDF version is specified by setting the espressif/idf image tag.
 #
@@ -72,12 +85,14 @@ after_script:
       - "**/build*/config/sdkconfig.json"
       - "**/build*/bootloader/*.bin"
       - "**/build*/partition_table/*.bin"
+      - "**/idf_version_info.txt"
       - $SIZE_INFO_LOCATION
     when: always
-    expire_in: 3 days
+    expire_in: 3 weeks
   script:
     # CI specific options start from "--collect-size-info xxx". could ignore when running locally
     # The script below will build all test applications defined in environment variable $TEST_TARGETS
+    - *check_idf_ver
     - cd ${TEST_DIR}
     - python -m idf_build_apps build -v -p .
       --recursive
@@ -94,7 +109,7 @@ after_script:
   variables:
     TEST_TARGETS: "esp32"
 
-build_idf_latest:
+build_idf_master:
   extends: .build_pytest_template
   image: espressif/idf:latest
   variables:
@@ -105,21 +120,14 @@ build_idf_v5.0:
   image: espressif/idf:release-v5.0
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
-    
+
 build_idf_v4.4:
   extends: .build_pytest_template
   image: espressif/idf:release-v4.4
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
 
-build_idf_v4.3:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v4.3
-  variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32c3"
-
 .target_test_template:
-  image: $TARGET_TEST_ENV_IMAGE
   stage: target_test
   timeout: 1 hour
   variables:
@@ -134,22 +142,10 @@ build_idf_v4.3:
 
 .before_script_pytest_jobs:
   before_script:
-    # Get ESP-IDF and install the tools.
-    - cd /opt/
-    - git clone -b ${IDF_BRANCH} --depth 1 https://github.com/espressif/esp-idf.git
-    - cd esp-idf
-    - export IDF_PATH=${PWD}
-    - export IDF_DESCRIBE=`git describe`
-    - export IDF_VERSION=${IDF_DESCRIBE%-*}
-    - tools/idf_tools.py --non-interactive install cmake
-    - tools/idf_tools.py install-python-env
-    - tools/idf_tools.py --non-interactive install && eval "$(tools/idf_tools.py --non-interactive export)" || exit 1
-    - 'echo "ESP-IDF: ${IDF_VERSION}" >> ${TEST_DIR}/idf_version_info.txt'
-    - pip install "pytest-embedded-serial-esp~=1.2.3" "pytest-embedded-idf~=1.2.3"
+    # Install pytest-embedded to perform test cases
+    - pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf
 
 .test_template:
-  stage: target_test
-  image: ${TARGET_TEST_ENV_IMAGE}
   extends:
     - .before_script_pytest_jobs
   tags:
@@ -161,19 +157,23 @@ build_idf_v4.3:
       - "${TEST_DIR}/*/results_*.xml"
       - "${TEST_DIR}/pytest_embedded_log/"
     reports:
-      junit: ${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VERSION}.xml
+      junit: ${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_BRANCH}.xml
     when: always
     expire_in: 1 week
   script:
     - cd ${TEST_DIR}/${TEST_PORT}
-    - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VERSION}.xml --target=${IDF_TARGET}
-    - ls -lh > test_dir.txt
+    - echo "Start test for [esp-idf_${IDF_BRANCH}_${IDF_TARGET}_${TEST_PORT}]"
+    - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_BRANCH}.xml --target=${IDF_TARGET}
+    - ls -lh > ${TEST_DIR}/test_dir.txt
 
-test_examples:
+target_test:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.2:2"
   extends: .test_template
+  needs: [build_idf_master, build_idf_v4.4, build_idf_v5.0]
   parallel:
     matrix:
-      - IDF_BRANCH: ["release/v4.4", "release/v5.0", "master"]
+      - IDF_BRANCH: ["master", "v4.4", "v5.0"]
         IDF_TARGET: ["esp32"]
         TEST_PORT: ["serial", "tcp"]
   after_script: []
