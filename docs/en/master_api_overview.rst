@@ -108,7 +108,13 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
     - FLOAT
     - DegC
     - Room temperature in DegC. Writing a temperature value to this register for single point calibration.
-    
+  * - 3
+    - 40002
+    - 16
+    - 1..100 bytes
+    - ASCII or binary array
+    - Not defined
+    - Device name (16 bytes) ASCII string. The type of `PARAM_TYPE_ASCII` allows to read/write complex parameter (string or binary data) that corresponds to one CID.
 .. code:: c
 
     // Enumeration of modbus slave addresses accessed by master device
@@ -122,9 +128,11 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
     enum {
         CID_SER_NUM1 = 0,
         CID_SW_VER1,
+        CID_DEV_NAME1,
         CID_TEMP_DATA_1,
         CID_SER_NUM2,
         CID_SW_VER2,
+        CID_DEV_NAME2,
         CID_TEMP_DATA_2
     };
 
@@ -136,12 +144,16 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
                         0, PARAM_TYPE_U32, 4, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
         { CID_SW_VER1, STR("Software_version_1"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 2, 1,
                         0, PARAM_TYPE_U16, 2, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_DEV_NAME1, STR("Device name"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 8,
+                        0, PARAM_TYPE_ASCII, 16, OPTS( 0, 0, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
         { CID_TEMP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 2,
                         0, PARAM_TYPE_FLOAT, 4, OPTS( 16, 30, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
         { CID_SER_NUM2, STR("Serial_number_2"), STR("--"), MB_DEVICE_ADDR2, MB_PARAM_INPUT, 0, 2,
                         0, PARAM_TYPE_U32, 4, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
         { CID_SW_VER2, STR("Software_version_2"), STR("--"), MB_DEVICE_ADDR2, MB_PARAM_INPUT, 2, 1,
                         0, PARAM_TYPE_U16, 2, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_DEV_NAME2, STR("Device name"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 8,
+                        0, PARAM_TYPE_ASCII, 16, OPTS( 0, 0, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
         { CID_TEMP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING, 0, 2,
                         0, PARAM_TYPE_FLOAT, 4, OPTS( 20, 30, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
     };
@@ -155,8 +167,9 @@ During initialization of the Modbus stack, a pointer to the Data Dictionary (cal
 .. code:: c
 
     ESP_ERROR_CHECK(mbc_master_set_descriptor(&device_parameters[0], num_device_parameters));
-    
+
 The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
+Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
 
 .. _modbus_api_master_setup_communication_options:
 
