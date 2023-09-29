@@ -113,6 +113,14 @@
         return ret_val; \
     }
 
+// Macro to check if stack shutdown event is active
+#define TCP_PORT_CHECK_SHDN(sema_ptr, callback_func) do { \
+    if (sema_ptr) { \
+        ESP_LOGD(TAG, "Shutdown stack from %s(%d)", __func__, __LINE__); \
+        callback_func(); \
+    } \
+} while(0)
+
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
 #endif /* __cplusplus */
