@@ -70,7 +70,7 @@ void vMBPortEventClose( void );
 /* ----------------------- Static variables ---------------------------------*/
 static const char *TAG = "MB_TCP_SLAVE_PORT";
 static int xListenSock = -1;
-static SemaphoreHandle_t xShutdownSemaphore = NULL;
+static SemaphoreHandle_t xShutdownSema = NULL;
 static MbSlavePortConfig_t xConfig = { 0 };
 
 /* ----------------------- Static functions ---------------------------------*/
@@ -158,7 +158,6 @@ xMBTCPPortInit( USHORT usTCPPort )
                                     MB_TCP_TASK_PRIO,
                                     &xConfig.xMbTcpTaskHandle,
                                     MB_PORT_TASK_AFFINITY);
-    vTaskSuspend(xConfig.xMbTcpTaskHandle);
     if (xErr != pdTRUE)
     {
         ESP_LOGE(TAG, "Server task creation failure.");
@@ -229,7 +228,12 @@ static BOOL xMBTCPPortCloseConnection(MbClientInfo_t* pxInfo)
         ESP_LOGE(TAG, "Wrong socket info or disconnected socket: %d.", (int)pxInfo->xSockId);
         return FALSE;
     }
-    if (shutdown(pxInfo->xSockId, SHUT_RDWR) == -1) {
+    
+    // Empty tcp buffer before shutdown
+    (void)recv(pxInfo->xSockId, &pxInfo->pucTCPBuf[0], MB_PDU_SIZE_MAX, MSG_DONTWAIT);
+
+    if (shutdown(pxInfo->xSockId, SHUT_RDWR) == -1)
+    {
         ESP_LOGE(TAG, "Socket (#%d), shutdown failed: errno %u", (int)pxInfo->xSockId, (unsigned)errno);
     }
     close(pxInfo->xSockId);
@@ -242,7 +246,37 @@ static BOOL xMBTCPPortCloseConnection(MbClientInfo_t* pxInfo)
     return TRUE;
 }
 
-static int xMBTCPPortRxPoll(MbClientInfo_t* pxClientInfo, ULONG xTimeoutMs)
+static void vMBTCPPortFreeClientInfo(MbClientInfo_t *pxClientInfo)
+{
+    if (pxClientInfo) {
+        if (pxClientInfo->pucTCPBuf) {
+            free((void *)pxClientInfo->pucTCPBuf);
+        }
+        if (pxClientInfo->pcIpAddr) {
+            free((void *)pxClientInfo->pcIpAddr);
+        }
+        free((void *)pxClientInfo);
+    }
+}
+
+static void vMBTCPPortShutdown(void)
+{
+    xSemaphoreGive(xShutdownSema);
+    vTaskDelete(NULL);
+    xConfig.xMbTcpTaskHandle = NULL;
+
+    for (int i = 0; i < MB_TCP_PORT_MAX_CONN; i++) {
+        MbClientInfo_t *pxClientInfo = xConfig.pxMbClientInfo[i];
+        if ((pxClientInfo != NULL) && (pxClientInfo->xSockId > 0)) {
+            xMBTCPPortCloseConnection(pxClientInfo);
+            vMBTCPPortFreeClientInfo(pxClientInfo);
+            xConfig.pxMbClientInfo[i] = NULL;
+        }
+    }
+    free(xConfig.pxMbClientInfo);
+}
+
+static int xMBTCPPortRxPoll(MbClientInfo_t *pxClientInfo, ULONG xTimeoutMs)
 {
     int xRet = ERR_CLSD;
     struct timeval xTimeVal;
@@ -263,12 +297,14 @@ static int xMBTCPPortRxPoll(MbClientInfo_t* pxClientInfo, ULONG xTimeoutMs)
             {
                 // If select an error occurred
                 xRet = ERR_CLSD;
+                TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
                 break;
             } else if (xRet == 0) {
                 // timeout occurred
                 if ((xStartTimeStamp + xTimeoutMs * 1000) > xMBTCPGetTimeStamp()) {
                     ESP_LOGD(TAG, "Socket (#%d) Read timeout.", (int)pxClientInfo->xSockId);
                     xRet = ERR_TIMEOUT;
+                    TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
                     break;
                 }
             }
@@ -414,21 +450,6 @@ vMBTCPPortBindAddr(const CHAR* pcBindIp)
     return(xListenSockFd);
 }
 
-static void
-vMBTCPPortFreeClientInfo(MbClientInfo_t* pxClientInfo)
-{
-    if (pxClientInfo) {
-        if (pxClientInfo->pucTCPBuf) {
-            free((void*)pxClientInfo->pucTCPBuf);
-        }
-        if (pxClientInfo->pcIpAddr) {
-            free((void*)pxClientInfo->pcIpAddr);
-        }
-        free((void*)pxClientInfo);
-    }
-}
-
-
 static void vMBTCPPortServerTask(void *pvParameters)
 {
     int xErr = 0;
@@ -442,14 +463,15 @@ static void vMBTCPPortServerTask(void *pvParameters)
         // Create listen socket
         xListenSock = vMBTCPPortBindAddr(xConfig.pcBindAddr);
         if (xListenSock < 0) {
+            TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
             continue;
         }
 
         // Connections handling cycle
         while (1) {
-            //clear the socket set
+            // clear the socket set
             FD_ZERO(&xReadSet);
-            //add master socket to set
+            // add master socket to set
             FD_SET(xListenSock, &xReadSet);
             int xMaxSd = xListenSock;
             xConfig.usClientCount = 0;
@@ -458,6 +480,7 @@ static void vMBTCPPortServerTask(void *pvParameters)
             // Initialize read set and file descriptor according to
             // all registered connected clients
             for (i = 0; i < MB_TCP_PORT_MAX_CONN; i++) {
+                TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
                 if ((xConfig.pxMbClientInfo[i] != NULL) && (xConfig.pxMbClientInfo[i]->xSockId > 0)) {
                     // calculate max file descriptor for select
                     xMaxSd = (xConfig.pxMbClientInfo[i]->xSockId > xMaxSd) ?
@@ -467,20 +490,19 @@ static void vMBTCPPortServerTask(void *pvParameters)
                 }
             }
 
-            // Wait for an activity on one of the sockets, timeout is NULL, so wait indefinitely
-            xErr = select(xMaxSd + 1 , &xReadSet , NULL , NULL , NULL);
+            vxMBTCPPortMStoTimeVal(MB_TCP_RESP_TIMEOUT_MS, &xTimeVal);
+
+            // Wait for an activity on one of the sockets during timeout
+            xErr = select(xMaxSd + 1, &xReadSet, NULL, NULL, &xTimeVal);
             if ((xErr < 0) && (errno != EINTR)) {
-                // First check if the task is not flagged for shutdown
-                if (xListenSock == -1 && xShutdownSemaphore) {
-                    xSemaphoreGive(xShutdownSemaphore);
-                    vTaskDelete(NULL);
-                }
                 // error occurred during wait for read
                 ESP_LOGE(TAG, "select() errno = %u.", (unsigned)errno);
+                TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
                 continue;
             } else if (xErr == 0) {
                 // If timeout happened, something is wrong
-                ESP_LOGE(TAG, "select() timeout, errno = %u.", (unsigned)errno);
+                ESP_LOGD(TAG, "select() timeout, errno = %u.", (unsigned)errno);
+                TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
             }
 
             // If something happened on the master socket, then its an incoming connection.
@@ -567,10 +589,7 @@ static void vMBTCPPortServerTask(void *pvParameters)
                                         break;
                                 }
 
-                                if (xShutdownSemaphore) {
-                                    xSemaphoreGive(xShutdownSemaphore);
-                                    vTaskDelete(NULL);
-                                }
+                                TCP_PORT_CHECK_SHDN(xShutdownSema, vMBTCPPortShutdown);
 
                                 // Close client connection
                                 xMBTCPPortCloseConnection(pxClientInfo);
@@ -644,46 +663,36 @@ static void vMBTCPPortServerTask(void *pvParameters)
 void
 vMBTCPPortClose( )
 {
-    // Release resources for the event queue.
-
     // Try to exit the task gracefully, so select could release its internal callbacks
     // that were allocated on the stack of the task we're going to delete
-    xShutdownSemaphore = xSemaphoreCreateBinary();
-    vTaskResume(xConfig.xMbTcpTaskHandle);
-    if (xShutdownSemaphore == NULL || // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
-        xSemaphoreTake(xShutdownSemaphore, 2*pdMS_TO_TICKS(CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND)) != pdTRUE) {
+    xShutdownSema = xSemaphoreCreateBinary();
+    if (xShutdownSema == NULL || // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
+        xSemaphoreTake(xShutdownSema, 2 * pdMS_TO_TICKS(CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND)) != pdTRUE) {
         ESP_LOGE(TAG, "Task couldn't exit gracefully within timeout -> abruptly deleting the task");
         vTaskDelete(xConfig.xMbTcpTaskHandle);
     }
-    if (xShutdownSemaphore) {
-        vSemaphoreDelete(xShutdownSemaphore);
-        xShutdownSemaphore = NULL;
-    }
 
-    vMBPortEventClose( );
+    close(xListenSock);
+    xListenSock = -1;
+
+    vMBTCPPortRespQueueDelete(xConfig.xRespQueueHandle);
+
+    if (xShutdownSema) {
+        vSemaphoreDelete(xShutdownSema);
+        xShutdownSema = NULL;
+    }
+    vMBPortEventClose();
 }
 
 void vMBTCPPortEnable( void )
 {
-    vTaskResume(xConfig.xMbTcpTaskHandle);
+
 }
 
 void
 vMBTCPPortDisable( void )
 {
-    vTaskSuspend(xConfig.xMbTcpTaskHandle);
-    for (int i = 0; i < MB_TCP_PORT_MAX_CONN; i++) {
-        MbClientInfo_t* pxClientInfo = xConfig.pxMbClientInfo[i];
-        if ((pxClientInfo != NULL) && (pxClientInfo->xSockId > 0)) {
-            xMBTCPPortCloseConnection(pxClientInfo);
-            vMBTCPPortFreeClientInfo(pxClientInfo);
-            xConfig.pxMbClientInfo[i] = NULL;
-        }
-    }
-    free(xConfig.pxMbClientInfo);
-    close(xListenSock);
-    xListenSock = -1;
-    vMBTCPPortRespQueueDelete(xConfig.xRespQueueHandle);
+
 }
 
 BOOL

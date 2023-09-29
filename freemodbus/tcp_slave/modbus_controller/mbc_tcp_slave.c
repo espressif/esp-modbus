@@ -179,7 +179,7 @@ esp_err_t mbc_tcp_slave_create(void** handler)
                     ESP_ERR_NO_MEM, "mb notify queue creation error.");
     // Create Modbus controller task
     status = xTaskCreatePinnedToCore((void*)&modbus_tcp_slave_task,
-                            "modbus_tcp_slave_task",
+                            "mbs_port_tcp_task",
                             MB_CONTROLLER_STACK_SIZE,
                             NULL,
                             MB_CONTROLLER_PRIORITY,

@@ -181,7 +181,6 @@ static esp_err_t mbc_tcp_master_start(void)
     return ESP_OK;
 }
 
-// Modbus controller destroy function
 static esp_err_t mbc_tcp_master_destroy(void)
 {
     MB_MASTER_ASSERT(mbm_interface_ptr != NULL);
@@ -189,17 +188,21 @@ static esp_err_t mbc_tcp_master_destroy(void)
     MB_MASTER_CHECK((mbm_opts != NULL), ESP_ERR_INVALID_ARG, "mb incorrect options pointer.");
     eMBErrorCode mb_error = MB_ENOERR;
 
-    // Disable and then destroy the Modbus stack
-    mb_error = eMBMasterDisable();
-    MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
-    mb_error = eMBMasterClose();
-    MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
-                        "mb stack close failure returned (0x%x).", (int)mb_error);
     // Stop polling by clearing correspondent bit in the event group
     xEventGroupClearBits(mbm_opts->mbm_event_group,
                          (EventBits_t)MB_EVENT_STACK_STARTED);
+
+    // Disable and then destroy the Modbus port
+    mb_error = eMBMasterDisable();
+    MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
+
     (void)vTaskDelete(mbm_opts->mbm_task_handle);
-    mbm_opts->mbm_task_handle = NULL;
+    mbm_opts->mbm_task_handle = NULL; 
+
+    mb_error = eMBMasterClose();
+    MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
+                        "mb stack close failure returned (0x%x).", (int)mb_error);
+
     (void)vEventGroupDelete(mbm_opts->mbm_event_group);
     mbm_opts->mbm_event_group = NULL;
     mbc_tcp_master_free_slave_list();
