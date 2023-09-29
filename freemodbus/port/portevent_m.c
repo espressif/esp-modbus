@@ -294,9 +294,9 @@ eMBMasterReqErrCode eMBMasterWaitRequestFinish( void ) {
 
 void vMBMasterPortEventClose(void)
 {
-    if (xQueueMasterHdl) {
+    if (xEventGroupMasterHdl) {
         vEventGroupDelete(xEventGroupMasterHdl);
-        xQueueMasterHdl = NULL;
+        xEventGroupMasterHdl = NULL;
     }
     if (xQueueMasterHdl) {
         vQueueDelete(xQueueMasterHdl);
