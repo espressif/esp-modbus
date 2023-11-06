@@ -34,7 +34,7 @@ menu "Modbus configuration"
                 Modbus TCP connection timeout in seconds.
                 Once expired the current connection with the client will be closed
                 and Modbus slave will be waiting for new connection to accept.
-    
+
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
         default n
@@ -139,10 +139,10 @@ menu "Modbus configuration"
     endchoice
 
     config FMB_PORT_TASK_AFFINITY
-        hex
+        int
+        default FREERTOS_CORE0_AFFINITY if FMB_PORT_TASK_AFFINITY_CPU0
+        default FREERTOS_CORE1_AFFINITY if FMB_PORT_TASK_AFFINITY_CPU1
         default FREERTOS_NO_AFFINITY if FMB_PORT_TASK_AFFINITY_NO_AFFINITY || FREERTOS_UNICORE
-        default 0x0 if FMB_PORT_TASK_AFFINITY_CPU0
-        default 0x1 if FMB_PORT_TASK_AFFINITY_CPU1
 
     config FMB_CONTROLLER_SLAVE_ID_SUPPORT
         bool "Modbus controller slave ID support"
