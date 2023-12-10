@@ -191,12 +191,12 @@ void app_main(void)
                             (unsigned)reg_info.size);
             if (reg_info.address == (uint8_t*)&holding_reg_params.holding_data0)
             {
-                (void)mbc_slave_lock(slave_handle);
+                (void)mbc_slave_lock(mbc_slave_handle);
                 holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
                 if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
                     coil_reg_params.coils_port1 = 0xFF;
                 }
-                (void)mbc_slave_unlock(slave_handle);
+                (void)mbc_slave_unlock(mbc_slave_handle);
             }
         } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
             ESP_LOGI(TAG, "INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",

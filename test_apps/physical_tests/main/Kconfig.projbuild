@@ -1,0 +1,45 @@
+menu "Modbus Test Configuration"
+
+    config MB_PORT_ADAPTER_EN
+        bool "Enable Modbus port adapter to substitute hardware layer for test."
+        default y
+        help
+                When option is enabled the port communication layer is substituted by 
+                port adapter layer to allow testing of higher layers without access to physical layer.
+    
+    config MB_TEST_SLAVE_TASK_PRIO
+        int "Modbus master test task priority"
+        range 4 23
+        default 4
+        help
+            Modbus master task priority for the test.
+
+    config MB_TEST_MASTER_TASK_PRIO
+        int "Modbus slave test task priority"
+        range 4 23
+        default 4
+        help
+            Modbus slave task priority for the test.
+
+    config MB_TEST_COMM_CYCLE_COUNTER
+        int "Modbus test communication cycle counter"
+        range 10 1000
+        default 10
+        help
+            Modbus communication cycle counter for test.
+
+    config MB_TEST_LEAK_WARN_LEVEL
+        int "Modbus test leak warning level"
+        range 4 256
+        default 32
+        help
+            Modbus test leak warning level.
+
+    config MB_TEST_LEAK_CRITICAL_LEVEL
+        int "Modbus test leak critical level"
+        range 4 1024
+        default 64
+        help
+            Modbus test leak critical level.
+
+endmenu

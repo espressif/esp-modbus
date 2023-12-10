@@ -1,0 +1,14 @@
+physical_tests:
+  disable:
+    - if: CONFIG_NAME != "serial" or IDF_TARGET != "esp32"
+#  disable_test:
+#    - if: IDF_TARGET != "esp32"
+#      reason: only manual test is performed for other targets
+
+
+
+
+
+
+
+
