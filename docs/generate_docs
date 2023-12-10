@@ -1,0 +1,27 @@
+#!/bin/bash
+
+rm -rf docs
+build-docs --target esp32 --language en
+
+# Modifes target field of html files
+ELEMENT="<script type='text/javascript'>
+window.onload =(function() {
+    var myAnchor = document.getElementById('target-select');
+    var mySpan = document.createElement('input');
+    mySpan.style.float = 'left';
+    mySpan.setAttribute('type', 'text');
+    mySpan.setAttribute('maxLength', '10');
+    mySpan.value = 'all targets';
+    mySpan.setAttribute('disabled', true);
+    myAnchor.parentNode.replaceChild(mySpan, myAnchor);
+})();
+</script>"
+
+FILES=$(find . -path "*/_build/en/esp32/html/*.html")
+
+for FILE in ${FILES}
+    do
+        echo ${ELEMENT} >> "${FILE}"
+    done
+
+
