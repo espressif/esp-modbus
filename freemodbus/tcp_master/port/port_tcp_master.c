@@ -236,7 +236,6 @@ static BOOL xMBTCPPortMasterCloseConnection(MbSlaveInfo_t *pxInfo)
 static void xMBTCPPortMasterShutdown(void)
 {
     xSemaphoreGive(xShutdownSema);
-    vTaskDelete(NULL);
     xMbPortConfig.xMbTcpTaskHandle = NULL;
 
     for (USHORT ucCnt = 0; ucCnt < MB_TCP_PORT_MAX_CONN; ucCnt++) {
@@ -251,6 +250,7 @@ static void xMBTCPPortMasterShutdown(void)
         }
     }
     free(xMbPortConfig.pxMbSlaveInfo);
+    vTaskDelete(NULL);
 }
 
 void vMBTCPPortMasterSetNetOpt(void *pvNetIf, eMBPortIpVer xIpVersion, eMBPortProto xProto)
@@ -754,6 +754,7 @@ static void vMBTCPPortMasterTask(void *pvParameters)
                     break;
                 }
                 putchar(ucDot);
+		vTaskDelay(pdMS_TO_TICKS(100)); /* if we don't yield we run the risk of hogging CPU */
                 xErr = xMBTCPPortMasterConnect(pxInfo);
                 switch(xErr)
                 {
