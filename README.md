@@ -4,7 +4,7 @@
 
 An Espressif ESP-Modbus Library (esp-modbus) is a library to support Modbus communication in the networks based on RS485, WiFi, Ethernet interfaces. The Modbus is a data communications protocol originally published by Modicon (now Schneider Electric) in 1979 for use with its programmable logic controllers (PLCs).
 
-* [ESP-Modbus component on GitHub](https://github.com/espressif/esp-modbus/tree/bugfix/v2.0.0-beta)
+* [ESP-Modbus component on GitHub](https://github.com/espressif/esp-modbus/tree/release/v2.0)
 
 This library is to be used with Espressif’s IoT Development Framework, [ESP_IDF](https://github.com/espressif/esp-idf). The packages from this repository are uploaded to Espressif’s component repository.
 
@@ -37,13 +37,14 @@ The documentation can be found on the link below:
 
 The examples below demonstrate the ESP-Modbus library of serial, TCP ports for slave and master implementations accordingly.
 
-- [Modbus serial slave example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/serial/mb_serial_slave)
+- [Modbus serial slave example](https://github.com/espressif/esp-modbus/tree/release/v2.0/examples/serial/mb_serial_slave)
 
-- [Modbus serial master example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/serial/mb_serial_master)
+- [Modbus serial master example](https://github.com/espressif/esp-modbus/tree/release/v2.0/examples/serial/mb_serial_master)
 
-- [Modbus TCP master example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/tcp/mb_tcp_master)
+- [Modbus TCP master example](https://github.com/espressif/esp-modbus/tree/release/v2.0/examples/tcp/mb_tcp_master)
 
-- [Modbus TCP slave example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/tcp/mb_tcp_slave)
+- [Modbus TCP slave example](https://github.com/espressif/esp-modbus/tree/release/v2.0/examples/tcp/mb_tcp_slave)
+
 
 Please refer to the specific example README.md for details.
 
@@ -67,4 +68,5 @@ Modbus Master related code is Copyright (c) 2013 Armink and licensed under BSD 3
 
 All original code in this repository is Copyright (c) 2016-2022 Espressif Systems (Shanghai) Co. Ltd.
 
+The project is distributed under Apache 2.0 license. See the accompanying [LICENSE file](https://github.com/espressif/esp-modbus/blob/master/LICENSE) for a copy.
 The project is distributed under Apache 2.0 license. See the accompanying [LICENSE file](https://github.com/espressif/esp-modbus/blob/master/LICENSE) for a copy.
