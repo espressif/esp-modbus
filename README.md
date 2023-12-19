@@ -4,7 +4,7 @@
 
 An Espressif ESP-Modbus Library (esp-modbus) is a library to support Modbus communication in the networks based on RS485, WiFi, Ethernet interfaces. The Modbus is a data communications protocol originally published by Modicon (now Schneider Electric) in 1979 for use with its programmable logic controllers (PLCs).
 
-* [ESP-Modbus component on GitHub](https://www.github.com/espressif/esp-modbus)
+* [ESP-Modbus component on GitHub](https://github.com/espressif/esp-modbus/tree/bugfix/v2.0.0-beta)
 
 This library is to be used with Espressif’s IoT Development Framework, [ESP_IDF](https://github.com/espressif/esp-idf). The packages from this repository are uploaded to Espressif’s component repository.
 
@@ -20,23 +20,30 @@ set(EXCLUDE_COMPONENTS freemodbus)
 
 ESP-IDF v5.x and later releases do not include freemodbus component, so no extra steps are necessary when adding esp-modbus component.
 
+## Peculiarities Of Beta Release
+
+The current release of esp-modbus is beta, corresponds to the version `v2.0.0-beta` and supports creation of several instances of modbus master and slave objects. The public API interface is changed to allow creation of multiple communication objects with its own communication parameters, and the constructor API returns the handle to the interface structure that must be used as a first parameter for each API call for this particular object. For more information about the interface API and related changes see the official documentation for this release, described below. The goal of this beta release is to introduce new features and changes to the end users and get their feedback. The appropriate information or feature requests can be shared over on discussion page of the project.
+
+* [Discussions](https://github.com/espressif/esp-modbus/discussions/categories/general)
+* [Issues](https://github.com/espressif/esp-modbus/labels/v2.0.0-beta)
+
 ## Documentation
 
 The documentation can be found on the link below:
 
-* [ESP-Modbus documentation (English)](https://docs.espressif.com/projects/esp-modbus)
+* [ESP-Modbus documentation (English)](https://docs.espressif.com/projects/esp-modbus/en/v2.0.0-beta/esp32/index.html)
 
 ## Application Examples
 
 The examples below demonstrate the ESP-Modbus library of serial, TCP ports for slave and master implementations accordingly.
 
-- [Modbus serial slave example](https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/serial/mb_slave)
+- [Modbus serial slave example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/serial/mb_serial_slave)
 
-- [Modbus serial master example](https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/serial/mb_master)
+- [Modbus serial master example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/serial/mb_serial_master)
 
-- [Modbus TCP master example](https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/tcp/mb_tcp_master)
+- [Modbus TCP master example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/tcp/mb_tcp_master)
 
-- [Modbus TCP slave example](https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/tcp/mb_tcp_slave)
+- [Modbus TCP slave example](https://github.com/espressif/esp-idf/tree/v2.0.0-beta/examples/tcp/mb_tcp_slave)
 
 Please refer to the specific example README.md for details.
 
@@ -58,6 +65,6 @@ ESP-Modbus project is based on [FreeMODBUS library](https://github.com/cwalter-a
 
 Modbus Master related code is Copyright (c) 2013 Armink and licensed under BSD 3-clause license.
 
-All original code in this repository is Copyright (c) 2016-2023 Espressif Systems (Shanghai) Co. Ltd.
+All original code in this repository is Copyright (c) 2016-2022 Espressif Systems (Shanghai) Co. Ltd.
 
 The project is distributed under Apache 2.0 license. See the accompanying [LICENSE file](https://github.com/espressif/esp-modbus/blob/master/LICENSE) for a copy.
