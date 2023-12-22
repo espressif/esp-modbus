@@ -121,8 +121,10 @@ PR_BEGIN_EXTERN_C
  * transmitting the frame. If the master is to slow with enabling its
  * receiver then he will not receive the response correctly.
  */
-#ifndef MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS
+#ifndef CONFIG_FMB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS
 #define MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS    ( 0 )
+#else 
+#define MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS    ( CONFIG_FMB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS )
 #endif
 
 /*! \brief Maximum number of Modbus functions codes the protocol stack

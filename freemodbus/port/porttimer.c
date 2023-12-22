@@ -125,3 +125,8 @@ void vMBPortTimerClose(void)
     }
 #endif
 }
+
+void vMBPortTimersDelay(USHORT usTimeOutMS)
+{
+    vTaskDelay(usTimeOutMS / portTICK_PERIOD_MS);
+}
