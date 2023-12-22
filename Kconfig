@@ -104,6 +104,15 @@ menu "Modbus configuration"
         help
                 This option defines the number of data bits per ASCII character.
 
+    config FMB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS
+        int "Wait before send for ASCII communication mode (ms)"
+        default 0
+        range 0 1000
+        depends on FMB_COMM_MODE_ASCII_EN
+        help
+                This option defines timeout before slave sends the response in ASCII communication mode.
+                This allows to work with slow masters. Zero means delay before send is disabled.
+
     config FMB_SERIAL_ASCII_TIMEOUT_RESPOND_MS
         int "Response timeout for ASCII communication mode (ms)"
         default 1000
