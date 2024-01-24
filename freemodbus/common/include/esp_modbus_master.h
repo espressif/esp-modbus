@@ -76,6 +76,28 @@ typedef enum {
 } mb_param_perms_t;
 
 /**
+ * @brief Modbus Master Read Commands
+ */
+typedef enum {
+    CMD_READ_NONE                               = 0x00, /**< Signifies that no read command exists */
+    CMD_READ_COILS                              = 0x01, /**< Command to read On/Off status of coils within the slave */
+    CMD_READ_DISCRETE_INPUTS                    = 0x02, /**< Command to read On/Off status of discrete inputs within the slave */
+    CMD_READ_HOLDING_REGISTERS                  = 0x03, /**< Command to read the binary contents of holding registers within the slave */
+    CMD_READ_INPUT_REGISTERS                    = 0x04, /**< Command to read the binary contents of input registers within the slave */
+} mb_read_commands_t;
+
+/**
+ * @brief Modbus Master Write Command
+ */
+typedef enum {
+    CMD_WRITE_NONE                              = 0x00, /**< Signifies that no write command exists */
+    CMD_WRITE_SINGLE_COIL                       = 0x05, /**< Command to set a single coil On/Off  */
+    CMD_WRITE_SINGLE_HOLDING_REGISTER           = 0x06, /**< Command to write to a single Holding Register */
+    CMD_WRITE_MULTIPLE_COILS                    = 0x0F, /**< Command to set multiple coils in sequence */
+    CMD_WRITE_MULTIPLE_HOLDING_REGISTERS        = 0x10, /**< Command to write multiple holding Registers in sequence */
+} mb_write_commands_t;
+
+/**
  * @brief Characteristics descriptor type is used to describe characteristic and
  * link it with Modbus parameters that reflect its data.
  */
@@ -92,6 +114,8 @@ typedef struct {
     mb_descr_size_t     param_size;         /*!< Number of bytes in the parameter. */
     mb_parameter_opt_t  param_opts;         /*!< Parameter options used to check limits and etc. */
     mb_param_perms_t    access;             /*!< Access permissions based on mode */
+    mb_read_commands_t  readCommand;        /*!< Read command to be executed when getting the registers contents */
+    mb_read_commands_t  writeCommand;       /*!< Write command to be executed when setting the register */
 } mb_parameter_descriptor_t;
 
 /**
