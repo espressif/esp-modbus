@@ -389,6 +389,11 @@ static esp_err_t mbc_serial_master_get_parameter(uint16_t cid, char* name,
 
     error = mbc_serial_master_set_request(name, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
+        // Check if there is a specific command configured for reading for this parameter and override the request command
+        // to the one in the parameter descriptor
+        if (reg_info.readCommand != CMD_READ_NONE) {
+            request.command = reg_info.readCommand;
+        }
         // Send request to read characteristic data
         error = mbc_serial_master_send_request(&request, value_ptr);
         if (error == ESP_OK) {
@@ -424,6 +429,11 @@ static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name,
 
     error = mbc_serial_master_set_request(name, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
+        // Check if there is a specific command configured for writing this parameter and override the request command
+        // to the one in the parameter descriptor
+        if (reg_info.writeCommand != CMD_WRITE_NONE) {
+            request.command = reg_info.writeCommand;
+        }
         // Send request to write characteristic data
         error = mbc_serial_master_send_request(&request, value_ptr);
         if (error == ESP_OK) {
