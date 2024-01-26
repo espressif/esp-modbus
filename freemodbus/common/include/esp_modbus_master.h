@@ -79,7 +79,7 @@ typedef enum {
  * @brief Modbus Master Read Commands
  */
 typedef enum {
-    CMD_READ_NONE                               = 0x00, /**< Signifies that no read command exists */
+    CMD_READ_AUTO                               = 0x00, /**< Signifies that the Command should be determined automatically */
     CMD_READ_COILS                              = 0x01, /**< Command to read On/Off status of coils within the slave */
     CMD_READ_DISCRETE_INPUTS                    = 0x02, /**< Command to read On/Off status of discrete inputs within the slave */
     CMD_READ_HOLDING_REGISTERS                  = 0x03, /**< Command to read the binary contents of holding registers within the slave */
@@ -90,7 +90,7 @@ typedef enum {
  * @brief Modbus Master Write Command
  */
 typedef enum {
-    CMD_WRITE_NONE                              = 0x00, /**< Signifies that no write command exists */
+    CMD_WRITE_AUTO                              = 0x00, /**< Signifies that the Command should be determined automatically */
     CMD_WRITE_SINGLE_COIL                       = 0x05, /**< Command to set a single coil On/Off  */
     CMD_WRITE_SINGLE_HOLDING_REGISTER           = 0x06, /**< Command to write to a single Holding Register */
     CMD_WRITE_MULTIPLE_COILS                    = 0x0F, /**< Command to set multiple coils in sequence */

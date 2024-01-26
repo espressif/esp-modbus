@@ -391,7 +391,7 @@ static esp_err_t mbc_serial_master_get_parameter(uint16_t cid, char* name,
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
         // Check if there is a specific command configured for reading for this parameter and override the request command
         // to the one in the parameter descriptor
-        if (reg_info.readCommand != CMD_READ_NONE) {
+        if (reg_info.readCommand != CMD_READ_AUTO) {
             request.command = reg_info.readCommand;
         }
         // Send request to read characteristic data
@@ -431,7 +431,7 @@ static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name,
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
         // Check if there is a specific command configured for writing this parameter and override the request command
         // to the one in the parameter descriptor
-        if (reg_info.writeCommand != CMD_WRITE_NONE) {
+        if (reg_info.writeCommand != CMD_WRITE_AUTO) {
             request.command = reg_info.writeCommand;
         }
         // Send request to write characteristic data
