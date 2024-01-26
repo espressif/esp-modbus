@@ -114,8 +114,8 @@ typedef struct {
     mb_descr_size_t     param_size;         /*!< Number of bytes in the parameter. */
     mb_parameter_opt_t  param_opts;         /*!< Parameter options used to check limits and etc. */
     mb_param_perms_t    access;             /*!< Access permissions based on mode */
-    mb_read_commands_t  readCommand;        /*!< Read command to be executed when getting the registers contents */
-    mb_read_commands_t  writeCommand;       /*!< Write command to be executed when setting the register */
+    mb_read_commands_t  read_command;       /*!< Read command to be executed when getting the registers contents */
+    mb_write_commands_t write_command;      /*!< Write command to be executed when setting the register */
 } mb_parameter_descriptor_t;
 
 /**
