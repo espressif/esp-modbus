@@ -489,6 +489,11 @@ static esp_err_t mbc_tcp_master_get_parameter(uint16_t cid, char* name, uint8_t*
 
     error = mbc_tcp_master_set_request(name, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
+        // Check if there is a specific command configured for reading for this parameter and override the request command
+        // to the one in the parameter descriptor
+        if (reg_info.read_command != CMD_READ_AUTO) {
+            request.command = reg_info.read_command;
+        }
         // alloc buffer to store parameter data
         pdata = calloc(1, (reg_info.mb_size << 1));
         if (!pdata) {
@@ -536,6 +541,11 @@ static esp_err_t mbc_tcp_master_set_parameter(uint16_t cid, char* name, uint8_t*
 
     error = mbc_tcp_master_set_request(name, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
+        // Check if there is a specific command configured for writing this parameter and override the request command
+        // to the one in the parameter descriptor
+        if (reg_info.write_command != CMD_WRITE_AUTO) {
+            request.command = reg_info.write_command;
+        }
         pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
         if (!pdata) {
             return ESP_ERR_INVALID_STATE;
