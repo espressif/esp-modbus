@@ -52,6 +52,8 @@ Issue reports and feature requests can be submitted using Github Issues: https:/
 
 Contributions in the form of pull requests should follow ESP-IDF project's [contribution guidelines](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/contribute/index.html). We kindly ask developers to start a discussion on an issue before proposing large changes to the project.
 
+See the beta version of stack v2.0.0_beta introduced [here](https://github.com/espressif/esp-modbus/discussions/45)
+
 ## Licence
 
 ESP-Modbus project is based on [FreeMODBUS library](https://github.com/cwalter-at/freemodbus), Copyright (c) 2006 Christian Walter and licensed under the BSD 3-clause license.
