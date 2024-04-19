@@ -5,7 +5,7 @@ Modbus Slave API Overview
 
 The sections below represent typical programming workflow for the slave API which should be called in following order:
 
-1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface for the selected port.
+1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface using communication options.
 2. :ref:`modbus_api_slave_configure_descriptor` - Configure data descriptors to access slave parameters.
 3. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
 4. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
@@ -71,12 +71,37 @@ The function initializes Modbus communication descriptors for each type of Modbu
 
 At least one area descriptor per each Modbus register type must be set in order to provide register access to its area. If the master tries to access an undefined area, the stack will generate a Modbus exception.
 
+The stack supports the extended data types when enabled through the the option ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` in kconfig menu.
+In this case the mapped data values can be initialized to specific format using :ref:`modbus_api_endianness_conversion`.
+Please refer to secton :ref:`modbus_mapping_complex_data_types` for more information about data types.
+
+Example initialization of mapped values:
+
+.. code:: c
+
+    #include "mbcontroller.h"       // for mbcontroller defines and api
+    val_32_arr holding_float_abcd[2] = {0};
+    val_64_arr holding_double_ghefcdab[2] = {0};
+    ...
+    // set the Modbus parameter to specific format
+    portENTER_CRITICAL(&param_lock); // critical section is required if the stack is active
+    mb_set_float_abcd(&holding_float_abcd[0], (float)12345.0);
+    mb_set_float_abcd(&holding_float_abcd[1], (float)12345.0);
+    mb_set_double_ghefcdab(&holding_double_ghefcdab[0], (double)12345.0);
+    portEXIT_CRITICAL(&param_lock);
+    ...
+    // The actual abcd formatted value can be converted to actual float represenatation as below
+    ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[0]));
+    ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[1]));
+    ESP_LOGI("TEST", "Test value ghefcdab: %lf", mb_get_double_ghefcdab(&holding_double_ghefcdab[0]));
+    ...
+
 .. _modbus_api_slave_communication:
 
 Slave Communication
 ^^^^^^^^^^^^^^^^^^^
 
-The function below is used to start Modbus controller interface and allows communication.
+The function below is used to start Modbus controller interface and allows communication.  
 
 :cpp:func:`mbc_slave_start`
 
@@ -130,7 +155,7 @@ Example to get event when holding or input registers accessed in the slave:
     const char* rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
 
     // Filter events and process them accordingly
-    if (event & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
+    if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
         ESP_LOGI(TAG, "HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
                     rw_str,
                     (uint32_t)reg_info.time_stamp,
@@ -138,7 +163,7 @@ Example to get event when holding or input registers accessed in the slave:
                     (uint32_t)reg_info.type,
                     (uint32_t)reg_info.address,
                     (uint32_t)reg_info.size);
-    } else if (event & (MB_EVENT_INPUT_REG_RD)) {
+    } else if (reg_info.type & (MB_EVENT_INPUT_REG_RD)) {
         ESP_LOGI(TAG, "INPUT %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
                     rw_str,
                     (uint32_t)reg_info.time_stamp,
@@ -159,8 +184,19 @@ The direct access to slave register area from user application must be protected
     static void *slave_handle = NULL;  // communication object handle
     ...
     (void)mbc_slave_lock(slave_handle); // ignore the returned error if the object is not actual
-    holding_reg_area[2] += 10; // the data is part of initialized register area accessed by slave
+    holding_reg_area[1] += 10; // the data is part of initialized register area accessed by slave
     (void)mbc_slave_unlock(slave_handle);
+
+The access to registered area shared between several slave objects from user application must be protected by critical section base on spin lock:
+
+.. code:: c
+#include "freertos/FreeRTOS.h"
+...
+    static portMUX_TYPE g_spinlock = portMUX_INITIALIZER_UNLOCKED;
+...
+    portENTER_CRITICAL(&param_lock);
+    holding_reg_area[2] = 123;
+    portEXIT_CRITICAL(&param_lock);
 
 .. _modbus_api_slave_destroy:
 

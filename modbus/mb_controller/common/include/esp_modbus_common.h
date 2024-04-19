@@ -9,6 +9,10 @@
 #include "driver/uart.h"                    // for UART types
 #include "sdkconfig.h"
 
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+#include "mb_endianness_utils.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

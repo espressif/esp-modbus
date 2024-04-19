@@ -1,10 +1,8 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2024 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
-// FreeModbus Slave Example ESP32
 
 #include <stdio.h>
 #include <stdint.h>
@@ -29,7 +27,11 @@
 #define MB_REG_INPUT_START_AREA0            (INPUT_OFFSET(input_data0)) // register offset input area 0
 #define MB_REG_INPUT_START_AREA1            (INPUT_OFFSET(input_data4)) // register offset input area 1
 #define MB_REG_HOLDING_START_AREA0          (HOLD_OFFSET(holding_data0))
+#define MB_REG_HOLDING_START_AREA0_SIZE     ((size_t)((HOLD_OFFSET(holding_data4) - HOLD_OFFSET(holding_data0)) << 1))
 #define MB_REG_HOLDING_START_AREA1          (HOLD_OFFSET(holding_data4))
+#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1))
+#define MB_REG_HOLDING_START_AREA2          (HOLD_OFFSET(holding_u8_a))
+#define MB_REG_HOLDING_START_AREA2_SIZE     ((size_t)((HOLD_OFFSET(holding_area2_end) - HOLD_OFFSET(holding_u8_a)) << 1))
 
 #define MB_PAR_INFO_GET_TOUT                (10) // Timeout for get parameter info
 #define MB_CHAN_DATA_MAX_VAL                (6)
@@ -41,9 +43,11 @@
 #define MB_WRITE_MASK                       (MB_EVENT_HOLDING_REG_WR \
                                                 | MB_EVENT_COILS_WR)
 #define MB_READ_WRITE_MASK                  (MB_READ_MASK | MB_WRITE_MASK)
+#define MB_TEST_VALUE 12345.0
 
 static const char *TAG = "SLAVE_TEST";
-static void* mbc_slave_handle = NULL;
+
+static void *mbc_slave_handle = NULL;
 
 // Set register values into known state
 static void setup_reg_data(void)
@@ -67,6 +71,44 @@ static void setup_reg_data(void)
     holding_reg_params.holding_data5 = 6.78;
     holding_reg_params.holding_data6 = 7.79;
     holding_reg_params.holding_data7 = 8.80;
+
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    mb_set_uint8_a((val_16_arr *)&holding_reg_params.holding_u8_a[0], (uint8_t)0x55);
+    mb_set_uint8_a((val_16_arr *)&holding_reg_params.holding_u8_a[1], (uint8_t)0x55);
+    mb_set_uint8_b((val_16_arr *)&holding_reg_params.holding_u8_b[0], (uint8_t)0x55);
+    mb_set_uint8_b((val_16_arr *)&holding_reg_params.holding_u8_b[1], (uint8_t)0x55);
+    mb_set_uint16_ab((val_16_arr *)&holding_reg_params.holding_u16_ab[1], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ab((val_16_arr *)&holding_reg_params.holding_u16_ab[0], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ba((val_16_arr *)&holding_reg_params.holding_u16_ba[0], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ba((val_16_arr *)&holding_reg_params.holding_u16_ba[1], (uint16_t)MB_TEST_VALUE);
+
+    mb_set_float_abcd((val_32_arr *)&holding_reg_params.holding_float_abcd[0], (float)MB_TEST_VALUE);
+    mb_set_float_abcd((val_32_arr *)&holding_reg_params.holding_float_abcd[1], (float)MB_TEST_VALUE);
+    mb_set_float_cdab((val_32_arr *)&holding_reg_params.holding_float_cdab[0], (float)MB_TEST_VALUE);
+    mb_set_float_cdab((val_32_arr *)&holding_reg_params.holding_float_cdab[1], (float)MB_TEST_VALUE);
+    mb_set_float_badc((val_32_arr *)&holding_reg_params.holding_float_badc[0], (float)MB_TEST_VALUE);
+    mb_set_float_badc((val_32_arr *)&holding_reg_params.holding_float_badc[1], (float)MB_TEST_VALUE);
+    mb_set_float_dcba((val_32_arr *)&holding_reg_params.holding_float_dcba[0], (float)MB_TEST_VALUE);
+    mb_set_float_dcba((val_32_arr *)&holding_reg_params.holding_float_dcba[1], (float)MB_TEST_VALUE);
+
+    mb_set_uint32_abcd((val_32_arr *)&holding_reg_params.holding_uint32_abcd[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_abcd((val_32_arr *)&holding_reg_params.holding_uint32_abcd[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_cdab((val_32_arr *)&holding_reg_params.holding_uint32_cdab[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_cdab((val_32_arr *)&holding_reg_params.holding_uint32_cdab[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_badc((val_32_arr *)&holding_reg_params.holding_uint32_badc[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_badc((val_32_arr *)&holding_reg_params.holding_uint32_badc[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_dcba((val_32_arr *)&holding_reg_params.holding_uint32_dcba[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_dcba((val_32_arr *)&holding_reg_params.holding_uint32_dcba[1], (uint32_t)MB_TEST_VALUE);
+
+    mb_set_double_abcdefgh((val_64_arr *)&holding_reg_params.holding_double_abcdefgh[0], (double)MB_TEST_VALUE);
+    mb_set_double_abcdefgh((val_64_arr *)&holding_reg_params.holding_double_abcdefgh[1], (double)MB_TEST_VALUE);
+    mb_set_double_hgfedcba((val_64_arr *)&holding_reg_params.holding_double_hgfedcba[0], (double)MB_TEST_VALUE);
+    mb_set_double_hgfedcba((val_64_arr *)&holding_reg_params.holding_double_hgfedcba[1], (double)MB_TEST_VALUE);
+    mb_set_double_ghefcdab((val_64_arr *)&holding_reg_params.holding_double_ghefcdab[0], (double)MB_TEST_VALUE);
+    mb_set_double_ghefcdab((val_64_arr *)&holding_reg_params.holding_double_ghefcdab[1], (double)MB_TEST_VALUE);
+    mb_set_double_badcfehg((val_64_arr *)&holding_reg_params.holding_double_badcfehg[0], (double)MB_TEST_VALUE);
+    mb_set_double_badcfehg((val_64_arr *)&holding_reg_params.holding_double_badcfehg[1], (double)MB_TEST_VALUE);
+#endif
 
     coil_reg_params.coils_port0 = 0x55;
     coil_reg_params.coils_port1 = 0xAA;
@@ -120,14 +162,25 @@ void app_main(void)
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
     reg_area.start_offset = MB_REG_HOLDING_START_AREA0; // Offset of register area in Modbus protocol
     reg_area.address = (void*)&holding_reg_params.holding_data0; // Set pointer to storage instance
-    // Set the size of register storage instance = 150 holding registers
-    reg_area.size = (size_t)(HOLD_OFFSET(holding_data4) - HOLD_OFFSET(test_regs));
+    // Set the size of register storage instance in bytes
+    reg_area.size = MB_REG_HOLDING_START_AREA0_SIZE;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
+    
+    // The second register area
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
-    reg_area.start_offset = MB_REG_HOLDING_START_AREA1; // Offset of register area in Modbus protocol
-    reg_area.address = (void*)&holding_reg_params.holding_data4; // Set pointer to storage instance
-    reg_area.size = sizeof(float) << 2; // Set the size of register storage instance
+    reg_area.start_offset = MB_REG_HOLDING_START_AREA1;
+    reg_area.address = (void*)&holding_reg_params.holding_data4;
+    reg_area.size = MB_REG_HOLDING_START_AREA1_SIZE;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
+
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    // The extended parameters register area
+    reg_area.type = MB_PARAM_HOLDING;
+    reg_area.start_offset = MB_REG_HOLDING_START_AREA2;
+    reg_area.address = (void*)&holding_reg_params.holding_u8_a;
+    reg_area.size = MB_REG_HOLDING_START_AREA2_SIZE;
+    ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
+#endif
 
     // Initialization of Input Registers area
     reg_area.type = MB_PARAM_INPUT;

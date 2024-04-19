@@ -1,7 +1,7 @@
 #!/bin/bash
 
 rm -rf docs
-build-docs --target esp32 --language en
+build-docs --target esp32 --language en && true
 
 # Modifes target field of html files
 ELEMENT="<script type='text/javascript'>

@@ -9,7 +9,6 @@
 #include <stdint.h>                 // for standard int types definition
 #include <stddef.h>                 // for NULL and std defines
 #include "soc/soc.h"                // for BITN definitions
-#include "esp_log.h"
 #include "esp_modbus_common.h"      // for common types
 
 #ifdef __cplusplus
@@ -41,6 +40,12 @@ extern "C" {
 ))
 
 /*!
+ * \brief The macro to access arrays of elements for type conversion.
+ */
+#define MB_EACH_ELEM(psrc, pdest, arr_size, elem_size) \
+(int i = 0; (i < (arr_size / elem_size)); i++, pdest += elem_size, psrc += elem_size)
+
+/*!
  * \brief Modbus descriptor table parameter type defines.
  */
 typedef enum {
@@ -48,7 +53,40 @@ typedef enum {
     PARAM_TYPE_U16 = 0x01,                  /*!< Unsigned 16 */
     PARAM_TYPE_U32 = 0x02,                  /*!< Unsigned 32 */
     PARAM_TYPE_FLOAT = 0x03,                /*!< Float type */
-    PARAM_TYPE_ASCII = 0x04                 /*!< ASCII type */
+    PARAM_TYPE_ASCII = 0x04,                /*!< ASCII type */
+    PARAM_TYPE_BIN = 0x07,                  /*!< BIN type */
+    PARAM_TYPE_I8_A = 0x0A,                 /*!< I8 signed integer in high byte of register */
+    PARAM_TYPE_I8_B = 0x0B,                 /*!< I8 signed integer in low byte of register */
+    PARAM_TYPE_U8_A = 0x0C,                 /*!< U8 unsigned integer written to hi byte of register */
+    PARAM_TYPE_U8_B = 0x0D,                 /*!< U8 unsigned integer written to low byte of register */
+    PARAM_TYPE_I16_AB = 0x0E,               /*!< I16 signed integer, big endian */
+    PARAM_TYPE_I16_BA = 0x0F,               /*!< I16 signed integer, little endian */
+    PARAM_TYPE_U16_AB = 0x10,               /*!< U16 unsigned integer, big endian*/
+    PARAM_TYPE_U16_BA = 0x11,               /*!< U16 unsigned integer, little endian */
+    PARAM_TYPE_I32_ABCD = 0x12,             /*!< I32 ABCD signed integer, big endian */
+    PARAM_TYPE_I32_CDAB = 0x13,             /*!< I32 CDAB signed integer, big endian, reversed register order */
+    PARAM_TYPE_I32_BADC = 0x14,             /*!< I32 BADC signed integer, little endian, reversed register order */
+    PARAM_TYPE_I32_DCBA = 0x15,             /*!< I32 DCBA signed integer, little endian */
+    PARAM_TYPE_U32_ABCD = 0x16,             /*!< U32 ABCD unsigned integer, big endian */
+    PARAM_TYPE_U32_CDAB = 0x17,             /*!< U32 CDAB unsigned integer, big endian, reversed register order */
+    PARAM_TYPE_U32_BADC = 0x18,             /*!< U32 BADC unsigned integer, little endian, reversed register order */
+    PARAM_TYPE_U32_DCBA = 0x19,             /*!< U32 DCBA unsigned integer, little endian */
+    PARAM_TYPE_FLOAT_ABCD = 0x1A,           /*!< Float ABCD floating point, big endian */
+    PARAM_TYPE_FLOAT_CDAB = 0x1B,           /*!< Float CDAB floating point big endian, reversed register order */
+    PARAM_TYPE_FLOAT_BADC = 0x1C,           /*!< Float BADC floating point, little endian, reversed register order */
+    PARAM_TYPE_FLOAT_DCBA = 0x1D,           /*!< Float DCBA floating point, little endian */
+    PARAM_TYPE_I64_ABCDEFGH = 0x1E,         /*!< I64, ABCDEFGH signed integer, big endian */
+    PARAM_TYPE_I64_HGFEDCBA = 0x1F,         /*!< I64, HGFEDCBA signed integer, little endian */
+    PARAM_TYPE_I64_GHEFCDAB = 0x20,         /*!< I64, GHEFCDAB signed integer, big endian, reversed register order */
+    PARAM_TYPE_I64_BADCFEHG = 0x21,         /*!< I64, BADCFEHG signed integer, little endian, reversed register order */
+    PARAM_TYPE_U64_ABCDEFGH = 0x22,         /*!< U64, ABCDEFGH unsigned integer, big endian */
+    PARAM_TYPE_U64_HGFEDCBA = 0x23,         /*!< U64, HGFEDCBA unsigned integer, little endian */
+    PARAM_TYPE_U64_GHEFCDAB = 0x24,         /*!< U64, GHEFCDAB unsigned integer, big endian, reversed register order */
+    PARAM_TYPE_U64_BADCFEHG = 0x25,         /*!< U64, BADCFEHG unsigned integer, little endian, reversed register order */
+    PARAM_TYPE_DOUBLE_ABCDEFGH = 0x26,      /*!< Double ABCDEFGH floating point, big endian*/
+    PARAM_TYPE_DOUBLE_HGFEDCBA = 0x27,      /*!< Double HGFEDCBA floating point, little endian*/
+    PARAM_TYPE_DOUBLE_GHEFCDAB = 0x28,      /*!< Double GHEFCDAB floating point, big endian, reversed register order */
+    PARAM_TYPE_DOUBLE_BADCFEHG = 0x29       /*!< Double BADCFEHG floating point, little endian, reversed register order */
 } mb_descr_type_t;
 
 /*!
@@ -56,11 +94,18 @@ typedef enum {
  */
 typedef enum {
     PARAM_SIZE_U8 = 0x01,                   /*!< Unsigned 8 */
+    PARAM_SIZE_U8_REG = 0x02,               /*!< Unsigned 8, register value */
+    PARAM_SIZE_I8_REG = 0x02,               /*!< Signed 8, register value */
+    PARAM_SIZE_I16 = 0x02,                  /*!< Unsigned 16 */
     PARAM_SIZE_U16 = 0x02,                  /*!< Unsigned 16 */
+    PARAM_SIZE_I32 = 0x04,                  /*!< Signed 32 */
     PARAM_SIZE_U32 = 0x04,                  /*!< Unsigned 32 */
-    PARAM_SIZE_FLOAT = 0x04,                /*!< Float size */
-    PARAM_SIZE_ASCII = 0x08,                /*!< ASCII size */
+    PARAM_SIZE_FLOAT = 0x04,                /*!< Float 32 size */
+    PARAM_SIZE_ASCII = 0x08,                /*!< ASCII size default*/
     PARAM_SIZE_ASCII24 = 0x18,              /*!< ASCII24 size */
+    PARAM_SIZE_I64 = 0x08,                  /*!< Signed integer 64 size */
+    PARAM_SIZE_U64 = 0x08,                  /*!< Unsigned integer 64 size */
+    PARAM_SIZE_DOUBLE = 0x08,               /*!< Double 64 size */
     PARAM_MAX_SIZE
 } mb_descr_size_t;
 
@@ -404,6 +449,22 @@ mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, u
  *     - MB_ENOREG: The argument is incorrect
  */
 mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode);
+
+/**
+ * @brief The helper function to set data of parameters according to its type
+ *
+ * @param[in] dest the destination address of the parameter
+ * @param[in] src the source address of the parameter
+ * @param[out] param_type type of parameter from data dictionary
+ * @param[out] param_size the storage size of the characteristic (in bytes).
+ *             Describes the size of data to keep into data instance during mapping.
+ *
+ * @return
+ *     - esp_err_t ESP_OK - request was successful and value was saved in the slave device registers
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *     - esp_err_t ESP_ERR_NOT_SUPPORTED - the request command is not supported by slave
+*/
+esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param_type, size_t param_size);
 
 #ifdef __cplusplus
 }

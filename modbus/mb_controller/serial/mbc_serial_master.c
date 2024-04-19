@@ -348,7 +348,7 @@ static uint8_t mbc_serial_master_get_command(mb_param_type_t param_type, mb_para
 
 // Helper to search parameter by name in the parameter description table
 // and fills Modbus request fields accordingly
-static esp_err_t mbc_serial_master_set_request(void *ctx, uint8_t cid, mb_param_mode_t mode,
+static esp_err_t mbc_serial_master_set_request(void *ctx, uint16_t cid, mb_param_mode_t mode,
                                                mb_param_request_t *request,
                                                mb_parameter_descriptor_t *reg_data)
 {
@@ -377,42 +377,51 @@ static esp_err_t mbc_serial_master_set_request(void *ctx, uint8_t cid, mb_param_
 }
 
 // Get parameter data for corresponding characteristic
-static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid,
-                                                 uint8_t *value_ptr, uint8_t *type)
+static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid, uint8_t *value, uint8_t *type)
 {
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
-    MB_RETURN_ON_FALSE((value_ptr), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
+    MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request;
-    mb_parameter_descriptor_t reg_info = {0};
+    mb_param_request_t request ;
+    mb_parameter_descriptor_t reg_info = { 0 };
+    uint8_t *pdata = NULL;
 
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
-    if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER))
-    {
-        // Send request to read characteristic data
-        error = mbc_serial_master_send_request(ctx, &request, value_ptr);
-        if (error == ESP_OK)
-        {
-            ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+    if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
+        MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
+        // alloc buffer to store parameter data
+        pdata = calloc(1, (reg_info.mb_size << 1));
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
         }
-        else
-        {
+        error = mbc_serial_master_send_request(ctx, &request, pdata);
+        if (error == ESP_OK) {
+            // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
+            if (value) {
+                error = mbc_master_set_param_data((void *)value, (void *)pdata,
+                                                    reg_info.param_type, reg_info.param_size);
+                if (error != ESP_OK) {
+                    ESP_LOGE(TAG, "fail to set parameter data.");
+                    error = ESP_ERR_INVALID_STATE;
+                } else {
+                    ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
+                             __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                }
+            }
+        } else {
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                        __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
+        free(pdata);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
-    }
-    else
-    {
-        ESP_LOGE(TAG, "%s: The cid(%u) address information is not found in the data dictionary.",
-                 __FUNCTION__, reg_info.cid);
+    } else {
+        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.",
+                 __FUNCTION__, (unsigned)reg_info.cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
 }
-
 // Get parameter data for corresponding characteristic
 static esp_err_t mbc_serial_master_get_parameter_with(void *ctx, uint16_t cid, uint8_t uid,
                                                       uint8_t *value_ptr, uint8_t *type)
@@ -422,28 +431,46 @@ static esp_err_t mbc_serial_master_get_parameter_with(void *ctx, uint16_t cid, u
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request;
     mb_parameter_descriptor_t reg_info = {0};
+    uint8_t *pdata = NULL;
 
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid))
     {
-        if (request.slave_addr == MB_SLAVE_ADDR_PLACEHOLDER)
+        if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)
         {
             ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
                      __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);
         }
         request.slave_addr = uid; // override the UID
+        MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
+        // alloc buffer to store parameter data
+        pdata = calloc(1, (reg_info.mb_size << 1));
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
+        }
         // Send request to read characteristic data
-        error = mbc_serial_master_send_request(ctx, &request, value_ptr);
+        error = mbc_serial_master_send_request(ctx, &request, pdata);
         if (error == ESP_OK)
         {
-            ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+            // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
+            if (value_ptr) {
+                error = mbc_master_set_param_data((void *)value_ptr, (void *)pdata,
+                                                    reg_info.param_type, reg_info.param_size);
+                if (error != ESP_OK) {
+                    ESP_LOGE(TAG, "fail to set parameter data.");
+                    error = ESP_ERR_INVALID_STATE;
+                } else {
+                    ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
+                             __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                }
+            }
         }
         else
         {
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
                      __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
+        free(pdata);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     }
@@ -456,38 +483,46 @@ static esp_err_t mbc_serial_master_get_parameter_with(void *ctx, uint16_t cid, u
     return error;
 }
 
-// Set parameter value for characteristic selected by name and cid
-static esp_err_t mbc_serial_master_set_parameter(void *ctx, uint16_t cid,
-                                                 uint8_t *value_ptr, uint8_t *type)
+// Set parameter value for characteristic selected by cid
+static esp_err_t mbc_serial_master_set_parameter(void *ctx, uint16_t cid, uint8_t *value, uint8_t *type)
 {
-    MB_RETURN_ON_FALSE((value_ptr), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
+    MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request;
-    mb_parameter_descriptor_t reg_info = {0};
+    mb_param_request_t request ;
+    mb_parameter_descriptor_t reg_info = { 0 };
+    uint8_t *pdata = NULL;
 
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
-    if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER))
-    {
+    if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
+        MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
+        pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        // Transfer value of characteristic into parameter buffer
+        error = mbc_master_set_param_data((void *)pdata, (void *)value,
+                                              reg_info.param_type, reg_info.param_size);
+        if (error != ESP_OK) {
+            ESP_LOGE(TAG, "fail to set parameter data.");
+            free(pdata);
+            return ESP_ERR_INVALID_STATE;
+        }
         // Send request to write characteristic data
-        error = mbc_serial_master_send_request(ctx, &request, value_ptr);
-        if (error == ESP_OK)
-        {
+        error = mbc_serial_master_send_request(ctx, &request, pdata);
+        if (error == ESP_OK) {
             ESP_LOGD(TAG, "%s: Good response for set cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
-        }
-        else
-        {
+                                    __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+        } else {
             ESP_LOGD(TAG, "%s: Bad response to set cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                                    __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
+        free(pdata);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
-    }
-    else
-    {
-        ESP_LOGE(TAG, "%s: The requested cid(%u) address information is not found in the data dictionary.",
-                 __FUNCTION__, (unsigned)reg_info.cid);
+    } else {
+        ESP_LOGE(TAG, "%s: The requested cid(%u) not found in the data dictionary.",
+                                    __FUNCTION__, (unsigned)reg_info.cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
@@ -502,16 +537,29 @@ static esp_err_t mbc_serial_master_set_parameter_with(void *ctx, uint16_t cid, u
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request;
     mb_parameter_descriptor_t reg_info = {0};
-
+    uint8_t *pdata = NULL;
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid))
     {
-        if (request.slave_addr == MB_SLAVE_ADDR_PLACEHOLDER)
+        if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)
         {
             ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
                      __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);
         }
         request.slave_addr = uid; // override the UID
+        MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
+        pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        // Transfer value of characteristic into parameter buffer
+        error = mbc_master_set_param_data((void *)pdata, (void *)value_ptr,
+                                              reg_info.param_type, reg_info.param_size);
+        if (error != ESP_OK) {
+            ESP_LOGE(TAG, "fail to set parameter data.");
+            free(pdata);
+            return ESP_ERR_INVALID_STATE;
+        }
         // Send request to write characteristic data
         error = mbc_serial_master_send_request(ctx, &request, value_ptr);
         if (error == ESP_OK)
@@ -524,6 +572,7 @@ static esp_err_t mbc_serial_master_set_parameter_with(void *ctx, uint16_t cid, u
             ESP_LOGD(TAG, "%s: Bad response to set cid(%u) = %s",
                      __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
+        free(pdata);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     }
