@@ -21,8 +21,10 @@ PROJECT_NAME = "IDF Programming Guide"
 ## and used to include in API reference documentation
 
 INPUT = \
+    $(PROJECT_PATH)/modbus/mb_controller/common/include/esp_modbus_common.h \
     $(PROJECT_PATH)/modbus/mb_controller/common/include/esp_modbus_slave.h \
     $(PROJECT_PATH)/modbus/mb_controller/common/include/esp_modbus_master.h \
+    $(PROJECT_PATH)/modbus/mb_controller/common/include/mb_endianness_utils.h
 
 ## Get warnings for functions that have no documentation for their parameters or return value
 ##

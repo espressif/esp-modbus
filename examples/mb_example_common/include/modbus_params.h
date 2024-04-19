@@ -14,6 +14,7 @@
 #define _DEVICE_PARAMS
 
 #include <stdint.h>
+#include "sdkconfig.h"
 
 // This file defines structure of modbus parameters which reflect correspond modbus address space
 // for each modbus register type (coils, discreet inputs, holding registers, input registers)
@@ -61,6 +62,25 @@ typedef struct
 #pragma pack(push, 1)
 typedef struct
 {
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    uint16_t holding_u8_a[2];
+    uint16_t holding_u8_b[2];
+    uint16_t holding_u16_ab[2];
+    uint16_t holding_u16_ba[2];
+    uint32_t holding_uint32_abcd[2];
+    uint32_t holding_uint32_cdab[2];
+    uint32_t holding_uint32_badc[2];
+    uint32_t holding_uint32_dcba[2];
+    float holding_float_abcd[2];
+    float holding_float_cdab[2];
+    float holding_float_badc[2];
+    float holding_float_dcba[2];
+    double holding_double_abcdefgh[2];
+    double holding_double_hgfedcba[2];
+    double holding_double_ghefcdab[2];
+    double holding_double_badcfehg[2];
+    uint32_t holding_area2_end;
+#endif
     float holding_data0;
     float holding_data1;
     float holding_data2;
@@ -70,6 +90,7 @@ typedef struct
     float holding_data5;
     float holding_data6;
     float holding_data7;
+    uint32_t holding_area1_end;
 } holding_reg_params_t;
 #pragma pack(pop)
 

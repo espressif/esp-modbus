@@ -46,6 +46,10 @@ set(include_dirs mb_transports mb_controller/common/include mb_objects/include m
 
 set(priv_include_dirs mb_controller/serial mb_controller/tcp mb_controller/common mb_transports/rtu mb_transports/ascii mb_transports/tcp)
 
+if(CONFIG_FMB_EXT_TYPE_SUPPORT)
+     list(APPEND srcs "mb_controller/common/mb_endianness_utils.c")
+endif()
+
 add_prefix(srcs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${srcs})
 add_prefix(include_dirs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${include_dirs})
 add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${priv_include_dirs})

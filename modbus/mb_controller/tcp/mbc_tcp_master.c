@@ -110,7 +110,7 @@ static esp_err_t mbc_tcp_master_stop(void *ctx)
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
     mb_err_enum_t status = MB_EIO;
     mbm_iface->mb_base->descr.parent = ctx;
-    
+
     // Set the mbcontroller start flag
     EventBits_t flag = xEventGroupClearBits(mbm_opts->event_group_handle,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
@@ -170,14 +170,13 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
 
     mb_err_enum_t mb_error = MB_EBUSY;
     esp_err_t error = ESP_FAIL;
-    
+
     if (mb_port_evt_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS))) {
-        
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
         uint16_t mb_size = request->reg_size;
-        
+
         // Set the buffer for callback function processing of received data
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
         mbm_opts->reg_buffer_size = mb_size;
@@ -353,39 +352,8 @@ static uint8_t mbc_tcp_master_get_command(mb_param_type_t param_type, mb_param_m
     return command;
 }
 
-// Helper function to set parameter buffer according to its type
-static esp_err_t mbc_tcp_master_set_param_data(void *dest, void *src, mb_descr_type_t param_type, size_t param_size)
-{
-    esp_err_t err = ESP_OK;
-    MB_RETURN_ON_FALSE((dest), ESP_ERR_INVALID_ARG, TAG, "incorrect parameter pointer.");
-    MB_RETURN_ON_FALSE((src), ESP_ERR_INVALID_ARG, TAG, "incorrect parameter pointer.");
-    // Transfer parameter data into value of characteristic
-    switch(param_type) {
-        case PARAM_TYPE_U8:
-            *((uint8_t *)dest) = *((uint8_t *)src);
-            break;
-        case PARAM_TYPE_U16:
-            *((uint16_t *)dest) = *((uint16_t *)src);
-            break;
-        case PARAM_TYPE_U32:
-            *((uint32_t*)dest) = *((uint32_t*)src);
-            break;
-        case PARAM_TYPE_FLOAT:
-            *((float*)dest) = *(float*)src;
-            break;
-        case PARAM_TYPE_ASCII:
-            memcpy(dest, src, param_size);
-            break;
-        default:
-            ESP_LOGE(TAG, "%s: Incorrect param type (%u).",
-                        __FUNCTION__, (unsigned)param_type);
-            err = ESP_ERR_NOT_SUPPORTED;
-            break;
-    }
-    return err;
-}
 
-// Helper to search parameter by name in the parameter description table and fills Modbus request fields accordingly
+// Helper to search parameter in the parameter description table and fills Modbus request fields accordingly
 static esp_err_t mbc_tcp_master_set_request(void *ctx, uint16_t cid, mb_param_mode_t mode, mb_param_request_t *request,
                                                 mb_parameter_descriptor_t *reg_data)
 {
@@ -439,7 +407,7 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
         if (error == ESP_OK) {
             // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
             if (value) {
-                error = mbc_tcp_master_set_param_data((void *)value, (void *)pdata,
+                error = mbc_master_set_param_data((void *)value, (void *)pdata,
                                                     reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
                     ESP_LOGE(TAG, "fail to set parameter data.");
@@ -471,7 +439,7 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
     MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     mbm_controller_iface_t *mbm_controller_iface = MB_MASTER_GET_IFACE(ctx);
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request ;
+    mb_param_request_t request;
     mb_parameter_descriptor_t reg_info = { 0 };
     uint8_t *pdata = NULL;
 
@@ -497,7 +465,7 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
         if (error == ESP_OK) {
             // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
             if (value) {
-                error = mbc_tcp_master_set_param_data((void *)value, (void *)pdata,
+                error = mbc_master_set_param_data((void *)value, (void *)pdata,
                                                     reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
                     ESP_LOGE(TAG, "fail to set parameter data.");
@@ -546,7 +514,7 @@ static esp_err_t mbc_tcp_master_set_parameter(void *ctx, uint16_t cid, uint8_t *
             return ESP_ERR_INVALID_STATE;
         }
         // Transfer value of characteristic into parameter buffer
-        error = mbc_tcp_master_set_param_data((void *)pdata, (void *)value,
+        error = mbc_master_set_param_data((void *)pdata, (void *)value,
                                               reg_info.param_type, reg_info.param_size);
         if (error != ESP_OK) {
             ESP_LOGE(TAG, "fail to set parameter data.");
@@ -593,10 +561,10 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
                             "mb can not send request for cid #%d with uid=%d.",
                             (unsigned)reg_info.cid, (int)uid);
         if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER) {
-            ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
+            ESP_LOGW(TAG, "%s: override uid %d = %d for cid(%u)",
                             __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);
         }
-        request.slave_addr = uid; // override the UID        
+        request.slave_addr = uid; // override the UID
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
 
         pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
@@ -604,7 +572,7 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
             return ESP_ERR_INVALID_STATE;
         }
         // Transfer value of characteristic into parameter buffer
-        error = mbc_tcp_master_set_param_data((void *)pdata, (void *)value,
+        error = mbc_master_set_param_data((void *)pdata, (void *)value,
                                               reg_info.param_type, reg_info.param_size);
         if (error != ESP_OK) {
             ESP_LOGE(TAG, "fail to set parameter data.");

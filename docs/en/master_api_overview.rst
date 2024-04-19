@@ -16,10 +16,7 @@ The following overview describes how to setup Modbus master communication. The o
 Configuring Master Data Access
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The architectural approach of ESP_Modbus includes one level above standard Modbus IO driver.
-The additional layer is called Modbus controller and its goal is to add an abstraction such as CID - characteristic identifier.
-The CID is linked to a corresponding Modbus registers through the table called Data Dictionary and represents device physical parameter (such as temperature, humidity, etc.) in specific Modbus slave device.
-This approach allows the upper layer (e.g., MESH or MQTT) to be isolated from Modbus specifics thus simplify Modbus integration with other protocols/networks.
+The architectural approach of ESP_Modbus includes one level above standard Modbus IO driver. The additional layer is called Modbus controller and its goal is to add an abstraction such as CID - characteristic identifier. The CID is linked to a corresponding Modbus registers through the table called Data Dictionary and represents device physical parameter (such as temperature, humidity, etc.) in specific Modbus slave device. This approach allows the upper layer (e.g., MESH or MQTT) to be isolated from Modbus specifics thus simplify Modbus integration with other protocols/networks.
 
 The Data Dictionary is the list in the Modbus master which shall be defined by user to link each CID to its corresponding Modbus registers representation using Register Mapping table of the Modbus slave being used.
 Each element in this data dictionary is of type :cpp:type:`mb_parameter_descriptor_t` and represents the description of one physical characteristic:
@@ -52,20 +49,17 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
     - Relative register address of the characteristic in the register area.  
   * - ``mb_size``
     - Modbus Register Size
-    - Length of characteristic in registers.
+    - Length of characteristic in registers (two bytes).
   * - ``param_offset``
     - Instance Offset
     - Offset to instance of the characteristic in bytes. It is used to calculate the absolute address to the characteristic in the storage structure.
       It is optional field and can be set to zero if the parameter is not used in the application.
   * - ``param_type``
-    - Data Type                 
-    - Specifies type of the characteristic.
-      :cpp:enumerator:`PARAM_TYPE_U8`, :cpp:enumerator:`PARAM_TYPE_U16`, :cpp:enumerator:`PARAM_TYPE_U32` - Unsigned integer 8/16/32 bit type;
-      :cpp:enumerator:`PARAM_TYPE_FLOAT` - IEEE754 floating point format;
-      :cpp:enumerator:`PARAM_TYPE_ASCII` - ASCII string or binary data;
+    - Data Type
+    - Specifies type of the characteristic. Possible types are described in the section :ref:`modbus_mapping_complex_data_types`.
   * - ``param_size``
     - Data Size
-    - The storage size of the characteristic (bytes).
+    - The storage size of the characteristic (in bytes) describes the size of data to keep into data instance during mapping. For the :ref:`modbus_mapping_complex_data_types` this allows to define the data container of the corresponded type.
   * - ``param_opts``
     - Parameter Options
     - Limits, options of characteristic used during processing of alarm in user application (optional)
@@ -75,6 +69,13 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
       :cpp:enumerator:`PAR_PERMS_READ_WRITE_TRIGGER`, :cpp:enumerator:`PAR_PERMS_READ`, :cpp:enumerator:`PAR_PERMS_READ_WRITE_TRIGGER`;
 
 .. note:: The ``cid`` and ``param_key`` have to be unique. Please use the prefix to the parameter key if you have several similar parameters in your register map table.
+
+Examples Of Mapping
+@@@@@@@@@@@@@@@@@@@
+
+Please refer to section :ref:`modbus_mapping_complex_data_types` for more information about used data types.
+
+Example 1: Configure access to legacy parameter types is described below.
 
 .. list-table:: Table 2 Example Register mapping table of Modbus slave
   :widths: 5 5 2 10 5 5 68
@@ -115,6 +116,7 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
     - ASCII or binary array
     - Not defined
     - Device name (16 bytes) ASCII string. The type of `PARAM_TYPE_ASCII` allows to read/write complex parameter (string or binary data) that corresponds to one CID.
+
 .. code:: c
 
     // Enumeration of modbus slave addresses accessed by master device
@@ -160,6 +162,133 @@ Each element in this data dictionary is of type :cpp:type:`mb_parameter_descript
     // Calculate number of parameters in the table
     uint16_t num_device_parameters = (sizeof(device_parameters) / sizeof(device_parameters[0]));
 
+Example 2: Configure access using extended parameter types for third-party devices.
+
+.. list-table:: Table 3 Example Register mapping table of Modbus slave
+  :widths: 2 4 2 10 3 68
+  :header-rows: 1
+  
+  * - CID
+    - Register
+    - Length
+    - Range
+    - Units
+    - Description
+  * - 0
+    - 40000
+    - 4
+    - 0 ... 255
+    - No units
+    - :cpp:enumerator:`PARAM_TYPE_U8_A` - unsigned integer 8-bit
+  * - 1
+    - 40002
+    - 4
+    - 0 ... 65535
+    - No Units
+    - :cpp:enumerator:`PARAM_TYPE_U16_AB` uinsigned integer 16-bit
+  * - 3
+    - 40004
+    - 8
+    - 0 ... Unsigned integer 32-bit range
+    - No units
+    - :cpp:enumerator:`PARAM_TYPE_U32_ABCD` - unsigned integer 32-bit in ABCD format
+  * - 4
+    - 40008
+    - 8
+    - 0 ... Unsigned integer 32-bit range
+    - No units
+    - :cpp:enumerator:`PARAM_TYPE_FLOAT_CDAB` - FLOAT 32-bit value in CDAB format
+  * - 5
+    - 400012
+    - 16
+    - 0 ... Unsigned integer 64-bit range
+    - No units
+    - :cpp:enumerator:`PARAM_TYPE_U64_ABCDEFGH` - Unsigned integer 64-bit value in ABCDEFGH format
+  * - 6
+    - 400020
+    - 16
+    - 0 ... Unsigned integer 64-bit range
+    - No units
+    - :cpp:enumerator:`PARAM_TYPE_DOUBLE_HGFEDCBA` - Double precision 64-bit value in HGFEDCBA format
+
+.. code:: c
+
+    #include "limits.h"
+    #include "mbcontroller.h"
+    
+    #define HOLD_OFFSET(field) ((uint16_t)(offsetof(holding_reg_params_t, field) + 1))
+    #define HOLD_REG_START(field) (HOLD_OFFSET(field) >> 1)
+    #define HOLD_REG_SIZE(field) (sizeof(((holding_reg_params_t *)0)->field) >> 1)
+
+    #pragma pack(push, 1)
+    // Example structure that contains parameter arrays of different types
+    // with different options of endianness.
+    typedef struct
+    {
+        uint16_t holding_u8_a[2];
+        uint16_t holding_u16_ab[2];
+        uint32_t holding_uint32_abcd[2];
+        float holding_float_cdab[2];
+        double holding_uint64_abcdefgh[2];
+        double holding_double_hgfedcba[2];
+    } holding_reg_params_t;
+    #pragma pack(pop)
+
+    // Enumeration of modbus slave addresses accessed by master device
+    enum {
+        MB_DEVICE_ADDR1 = 1, // Short address of Modbus slave device
+        MB_SLAVE_COUNT
+    };
+
+  // Enumeration of all supported CIDs for device (used in parameter definition table)
+    enum {
+        CID_HOLD_U8_A = 0,
+        CID_HOLD_U16_AB,
+        CID_HOLD_UINT32_ABCD,
+        CID_HOLD_FLOAT_CDAB,
+        CID_HOLD_UINT64_ABCDEFGH,
+        CID_HOLD_DOUBLE_HGFEDCBA,
+        CID_COUNT
+    };
+
+    // Example Data Dictionary for to address parameters from slaves with different options of endianness
+    mb_parameter_descriptor_t device_parameters[] = {
+        // CID, Name, Units, Modbus addr, register type, Modbus Reg Start Addr, Modbus Reg read length, 
+        // Instance offset (NA), Instance type, Instance length (bytes), Options (NA), Permissions
+        { CID_HOLD_U8_A, STR("U8_A"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+                HOLD_REG_START(holding_u8_a), HOLD_REG_SIZE(holding_u8_a),
+                HOLD_OFFSET(holding_u8_a), PARAM_TYPE_U8_A, (HOLD_REG_SIZE(holding_u8_a) << 1), 
+                OPTS( 0, UCHAR_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_HOLD_U16_AB, STR("U16_AB"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+                HOLD_REG_START(holding_u16_ab), HOLD_REG_SIZE(holding_u16_ab),
+                HOLD_OFFSET(holding_u16_ab), PARAM_TYPE_U16_AB, (HOLD_REG_SIZE(holding_u16_ab) << 1), 
+                OPTS( 0, USHRT_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_HOLD_UINT32_ABCD, STR("UINT32_ABCD"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+                HOLD_REG_START(holding_uint32_abcd), HOLD_REG_SIZE(holding_uint32_abcd),
+                HOLD_OFFSET(holding_uint32_abcd), PARAM_TYPE_U32_ABCD, (HOLD_REG_SIZE(holding_uint32_abcd) << 1), 
+                OPTS( 0, ULONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_HOLD_FLOAT_CDAB, STR("FLOAT_CDAB"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+                HOLD_REG_START(holding_float_cdab), HOLD_REG_SIZE(holding_float_cdab),
+                HOLD_OFFSET(holding_float_cdab), PARAM_TYPE_FLOAT_CDAB, (HOLD_REG_SIZE(holding_float_cdab) << 1), 
+                OPTS( 0, ULONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_HOLD_UINT64_ABCDEFGH, STR("UINT64_ABCDEFGH"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+                HOLD_REG_START(holding_uint64_abcdefgh), HOLD_REG_SIZE(holding_uint64_abcdefgh),
+                HOLD_OFFSET(holding_uint64_abcdefgh), PARAM_TYPE_UINT64_ABCDEFGH, (HOLD_REG_SIZE(holding_uint64_abcdefgh) << 1), 
+                OPTS( 0, ULLONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+        { CID_HOLD_DOUBLE_HGFEDCBA, STR("DOUBLE_HGFEDCBA"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+                HOLD_REG_START(holding_double_hgfedcba), HOLD_REG_SIZE(holding_double_hgfedcba),
+                HOLD_OFFSET(holding_double_hgfedcba), PARAM_TYPE_DOUBLE_HGFEDCBA, (HOLD_REG_SIZE(holding_double_hgfedcba) << 1), 
+                OPTS( 0, ULLONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER }
+    };
+    uint16_t num_device_parameters = (sizeof(device_parameters) / sizeof(device_parameters[0]));
+
+The example above describes the definition of just several extended types. The types described in the :ref:`modbus_mapping_complex_data_types` allow to address the most useful value formats from devices of known third-party vendors.
+Once the type of characteristic is defined in data dictionary the stack is responsible for conversion of values to/from the corresponding type option into the format recognizable by compiler.
+
+.. note:: Please refer to your vendor device manual and its mapping table to select the types suitable for your device.
+
+The Modbus stack contains also the :ref:`modbus_api_endianness_conversion` - endianness conversion API functions that allow to convert values from/to each extended type into compiler representation.
+
 During initialization of the Modbus stack, a pointer to the Data Dictionary (called descriptor) must be provided as the parameter of the function below. 
 
 :cpp:func:`mbc_master_set_descriptor`:
@@ -174,6 +303,62 @@ Initialization of master descriptor. The descriptor represents an array of type 
     ESP_ERROR_CHECK(mbc_master_set_descriptor(master_handle, &device_parameters[0], num_device_parameters));
 
 The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
+Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
+
+.. _modbus_api_master_setup_communication_options:
+
+Master Communication Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Calling the setup function allows for specific communication options to be defined for port.
+
+:cpp:func:`mbc_master_setup`
+
+The communication structure provided as a parameter is different for serial and TCP communication mode.
+
+Example setup for serial port:
+
+.. code:: c
+
+    mb_communication_info_t comm_info = {
+        .port = MB_PORT_NUM,        // Serial port number 
+        .mode = MB_MODE_RTU,        // Modbus mode of communication (MB_MODE_RTU or MB_MODE_ASCII)
+        .baudrate = 9600,           // Modbus communication baud rate
+        .parity = MB_PARITY_NONE    // parity option for serial port
+    };
+
+    ESP_ERROR_CHECK(mbc_master_setup((void*)&comm_info));
+
+Modbus master TCP port requires additional definition of IP address table where number of addresses should be equal to number of unique slave addresses in master Modbus Data Dictionary:
+
+The order of IP address string corresponds to short slave address in the Data Dictionary.
+
+.. code:: c
+
+    #define MB_SLAVE_COUNT 2 // Number of slaves in the segment being accessed (as defined in Data Dictionary)
+
+    char* slave_ip_address_table[MB_SLAVE_COUNT] = {
+        "192.168.1.2",     // Address corresponds to UID1 and set to predefined value by user
+        "192.168.1.3",     // corresponds to UID2 in the segment
+        NULL               // end of table
+    };
+
+    mb_communication_info_t comm_info = { 
+        .ip_port = MB_TCP_PORT,                    // Modbus TCP port number (default = 502)
+        .ip_addr_type = MB_IPV4,                   // version of IP protocol
+        .ip_mode = MB_MODE_TCP,                    // Port communication mode
+        .ip_addr = (void*)slave_ip_address_table,  // assign table of IP addresses
+        .ip_netif_ptr = esp_netif_ptr              // esp_netif_ptr pointer to the corresponding network interface
+    };
+
+    ESP_ERROR_CHECK(mbc_master_setup((void*)&comm_info));
+
+.. note:: Refer to `esp_netif component <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_netif.html>`__ for more information about network interface initialization.
+
+The slave IP addresses in the table can be assigned automatically using mDNS service as described in the example.
+Refer to :ref:`example TCP master <example_mb_tcp_master>` for more information.
+
+.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
 
 .. _modbus_api_master_start_communication:
 

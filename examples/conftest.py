@@ -39,7 +39,7 @@ class ModbusTestDut(IdfDut):
     TEST_IP_PROMPT = r'Waiting IP([0-9]{1,2}) from stdin:\r\r\n'
     TEST_IP_SET_CONFIRM = r'.*IP\([0-9]+\) = \[([0-9a-zA-Z\.\:]+)\] set from stdin.*'
     TEST_IP_ADDRESS_REGEXP = r'.*example_[a-z]+: .* IPv4 [a-z]+:.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*'
-    TEST_APP_NAME = r'I \([0-9]+\) cpu_start: Project name:     ([_a-z]*)'
+    TEST_APP_NAME = r'.*Project name:     ([_a-z]*)'
 
     TEST_EXPECT_STR_TIMEOUT = 120
     TEST_ACK_TIMEOUT = 60

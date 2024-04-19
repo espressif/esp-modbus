@@ -75,6 +75,7 @@ after_script:
     --manifest-file .build-test-rules.yml \
     --parallel-count ${CI_NODE_TOTAL:-1} \
     --parallel-index ${CI_NODE_INDEX:-1}
+  echo "delete build folders:" $(find . -type d -regex '^\./.*build_esp32[a-z]+[0-9]+[_a-z]*' -print -exec rm -rf {} +)
   ls -lh > test_dir_${PWD##*/}.txt
 
 # This template gets expanded multiple times, once for every IDF version.

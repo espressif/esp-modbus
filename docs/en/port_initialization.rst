@@ -18,6 +18,27 @@ Calling the constructor function allows to create communication object with the 
     // is used later as a first parameter for each API call
     static void *master_handle = NULL;
     ESP_ERROR_CHECK(mbc_master_create_serial(&config, &master_handle));
+    ...
+
+.. code:: c
+
+    static void *master_handle = NULL;
+    ESP_ERROR_CHECK(mbc_master_create_tcp(&config, &master_handle));
+    ...
+
+.. code:: c
+
+    static void *slave_handle = NULL;
+    ESP_ERROR_CHECK(mbc_slave_create_tcp(&config, &slave_handle));
+    ...
+
+.. code:: c
+
+    static void *slave_handle = NULL;
+    ESP_ERROR_CHECK(mbc_slave_create_serial(&config, &slave_handle));
+    ...
+
+Refer to :ref:`modbus_api_master_setup_communication_options` and :ref:`modbus_api_slave_setup_communication_options` for more information on how to configure communication options for the master and slave object accordingly.
 
 .. _modbus_api_master_setup_communication_options:
 
