@@ -9,6 +9,11 @@
 
 #include <inttypes.h>                       // needs to be included for default system types (such as PRIxx)
 #include "driver/uart.h"                    // for UART types
+#include "sdkconfig.h"
+
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+#include "mb_endianness_utils.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,26 +48,11 @@ extern "C" {
 #define MB_PAR_INFO_TOUT    (10)                // Timeout for get parameter info
 #define MB_PARITY_NONE      (UART_PARITY_DISABLE)
 
-// The Macros below handle the endianness while transfer N byte data into buffer
-#define _XFER_4_RD(dst, src) { \
-    *(uint8_t *)(dst)++ = *(uint8_t*)(src + 1); \
-    *(uint8_t *)(dst)++ = *(uint8_t*)(src + 0); \
-    *(uint8_t *)(dst)++ = *(uint8_t*)(src + 3); \
-    *(uint8_t *)(dst)++ = *(uint8_t*)(src + 2); \
-    (src) += 4; \
-}
-
+// The Macros below handle the endianness while transfer N byte data into buffer (convert from network byte order)
 #define _XFER_2_RD(dst, src) { \
     *(uint8_t *)(dst)++ = *(uint8_t *)(src + 1); \
     *(uint8_t *)(dst)++ = *(uint8_t *)(src + 0); \
     (src) += 2; \
-}
-
-#define _XFER_4_WR(dst, src) { \
-    *(uint8_t *)(dst + 1) = *(uint8_t *)(src)++; \
-    *(uint8_t *)(dst + 0) = *(uint8_t *)(src)++; \
-    *(uint8_t *)(dst + 3) = *(uint8_t *)(src)++; \
-    *(uint8_t *)(dst + 2) = *(uint8_t *)(src)++ ; \
 }
 
 #define _XFER_2_WR(dst, src) { \

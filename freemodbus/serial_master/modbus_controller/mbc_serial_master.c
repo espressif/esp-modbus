@@ -375,57 +375,85 @@ static esp_err_t mbc_serial_master_set_request(char* name, mb_param_mode_t mode,
     return error;
 }
 
-// Get parameter data for corresponding characteristic
-static esp_err_t mbc_serial_master_get_parameter(uint16_t cid, char* name,
-                                                    uint8_t* value_ptr, uint8_t *type)
+static esp_err_t mbc_serial_master_get_parameter(uint16_t cid, char* name, uint8_t* value, uint8_t *type)
 {
-    MB_MASTER_CHECK((name != NULL),
-                        ESP_ERR_INVALID_ARG, "mb incorrect descriptor.");
-    MB_MASTER_CHECK((type != NULL),
-                        ESP_ERR_INVALID_ARG, "type pointer is incorrect.");
+    MB_MASTER_CHECK((name != NULL), ESP_ERR_INVALID_ARG, "mb incorrect descriptor.");
+    MB_MASTER_CHECK((type != NULL), ESP_ERR_INVALID_ARG, "type pointer is incorrect.");
+    MB_MASTER_CHECK((value != NULL), ESP_ERR_INVALID_ARG, "value pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
+    uint8_t* pdata = NULL;
 
     error = mbc_serial_master_set_request(name, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
-        // Send request to read characteristic data
-        error = mbc_serial_master_send_request(&request, value_ptr);
+        MB_MASTER_CHECK(((reg_info.mb_size << 1) >= reg_info.param_size),
+                            MB_EILLSTATE,
+                            "Incorrect characteristic data.");
+        // alloc buffer to store parameter data
+        pdata = calloc(1, (reg_info.mb_size << 1));
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        error = mbc_serial_master_send_request(&request, pdata);
         if (error == ESP_OK) {
-            ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
-                                    __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
+            // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
+            if (value != NULL) {
+                error = mbc_master_set_param_data((void*)value, (void*)pdata,
+                                                        reg_info.param_type, reg_info.param_size);
+                if (error != ESP_OK) {
+                    ESP_LOGE(TAG, "fail to set parameter data.");
+                    error = ESP_ERR_INVALID_STATE;
+                } else {
+                    ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
+                             __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
+                }
+            }
         } else {
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
-                                            __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
+                     __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
         }
+        free(pdata);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
-        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.",
-                                                    __FUNCTION__, (unsigned)reg_info.cid);
+        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.", __FUNCTION__, reg_info.cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
 }
 
 // Set parameter value for characteristic selected by name and cid
-static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name,
-                                                    uint8_t* value_ptr, uint8_t *type)
+static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name, uint8_t* value, uint8_t *type)
 {
-    MB_MASTER_CHECK((name != NULL),
-                        ESP_ERR_INVALID_ARG, "mb incorrect descriptor.");
-    MB_MASTER_CHECK((value_ptr != NULL),
-                        ESP_ERR_INVALID_ARG, "value pointer is incorrect.");
-    MB_MASTER_CHECK((type != NULL),
-                        ESP_ERR_INVALID_ARG, "type pointer is incorrect.");
+    MB_MASTER_CHECK((name != NULL), ESP_ERR_INVALID_ARG, "mb incorrect descriptor.");
+    MB_MASTER_CHECK((value != NULL), ESP_ERR_INVALID_ARG, "value pointer is incorrect.");
+    MB_MASTER_CHECK((type != NULL), ESP_ERR_INVALID_ARG, "type pointer is incorrect.");
+
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
+    uint8_t* pdata = NULL;
 
     error = mbc_serial_master_set_request(name, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
+        MB_MASTER_CHECK(((reg_info.mb_size << 1) >= reg_info.param_size),
+                    MB_EILLSTATE,
+                    "Incorrect characteristic data.");
+        pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        if (!pdata) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        // Transfer value of characteristic into parameter buffer
+        error = mbc_master_set_param_data((void*)pdata, (void*)value,
+                                              reg_info.param_type, reg_info.param_size);
+        if (error != ESP_OK) {
+            ESP_LOGE(TAG, "fail to set parameter data.");
+            free(pdata);
+            return ESP_ERR_INVALID_STATE;
+        }
         // Send request to write characteristic data
-        error = mbc_serial_master_send_request(&request, value_ptr);
+        error = mbc_serial_master_send_request(&request, pdata);
         if (error == ESP_OK) {
             ESP_LOGD(TAG, "%s: Good response for set cid(%u) = %s",
                                     __FUNCTION__, (unsigned)reg_info.cid, (char*)esp_err_to_name(error));
@@ -435,6 +463,7 @@ static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name,
         }
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
+        free(pdata);
     } else {
         ESP_LOGE(TAG, "%s: The requested cid(%u) not found in the data dictionary.",
                                     __FUNCTION__, (unsigned)reg_info.cid);

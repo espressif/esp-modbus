@@ -77,6 +77,31 @@ Direct access to register area from user application must be protected by critic
     holding_reg_area[2] += 10;
     portEXIT_CRITICAL(&param_lock);
 
+The stack supports the extended data types when enabled through the the option ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` in kconfig menu.
+In this case the mapped data values can be initialized to specific format using :ref:`modbus_api_endianness_conversion`.
+Please refer to secton :ref:`modbus_mapping_complex_data_types` for more information about data types.
+
+Example initialization of mapped values:
+
+.. code:: c
+
+    #include "mbcontroller.h"       // for mbcontroller defines and api
+    val_32_arr holding_float_abcd[2] = {0};
+    val_64_arr holding_double_ghefcdab[2] = {0};
+    ...
+    // set the Modbus parameter to specific format
+    portENTER_CRITICAL(&param_lock); // critical section is required if the stack is active
+    mb_set_float_abcd(&holding_float_abcd[0], (float)12345.0);
+    mb_set_float_abcd(&holding_float_abcd[1], (float)12345.0);
+    mb_set_double_ghefcdab(&holding_double_ghefcdab[0], (double)12345.0);
+    portEXIT_CRITICAL(&param_lock);
+    ...
+    // The actual abcd formatted value can be converted to actual float represenatation as below
+    ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[0]));
+    ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[1]));
+    ESP_LOGI("TEST", "Test value ghefcdab: %lf", mb_get_double_ghefcdab(&holding_double_ghefcdab[0]));
+    ...
+
 
 .. _modbus_api_slave_setup_communication_options:
 
@@ -176,14 +201,14 @@ Example to get event when holding or input registers accessed in the slave:
     ....
                                                 
     // The function blocks while waiting for register access
-    mb_event_group_t event = mbc_slave_check_event(MB_READ_WRITE_MASK);
+    (void)mbc_slave_check_event(MB_READ_WRITE_MASK);
     
     // Get information about data accessed from master 
     ESP_ERROR_CHECK(mbc_slave_get_param_info(&reg_info, MB_PAR_INFO_GET_TOUT));
-    const char* rw_str = (event & MB_READ_MASK) ? "READ" : "WRITE";
+    const char* rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
     
     // Filter events and process them accordingly
-    if (event & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
+    if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
         ESP_LOGI(TAG, "HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
                     rw_str,
                     (uint32_t)reg_info.time_stamp,
@@ -191,7 +216,7 @@ Example to get event when holding or input registers accessed in the slave:
                     (uint32_t)reg_info.type,
                     (uint32_t)reg_info.address,
                     (uint32_t)reg_info.size);
-    } else if (event & (MB_EVENT_INPUT_REG_RD)) {
+    } else if (reg_info.type & (MB_EVENT_INPUT_REG_RD)) {
         ESP_LOGI(TAG, "INPUT %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
                     rw_str,
                     (uint32_t)reg_info.time_stamp,

@@ -1,0 +1,2 @@
+# General options for test
+CONFIG_FMB_EXT_TYPE_SUPPORT=y
