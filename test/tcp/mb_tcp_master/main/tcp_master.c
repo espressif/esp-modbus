@@ -49,7 +49,16 @@
 #define INPUT_OFFSET(field) ((uint16_t)(offsetof(input_reg_params_t, field) + 1))
 #define COIL_OFFSET(field) ((uint16_t)(offsetof(coil_reg_params_t, field) + 1))
 #define DISCR_OFFSET(field) ((uint16_t)(offsetof(discrete_reg_params_t, field) + 1))
-#define STR(fieldname) ((const char*)( fieldname ))
+
+#define STR(fieldname) ((const char *)( fieldname ))
+#define TEST_HOLD_REG_START(field) (HOLD_OFFSET(field) >> 1)
+#define TEST_HOLD_REG_SIZE(field) (sizeof(((holding_reg_params_t *)0)->field) >> 1)
+
+#define TEST_INPUT_REG_START(field) (INPUT_OFFSET(field) >> 1)
+#define TEST_INPUT_REG_SIZE(field) (sizeof(((input_reg_params_t *)0)->field) >> 1)
+
+#define TEST_VALUE 12345 // default test value
+#define TEST_ASCII_BIN 0xAAAAAAAA
 
 // Options can be used as bit masks or parameter limits
 #define OPTS(min_val, max_val, step_val) { .opt1 = min_val, .opt2 = max_val, .opt3 = step_val }
@@ -68,6 +77,10 @@
 #endif
 
 #define MB_MDNS_INSTANCE(pref) pref"mb_master_tcp"
+
+#define EACH_ITEM(array, length) \
+(typeof(*(array)) *pitem = (array); (pitem < &((array)[length])); pitem++)
+
 static const char *TAG = "MASTER_TEST";
 
 // Enumeration of modbus device addresses accessed by master device
@@ -90,6 +103,24 @@ enum {
     CID_RELAY_P1,
     CID_RELAY_P2,
     CID_DISCR_P1,
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    CID_HOLD_U8_A,
+    CID_HOLD_U8_B,
+    CID_HOLD_U16_AB,
+    CID_HOLD_U16_BA,
+    CID_HOLD_UINT32_ABCD,
+    CID_HOLD_UINT32_CDAB,
+    CID_HOLD_UINT32_BADC,
+    CID_HOLD_UINT32_DCBA,
+    CID_HOLD_FLOAT_ABCD,
+    CID_HOLD_FLOAT_CDAB,
+    CID_HOLD_FLOAT_BADC,
+    CID_HOLD_FLOAT_DCBA,
+    CID_HOLD_DOUBLE_ABCDEFGH,
+    CID_HOLD_DOUBLE_HGFEDCBA,
+    CID_HOLD_DOUBLE_GHEFCDAB,
+    CID_HOLD_DOUBLE_BADCFEHG,
+#endif
     CID_COUNT
 };
 
@@ -104,26 +135,109 @@ enum {
 // Access Mode - can be used to implement custom options for processing of characteristic (Read/Write restrictions, factory mode values and etc).
 const mb_parameter_descriptor_t device_parameters[] = {
     // { CID, Param Name, Units, Modbus Slave Addr, Modbus Reg Type, Reg Start, Reg Size, Instance Offset, Data Type, Data Size, Parameter Options, Access Mode}
-    { CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 0, 2,
-            INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4, OPTS( -10, 10, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 2,
-            HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4, OPTS( 0, 1000, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 2, 2,
-            INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4, OPTS( -40, 100, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING, 2, 2,
-            HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4, OPTS( 0, 100, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT, 4, 2,
-            INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4, OPTS( -40, 100, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR3, MB_PARAM_HOLDING, 4, 2,
-            HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, OPTS( 0, 100, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 10, 58,
-            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, 116, OPTS( 0, 100, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+            TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
+            INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
+            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
+            HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
+            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+            TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
+            INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
+            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
+            HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
+            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT,
+            TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
+            INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
+            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR3, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
+            HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, 
+            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(test_regs), 58,
+            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, 116, 
+            OPTS( 0, 100, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
-            COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1, OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1, 
+            OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 10, 6,
-            COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1, OPTS( 0x55, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1, 
+            OPTS( 0x55, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 2, 7,
-            DISCR_OFFSET(discrete_input_port1), PARAM_TYPE_U8, 1, OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER }
+            DISCR_OFFSET(discrete_input_port1), PARAM_TYPE_U8, 1, 
+            OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    { CID_HOLD_U8_A, STR("U8_A"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_u8_a), TEST_HOLD_REG_SIZE(holding_u8_a),
+            HOLD_OFFSET(holding_u8_a), PARAM_TYPE_U8_A, (TEST_HOLD_REG_SIZE(holding_u8_a) << 1), 
+            OPTS( CHAR_MIN, 0x0055, 0x0055 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_U8_B, STR("U8_B"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_u8_b), TEST_HOLD_REG_SIZE(holding_u8_b),
+            HOLD_OFFSET(holding_u8_b), PARAM_TYPE_U8_B, (TEST_HOLD_REG_SIZE(holding_u8_b) << 1), 
+            OPTS( 0, 0x5500, 0x5500 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_U16_AB, STR("U16_AB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_u16_ab), TEST_HOLD_REG_SIZE(holding_u16_ab),
+            HOLD_OFFSET(holding_u16_ab), PARAM_TYPE_U16_AB, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_U16_BA, STR("U16_BA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_u16_ba), TEST_HOLD_REG_SIZE(holding_u16_ba),
+            HOLD_OFFSET(holding_u16_ba), PARAM_TYPE_U16_BA, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_UINT32_ABCD, STR("UINT32_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_uint32_abcd), TEST_HOLD_REG_SIZE(holding_uint32_abcd),
+            HOLD_OFFSET(holding_uint32_abcd), PARAM_TYPE_U32_ABCD, (TEST_HOLD_REG_SIZE(holding_uint32_abcd) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_UINT32_CDAB, STR("UINT32_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_uint32_cdab), TEST_HOLD_REG_SIZE(holding_uint32_cdab),
+            HOLD_OFFSET(holding_uint32_cdab), PARAM_TYPE_U32_CDAB, (TEST_HOLD_REG_SIZE(holding_uint32_cdab) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_UINT32_BADC, STR("UINT32_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_uint32_badc), TEST_HOLD_REG_SIZE(holding_uint32_badc),
+            HOLD_OFFSET(holding_uint32_badc), PARAM_TYPE_U32_BADC, (TEST_HOLD_REG_SIZE(holding_uint32_badc) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_UINT32_DCBA, STR("UINT32_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_uint32_dcba), TEST_HOLD_REG_SIZE(holding_uint32_dcba),
+            HOLD_OFFSET(holding_uint32_dcba), PARAM_TYPE_U32_DCBA, (TEST_HOLD_REG_SIZE(holding_uint32_dcba) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_FLOAT_ABCD, STR("FLOAT_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_float_abcd), TEST_HOLD_REG_SIZE(holding_float_abcd),
+            HOLD_OFFSET(holding_float_abcd), PARAM_TYPE_FLOAT_ABCD, (TEST_HOLD_REG_SIZE(holding_float_abcd) << 1),
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_FLOAT_CDAB, STR("FLOAT_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_float_cdab), TEST_HOLD_REG_SIZE(holding_float_cdab),
+            HOLD_OFFSET(holding_float_cdab), PARAM_TYPE_FLOAT_CDAB, (TEST_HOLD_REG_SIZE(holding_float_cdab) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_FLOAT_BADC, STR("FLOAT_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_float_badc), TEST_HOLD_REG_SIZE(holding_float_badc),
+            HOLD_OFFSET(holding_float_badc), PARAM_TYPE_FLOAT_BADC, (TEST_HOLD_REG_SIZE(holding_float_badc) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_FLOAT_DCBA, STR("FLOAT_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_float_dcba), TEST_HOLD_REG_SIZE(holding_float_dcba),
+            HOLD_OFFSET(holding_float_dcba), PARAM_TYPE_FLOAT_DCBA, (TEST_HOLD_REG_SIZE(holding_float_dcba) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DOUBLE_ABCDEFGH, STR("DOUBLE_ABCDEFGH"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_double_abcdefgh), TEST_HOLD_REG_SIZE(holding_double_abcdefgh),
+            HOLD_OFFSET(holding_double_abcdefgh), PARAM_TYPE_DOUBLE_ABCDEFGH, (TEST_HOLD_REG_SIZE(holding_double_abcdefgh) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DOUBLE_HGFEDCBA, STR("DOUBLE_HGFEDCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_double_hgfedcba), TEST_HOLD_REG_SIZE(holding_double_hgfedcba),
+            HOLD_OFFSET(holding_double_hgfedcba), PARAM_TYPE_DOUBLE_HGFEDCBA, (TEST_HOLD_REG_SIZE(holding_double_hgfedcba) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DOUBLE_GHEFCDAB, STR("DOUBLE_GHEFCDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_double_ghefcdab), TEST_HOLD_REG_SIZE(holding_double_ghefcdab),
+            HOLD_OFFSET(holding_double_ghefcdab), PARAM_TYPE_DOUBLE_GHEFCDAB, (TEST_HOLD_REG_SIZE(holding_double_ghefcdab) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_DOUBLE_BADCFEHG, STR("DOUBLE_BADCFEHG"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+            TEST_HOLD_REG_START(holding_double_badcfehg), TEST_HOLD_REG_SIZE(holding_double_badcfehg),
+            HOLD_OFFSET(holding_double_badcfehg), PARAM_TYPE_DOUBLE_BADCFEHG, (TEST_HOLD_REG_SIZE(holding_double_badcfehg) << 1), 
+            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER }
+#endif
 };
 
 // Calculate number of parameters in the table
@@ -480,11 +594,62 @@ static void* master_get_param_data(const mb_parameter_descriptor_t* param_descri
     return instance_ptr;
 }
 
+#define TEST_VERIFY_VALUES(pdescr, pinst) (__extension__(                                           \
+{                                                                                                   \
+    assert(pinst);                                                                                  \
+    assert(pdescr);                                                                                 \
+    uint8_t type = 0;                                                                               \
+    esp_err_t err = ESP_FAIL;                                                                       \
+    err = mbc_master_get_parameter(pdescr->cid, (char *)pdescr->param_key,                          \
+                                    (uint8_t *)pinst, &type);                                       \
+    if (err == ESP_OK) {                                                                            \
+        bool is_correct = true;                                                                     \
+        if (pdescr->param_opts.opt3) {                                                              \
+            for EACH_ITEM(pinst, pdescr->param_size / sizeof(*pitem)) {                             \
+                if (*pitem != (typeof(*(pinst)))pdescr->param_opts.opt3) {                          \
+                    *pitem = (typeof(*(pinst)))pdescr->param_opts.opt3;                             \
+                    ESP_LOGD(TAG, "Characteristic #%d (%s), initialize to 0x%" PRIx16 ".",          \
+                                (int)pdescr->cid,                                                   \
+                                (char *)pdescr->param_key,                                          \
+                                (uint16_t)pdescr->param_opts.opt3);                                 \
+                    is_correct = false;                                                             \
+                }                                                                                   \
+            }                                                                                       \
+        }                                                                                           \
+        if (!is_correct) {                                                                          \
+            ESP_LOGE(TAG, "Characteristic #%d (%s), initialize.",                                   \
+                        (int)pdescr->cid,                                                           \
+                        (char *)pdescr->param_key);                                                 \
+            err = mbc_master_set_parameter(cid, (char *)pdescr->param_key,                          \
+                                                (uint8_t *)pinst, &type);                           \
+            if (err != ESP_OK) {                                                                    \
+                ESP_LOGE(TAG, "Characteristic #%d (%s) write fail, err = 0x%x (%s).",               \
+                            (int)pdescr->cid,                                                       \
+                            (char *)pdescr->param_key,                                              \
+                            (int)err,                                                               \
+                            (char *)esp_err_to_name(err));                                          \
+            } else {                                                                                \
+                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (..) write successful.",          \
+                        (int)pdescr->cid,                                                           \
+                        (char *)pdescr->param_key,                                                  \
+                        (char *)pdescr->param_units);                                               \
+            }                                                                                       \
+        }                                                                                           \
+    } else {                                                                                        \
+        ESP_LOGE(TAG, "Characteristic #%d (%s) read fail, err = 0x%x (%s).",                        \
+                            (int)pdescr->cid,                                                       \
+                            (char *)pdescr->param_key,                                              \
+                            (int)err,                                                               \
+                            (char *)esp_err_to_name(err));                                          \
+    }                                                                                               \
+    (err);                                                                                          \
+}                                                                                                   \
+))
+
 // User operation function to read slave values and check alarm
 static void master_operation_func(void *arg)
 {
     esp_err_t err = ESP_OK;
-    float value = 0;
     bool alarm_state = false;
     const mb_parameter_descriptor_t* param_descriptor = NULL;
 
@@ -492,103 +657,117 @@ static void master_operation_func(void *arg)
 
     for(uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
         // Read all found characteristics from slave(s)
-        for (uint16_t cid = 0; (err != ESP_ERR_NOT_FOUND) && cid < MASTER_MAX_CIDS; cid++)
-        {
+        for (uint16_t cid = 0; (err != ESP_ERR_NOT_FOUND) && cid < MASTER_MAX_CIDS; cid++) {
             // Get data from parameters description table
             // and use this information to fill the characteristics description table
             // and having all required fields in just one table
             err = mbc_master_get_cid_info(cid, &param_descriptor);
             if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
-                void* temp_data_ptr = master_get_param_data(param_descriptor);
+                void *temp_data_ptr = master_get_param_data(param_descriptor);
                 assert(temp_data_ptr);
-                uint8_t type = 0;
                 if ((param_descriptor->param_type == PARAM_TYPE_ASCII) &&
                         (param_descriptor->cid == CID_HOLD_TEST_REG)) {
-                   // Check for long array of registers of type PARAM_TYPE_ASCII
-                    err = mbc_master_get_parameter(cid, (char*)param_descriptor->param_key,
-                                                    (uint8_t*)temp_data_ptr, &type);
-                    if (err == ESP_OK) {
+                    if (TEST_VERIFY_VALUES(param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
-                                                (int)param_descriptor->cid,
-                                                (char*)param_descriptor->param_key,
-                                                (char*)param_descriptor->param_units,
-                                                *(uint32_t*)temp_data_ptr);
-                        // Initialize data of test array and write to slave
-                        if (*(uint32_t*)temp_data_ptr != 0xAAAAAAAA) {
-                            memset((void*)temp_data_ptr, 0xAA, param_descriptor->param_size);
-                            *(uint32_t*)temp_data_ptr = 0xAAAAAAAA;
-                            err = mbc_master_set_parameter(cid, (char*)param_descriptor->param_key,
-                                                              (uint8_t*)temp_data_ptr, &type);
-                            if (err == ESP_OK) {
-                                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 "), write successful.",
-                                                (int)param_descriptor->cid,
-                                                (char*)param_descriptor->param_key,
-                                                (char*)param_descriptor->param_units,
-                                                *(uint32_t*)temp_data_ptr);
-                            } else {
-                                ESP_LOGE(TAG, "Characteristic #%d (%s) write fail, err = 0x%x (%s).",
-                                                (int)param_descriptor->cid,
-                                                (char*)param_descriptor->param_key,
-                                                (int)err,
-                                                (char*)esp_err_to_name(err));
-                            }
-                        }
-                    } else {
-                        ESP_LOGE(TAG, "Characteristic #%d (%s) read fail, err = 0x%x (%s).",
                                         (int)param_descriptor->cid,
-                                        (char*)param_descriptor->param_key,
-                                        (int)err,
-                                        (char*)esp_err_to_name(err));
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        *(uint32_t *)temp_data_ptr);
                     }
-                } else {
-                    err = mbc_master_get_parameter(cid, (char*)param_descriptor->param_key,
-                                                        (uint8_t*)temp_data_ptr, &type);
-                    if (err == ESP_OK) {
-                        if ((param_descriptor->mb_param_type == MB_PARAM_HOLDING) ||
-                            (param_descriptor->mb_param_type == MB_PARAM_INPUT)) {
-                            value = *(float*)temp_data_ptr;
-                            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
-                                            (int)param_descriptor->cid,
-                                            (char*)param_descriptor->param_key,
-                                            (char*)param_descriptor->param_units,
-                                            value,
-                                            *(uint32_t*)temp_data_ptr);
-                            if (((value > param_descriptor->param_opts.max) ||
-                                (value < param_descriptor->param_opts.min))) {
-                                    alarm_state = true;
-                                    break;
-                            }
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+                } else if ((param_descriptor->cid >= CID_HOLD_U16_AB) 
+                            && (param_descriptor->cid <= CID_HOLD_U16_BA)) {
+                    // Check the uint16 parameters
+                    if (TEST_VERIFY_VALUES(param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        *(uint16_t *)temp_data_ptr);
+                    }
+                } else if ((param_descriptor->cid >= CID_HOLD_U8_A) 
+                            && (param_descriptor->cid <= CID_HOLD_U8_B)) {
+                    // Check the uint8 parameters
+                    if (TEST_VERIFY_VALUES(param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        *(uint16_t *)temp_data_ptr);
+                    }
+                } else if ((param_descriptor->cid >= CID_HOLD_UINT32_ABCD)
+                            && (param_descriptor->cid <= CID_HOLD_UINT32_DCBA)) {
+                    // Check the uint32 parameters
+                    if (TEST_VERIFY_VALUES(param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %" PRIu32 " (0x%" PRIx32 ") read successful.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        *(uint32_t *)temp_data_ptr,
+                                        *(uint32_t *)temp_data_ptr);
+                    }
+                } else if ((param_descriptor->cid >= CID_HOLD_FLOAT_ABCD)
+                            && (param_descriptor->cid <= CID_HOLD_FLOAT_DCBA)) {
+                    // Check the float parameters
+                    if (TEST_VERIFY_VALUES(param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        *(float *)temp_data_ptr,
+                                        *(uint32_t *)temp_data_ptr);
+                    }
+                } else if (param_descriptor->cid >= CID_HOLD_DOUBLE_ABCDEFGH) {
+                    // Check the double parameters
+                    if (TEST_VERIFY_VALUES(param_descriptor, (double *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %lf (0x%" PRIx64 ") read successful.",
+                                    (int)param_descriptor->cid,
+                                    (char *)param_descriptor->param_key,
+                                    (char *)param_descriptor->param_units,
+                                    *(double *)temp_data_ptr,
+                                    *(uint64_t *)temp_data_ptr);
+                    }
+#endif
+                } else  if (cid <= CID_HOLD_DATA_2) {
+                    if (TEST_VERIFY_VALUES(param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
+                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                                (int)param_descriptor->cid,
+                                (char *)param_descriptor->param_key,
+                                (char *)param_descriptor->param_units,
+                                *(float *)temp_data_ptr,
+                                *(uint32_t *)temp_data_ptr);
+                    }
+                    float value = *(float *)temp_data_ptr;
+                    if (((value > param_descriptor->param_opts.max) ||
+                        (value < param_descriptor->param_opts.min))) {
+                            alarm_state = true;
+                            break;
+                    }
+                } else if ((cid >= CID_RELAY_P1) && (cid <= CID_DISCR_P1)) {
+                    if (TEST_VERIFY_VALUES(param_descriptor, (uint8_t *)temp_data_ptr) == ESP_OK) {
+                        uint8_t state = *(uint8_t *)temp_data_ptr;
+                        const char* rw_str = (state & param_descriptor->param_opts.opt1) ? "ON" : "OFF";
+                        if ((state & param_descriptor->param_opts.opt2) == param_descriptor->param_opts.opt2) {
+                            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 ") read successful.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        (const char *)rw_str,
+                                        *(uint8_t *)temp_data_ptr);
                         } else {
-                            uint8_t state = *(uint8_t*)temp_data_ptr;
-                            const char* rw_str = (state & param_descriptor->param_opts.opt1) ? "ON" : "OFF";
-                            if ((state & param_descriptor->param_opts.opt2) == param_descriptor->param_opts.opt2) {
-                                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 ") read successful.",
-                                                (int)param_descriptor->cid,
-                                                (char*)param_descriptor->param_key,
-                                                (char*)param_descriptor->param_units,
-                                                (const char*)rw_str,
-                                                *(uint8_t*)temp_data_ptr);
-                            } else {
-                                ESP_LOGE(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 "), unexpected value.",
-                                            (int)param_descriptor->cid,
-                                            (char*)param_descriptor->param_key,
-                                            (char*)param_descriptor->param_units,
-                                            (const char*)rw_str,
-                                            *(uint8_t*)temp_data_ptr);
-                                alarm_state = true;
-                                break;
-                            }
-                            if (state & param_descriptor->param_opts.opt1) {
-                                alarm_state = true;
-                                break;
-                            }
+                            ESP_LOGE(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 "), unexpected value.",
+                                        (int)param_descriptor->cid,
+                                        (char *)param_descriptor->param_key,
+                                        (char *)param_descriptor->param_units,
+                                        (const char *)rw_str,
+                                        *(uint8_t *)temp_data_ptr);
+                            alarm_state = true;
+                            break;
                         }
-                    } else {
-                        ESP_LOGE(TAG, "Characteristic #%d (%s) read fail, err = 0x%x (%s).",
-                                            (int)param_descriptor->cid,
-                                            (char*)param_descriptor->param_key,
-                                            (int)err,
-                                            (char*)esp_err_to_name(err));
+                        if (state & param_descriptor->param_opts.opt1) {
+                            alarm_state = true;
+                            break;
+                        }
                     }
                 }
                 vTaskDelay(POLL_TIMEOUT_TICS); // timeout between polls
@@ -754,6 +933,7 @@ void app_main(void)
 #else
     ip_addr_type = MB_IPV6;
 #endif
+
     ESP_ERROR_CHECK(init_services(ip_addr_type));
 
     mb_communication_info_t comm_info = { 0 };

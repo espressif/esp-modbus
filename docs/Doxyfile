@@ -13,17 +13,20 @@
 # http://doxygen.nl/manual/config.html
 
 
-PROJECT_NAME = "IDF Programming Guide"
+PROJECT_NAME = "ESP-MODBUS Programming Guide"
 
 ## The 'INPUT' statement below is used as input by script 'gen-df-input.py'
 ## to automatically generate API reference list files heder_file.inc
 ## These files are placed in '_inc' directory
 ## and used to include in API reference documentation
 
+##
+
 INPUT = \
     $(PROJECT_PATH)/freemodbus/common/include/esp_modbus_common.h \
     $(PROJECT_PATH)/freemodbus/common/include/esp_modbus_slave.h \
     $(PROJECT_PATH)/freemodbus/common/include/esp_modbus_master.h \
+    $(PROJECT_PATH)/freemodbus/common/include/mb_endianness_utils.h
 
 ## Get warnings for functions that have no documentation for their parameters or return value
 ##

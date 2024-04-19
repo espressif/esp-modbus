@@ -221,4 +221,13 @@ menu "Modbus configuration"
                 This option has dependency with the UART_ISR_IN_IRAM option which places UART interrupt
                 handler into IRAM to prevent delays related to processing of UART events.
 
+    config FMB_EXT_TYPE_SUPPORT
+        bool "Modbus uses extended types to support third party devices"
+        default n
+        help
+                If this option is set the Modbus stack supports extended list of types
+                in data dictionary and conversion API to work with the extended types 
+                otherwise the only legacy types are supported. The extended types include
+                integer, float, double types with different endianness and size.
+
 endmenu

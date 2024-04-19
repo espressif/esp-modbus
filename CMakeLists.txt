@@ -53,6 +53,10 @@ list(APPEND priv_include_dirs serial_slave/port serial_slave/modbus_controller
      tcp_slave/port tcp_slave/modbus_controller
      tcp_master/port tcp_master/modbus_controller)
 
+if(CONFIG_FMB_EXT_TYPE_SUPPORT)
+     list(APPEND srcs "common/mb_endianness_utils.c")
+endif()
+
 add_prefix(srcs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${srcs})
 add_prefix(include_dirs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${include_dirs})
 add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${priv_include_dirs})

@@ -1,0 +1,6 @@
+dependencies:
+  idf: ">=4.3"
+  espressif/esp-modbus:
+    version: "^1.0"
+    override_path: "../../../../"
+

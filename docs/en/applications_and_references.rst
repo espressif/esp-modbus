@@ -70,4 +70,9 @@ API Reference
 .. include-build-file:: inc/esp_modbus_master.inc
 .. include-build-file:: inc/esp_modbus_slave.inc
 
+.. _modbus_api_endianness_conversion:
 
+Modbus Endianness Conversion API Reference
+------------------------------------------
+
+.. include-build-file:: inc/mb_endianness_utils.inc

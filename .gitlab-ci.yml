@@ -106,6 +106,9 @@ after_script:
       --manifest-file .build-test-rules.yml
       --parallel-count ${CI_NODE_TOTAL:-1}
       --parallel-index ${CI_NODE_INDEX:-1}
+    # delete all other build artifacts, except esp32
+    - echo "delete build folders:" $(find . -type d -regex '^\./.*build_esp32[a-z]+[0-9]+[_a-z]*' -print -exec rm -rf {} +)
+
   variables:
     TEST_TARGETS: "esp32"
 
@@ -121,11 +124,11 @@ build_idf_v5.0:
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
-build_idf_v4.4:
+build_idf_v5.2:
   extends: .build_pytest_template
-  image: espressif/idf:release-v4.4
+  image: espressif/idf:release-v5.2
   variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
 
 .target_test_template:
   stage: target_test
@@ -162,7 +165,7 @@ build_idf_v4.4:
     expire_in: 1 week
   script:
     - cd ${TEST_DIR}/${TEST_PORT}
-    - echo "Start test for [esp-idf_${IDF_BRANCH}_${IDF_TARGET}_${TEST_PORT}]"
+    - echo "Start target test for [esp-idf_${IDF_BRANCH}_${IDF_TARGET}_${TEST_PORT}]"
     - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_BRANCH}.xml --target=${IDF_TARGET}
     - ls -lh > ${TEST_DIR}/test_dir.txt
 
@@ -170,12 +173,12 @@ target_test:
   stage: target_test
   image: "$CI_DOCKER_REGISTRY/target-test-env-v5.2:2"
   extends: .test_template
-  needs: [build_idf_master, build_idf_v4.4, build_idf_v5.0]
+  needs: [build_idf_master, build_idf_v5.2, build_idf_v5.0]
   parallel:
     matrix:
-      - IDF_BRANCH: ["master", "v4.4", "v5.0"]
+      - IDF_BRANCH: ["master", "v5.2", "v5.0"]
         IDF_TARGET: ["esp32"]
-        TEST_PORT: ["serial", "tcp"]
+        TEST_PORT: ["serial", "tcp", "generic"]
   after_script: []
 
 build_docs:
