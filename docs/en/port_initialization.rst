@@ -69,6 +69,8 @@ The configuration structure is used to recognize the type of object being initia
         ESP_LOGE(TAG, "mb controller initialization fail.");
     }
 
+.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
+
 An example of initialization for Modbus TCP master is below. The Modbus master TCP requires additional definition of IP address table where number of addresses should be equal to number of unique slave addresses in master Modbus Data Dictionary. The Unit Identifier defined in the table below corresponds to UID (slave short address field) in the Data Dictionary.
 The format of slave definition following the notation `UID;slave_host_ip_or_dns_name;port_number` and allows some variations as described in the example below.
 
@@ -103,6 +105,8 @@ The format of slave definition following the notation `UID;slave_host_ip_or_dns_
     if (master_handler == NULL || err != ESP_OK) {
         ESP_LOGE(TAG, "mb controller initialization fail.");
     }
+
+.. note:: Refer to `esp_netif component <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_netif.html>`__ for more information about network interface initialization.
 
 The slave IP addresses of the slaves can be resolved automatically by the stack using mDNS service as described in the example. In this case each slave has to use the mDNS service support and define its host name appropriately.
 Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example TCP slave <example_mb_tcp_slave>` for more information.
@@ -142,7 +146,6 @@ This example code to initialize Modbus serial slave:
 
 .. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
 
- 
 This example code to initialize Modbus TCP slave:
 
 .. code:: c
