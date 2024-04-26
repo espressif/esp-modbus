@@ -358,6 +358,7 @@ static esp_err_t mbc_serial_master_set_request(char* name, mb_param_mode_t mode,
         // Compare the name of parameter with parameter key from table
         int comp_result = memcmp((const void*)name, (const void*)reg_ptr->param_key, (size_t)param_key_len);
         if (comp_result == 0) {
+            // Returns an error in case of broadcast read request
             if (!reg_ptr->mb_slave_addr && (mode == MB_PARAM_READ)) {
                 error = ESP_ERR_INVALID_ARG;
                 break;
