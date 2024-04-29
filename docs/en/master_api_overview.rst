@@ -326,6 +326,14 @@ Example setup for serial port:
 
     ESP_ERROR_CHECK(mbc_master_setup((void*)&comm_info));
 
+The communication options supported by this library are described in the section :ref:`modbus_supported_communication_options`.
+
+However, it is possible to override the serial communication options calling the function :cpp:func:`uart_param_config` right after :cpp:func:`mbc_slave_setup`.
+
+.. note:: Refer to `UART driver documentation <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#set-communication-parameters>`__ for more information about UART peripheral configuration.
+
+.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
+
 Modbus master TCP port requires additional definition of IP address table where number of addresses should be equal to number of unique slave addresses in master Modbus Data Dictionary:
 
 The order of IP address string corresponds to short slave address in the Data Dictionary.
@@ -354,8 +362,6 @@ The order of IP address string corresponds to short slave address in the Data Di
 
 The slave IP addresses in the table can be assigned automatically using mDNS service as described in the example.
 Refer to :ref:`example TCP master <example_mb_tcp_master>` for more information.
-
-.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
 
 .. _modbus_api_master_start_communication:
 

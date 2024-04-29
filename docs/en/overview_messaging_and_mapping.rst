@@ -12,6 +12,39 @@ The Modbus serial communication protocol is de facto standard protocol widely us
 
 .. note:: This documentation (and included code snippets) requires some familiarity with the Modbus protocol. Refer to the Modbus Organization's with protocol specifications for specifics :ref:`modbus_organization`.
 
+.. _modbus_supported_communication_options:
+
+Modbus Supported Communication Options
+--------------------------------------
+
+The Modbus library supports the standard communication options as per Modbus specification stated below.
+
+.. list-table:: Standard Modbus communication options
+  :widths: 10 90
+  :header-rows: 1
+  
+  * - Modbus option
+    - Description of the option
+  * - RTU communication
+    - * 1 start bit
+      * 8 data bits, least significant bit sent first
+      * 1 bit for even / odd parity-no bit for no parity
+      * 1 stop bit if parity is used, 2 stop bits if no parity
+      * Cyclical Redundancy Check (CRC)
+  * - ASCII communication
+    - * 1 start bit
+      * 7-8 data bits, least significant bit sent first
+      * 1 bit for even / odd parity-no bit for no parity
+      * 1 stop bit if parity is used, 2 stop bits if no parity
+      * Longitudinal Redundancy Check (LRC)
+  * - TCP communication
+    - * Communications between client (master) - server (slave) over TCP/IP networks
+      * Connection uses the standard port 502
+      * The frames do not require checksum calculation (provided by lower layers)
+
+Some vendors may use subset of communication options. In this case the detailed information is clarified in the device manual and it is possible to override the standard communication options for support of such devices.
+Please refer to :ref:`modbus_api_slave_setup_communication_options`, :ref:`modbus_api_master_setup_communication_options` for more information.
+
 Messaging Model And Data Mapping
 --------------------------------
 
