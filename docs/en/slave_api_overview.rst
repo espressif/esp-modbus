@@ -152,6 +152,14 @@ Example initialization of Modbus serial communication:
     
     ESP_ERROR_CHECK(mbc_slave_setup((void*)&comm_info));
 
+The communication options supported by this library are described in the section :ref:`modbus_supported_communication_options`.
+
+However, it is possible to override the serial communication options calling the function :cpp:func:`uart_param_config` right after :cpp:func:`mbc_slave_setup`.
+
+.. note:: Refer to `UART driver documentation <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#set-communication-parameters>`__ for more information about UART peripheral configuration.
+
+.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
+
 .. _modbus_api_slave_communication:
 
 Slave Communication
