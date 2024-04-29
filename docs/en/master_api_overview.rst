@@ -305,61 +305,6 @@ Initialization of master descriptor. The descriptor represents an array of type 
 The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
 Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
 
-.. _modbus_api_master_setup_communication_options:
-
-Master Communication Options
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Calling the setup function allows for specific communication options to be defined for port.
-
-:cpp:func:`mbc_master_setup`
-
-The communication structure provided as a parameter is different for serial and TCP communication mode.
-
-Example setup for serial port:
-
-.. code:: c
-
-    mb_communication_info_t comm_info = {
-        .port = MB_PORT_NUM,        // Serial port number 
-        .mode = MB_MODE_RTU,        // Modbus mode of communication (MB_MODE_RTU or MB_MODE_ASCII)
-        .baudrate = 9600,           // Modbus communication baud rate
-        .parity = MB_PARITY_NONE    // parity option for serial port
-    };
-
-    ESP_ERROR_CHECK(mbc_master_setup((void*)&comm_info));
-
-Modbus master TCP port requires additional definition of IP address table where number of addresses should be equal to number of unique slave addresses in master Modbus Data Dictionary:
-
-The order of IP address string corresponds to short slave address in the Data Dictionary.
-
-.. code:: c
-
-    #define MB_SLAVE_COUNT 2 // Number of slaves in the segment being accessed (as defined in Data Dictionary)
-
-    char* slave_ip_address_table[MB_SLAVE_COUNT] = {
-        "192.168.1.2",     // Address corresponds to UID1 and set to predefined value by user
-        "192.168.1.3",     // corresponds to UID2 in the segment
-        NULL               // end of table
-    };
-
-    mb_communication_info_t comm_info = { 
-        .ip_port = MB_TCP_PORT,                    // Modbus TCP port number (default = 502)
-        .ip_addr_type = MB_IPV4,                   // version of IP protocol
-        .ip_mode = MB_MODE_TCP,                    // Port communication mode
-        .ip_addr = (void*)slave_ip_address_table,  // assign table of IP addresses
-        .ip_netif_ptr = esp_netif_ptr              // esp_netif_ptr pointer to the corresponding network interface
-    };
-
-    ESP_ERROR_CHECK(mbc_master_setup((void*)&comm_info));
-
-.. note:: Refer to `esp_netif component <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_netif.html>`__ for more information about network interface initialization.
-
-The slave IP addresses in the table can be assigned automatically using mDNS service as described in the example.
-Refer to :ref:`example TCP master <example_mb_tcp_master>` for more information.
-
-.. note:: RS485 communication requires call to UART specific APIs to setup communication mode and pins. Refer to the `UART communication section <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/uart.html#uart-api-running-uart-communication>`__ in documentation.
-
 .. _modbus_api_master_start_communication:
 
 Master Communication
