@@ -94,39 +94,46 @@ after_script:
     # The script below will build all test applications defined in environment variable $TEST_TARGETS
     - *check_idf_ver
     - cd ${TEST_DIR}
-    - python -m idf_build_apps build -v -p .
+    - python -m idf_build_apps build -v -p ${SUBDIR}
       --recursive
       --target all
       --default-build-targets ${TEST_TARGETS}
       --config "sdkconfig.ci.*=" --build-dir "build_@t_@w"
+      --build-log build_log.txt
       --check-warnings
       --ignore-warning-file ../tools/ignore_build_warnings.txt
       --collect-size-info $SIZE_INFO_LOCATION
       --manifest-rootpath .
       --manifest-file .build-test-rules.yml
-      --parallel-count ${CI_NODE_TOTAL:-1}
-      --parallel-index ${CI_NODE_INDEX:-1}
     # delete all other build artifacts, except esp32
     - echo "delete build folders:" $(find . -type d -regex '^\./.*build_esp32[a-z]+[0-9]+[_a-z]*' -print -exec rm -rf {} +)
-
   variables:
     TEST_TARGETS: "esp32"
 
 build_idf_master:
   extends: .build_pytest_template
   image: espressif/idf:latest
+  parallel:
+    matrix:
+      - SUBDIR: ["serial", "tcp", "generic"]
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
 
 build_idf_v5.0:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.0
+  parallel:
+    matrix:
+      - SUBDIR: ["serial", "tcp", "generic"]
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
 build_idf_v5.2:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.2
+  parallel:
+    matrix:
+      - SUBDIR: ["serial", "tcp", "generic"]
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
 
