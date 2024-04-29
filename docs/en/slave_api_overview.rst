@@ -190,10 +190,11 @@ The direct access to slave register area from user application must be protected
 The access to registered area shared between several slave objects from user application must be protected by critical section base on spin lock:
 
 .. code:: c
-#include "freertos/FreeRTOS.h"
-...
+
+    #include "freertos/FreeRTOS.h"
+    ...
     static portMUX_TYPE g_spinlock = portMUX_INITIALIZER_UNLOCKED;
-...
+    ...
     portENTER_CRITICAL(&param_lock);
     holding_reg_area[2] = 123;
     portEXIT_CRITICAL(&param_lock);
