@@ -33,7 +33,7 @@
 #define MASTER_MAX_CIDS num_device_parameters
 
 // Number of reading of parameters from slave
-#define MASTER_MAX_RETRY                (30)
+#define MASTER_MAX_RETRY                (10)
 
 // Timeout to update cid over Modbus
 #define UPDATE_CIDS_TIMEOUT_MS          (500)
