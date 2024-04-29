@@ -137,8 +137,11 @@ eMBRTUStart( void )
      */
     eRcvState = STATE_RX_INIT;
     vMBPortSerialEnable( TRUE, FALSE );
-    vMBPortTimersEnable(  );
-
+#if CONFIG_FMB_TIMER_PORT_ENABLED
+    vMBPortTimersEnable( );
+#else
+    pxMBPortCBTimerExpired();
+#endif
     EXIT_CRITICAL_SECTION(  );
 }
 
