@@ -358,6 +358,11 @@ static esp_err_t mbc_serial_master_set_request(char* name, mb_param_mode_t mode,
         // Compare the name of parameter with parameter key from table
         int comp_result = memcmp((const void*)name, (const void*)reg_ptr->param_key, (size_t)param_key_len);
         if (comp_result == 0) {
+            // Returns an error in case of broadcast read request
+            if (!reg_ptr->mb_slave_addr && (mode == MB_PARAM_READ)) {
+                error = ESP_ERR_INVALID_ARG;
+                break;
+            }
             // The correct line is found in the table and reg_ptr points to the found parameter description
             request->slave_addr = reg_ptr->mb_slave_addr;
             request->reg_start = reg_ptr->mb_reg_start;
@@ -417,7 +422,8 @@ static esp_err_t mbc_serial_master_get_parameter(uint16_t cid, char* name, uint8
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
-        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.", __FUNCTION__, reg_info.cid);
+        ESP_LOGE(TAG, "%s: The requested cid(%u) is not configured correctly. Check data dictionary for correctness.",
+                                                    __FUNCTION__, (unsigned)cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
@@ -465,8 +471,8 @@ static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name, uint8
         *type = reg_info.param_type;
         free(pdata);
     } else {
-        ESP_LOGE(TAG, "%s: The requested cid(%u) not found in the data dictionary.",
-                                    __FUNCTION__, (unsigned)reg_info.cid);
+        ESP_LOGE(TAG, "%s: The requested cid(%u) is not configured correctly. Check data dictionary for correctness.",
+                                    __FUNCTION__, (unsigned)cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
