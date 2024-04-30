@@ -205,7 +205,7 @@ eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort, ULONG ulBaudRate, eMBParity eP
         pxMBMasterFrameCBByteReceived = xMBMasterRTUReceiveFSM;
         pxMBMasterFrameCBTransmitterEmpty = xMBMasterRTUTransmitFSM;
         pxMBMasterPortCBTimerExpired = xMBMasterRTUTimerExpired;
-        eMBMasterCurrentMode = MB_ASCII;
+        eMBMasterCurrentMode = eMode;
 
         eStatus = eMBMasterRTUInit(ucPort, ulBaudRate, eParity);
         break;
@@ -220,7 +220,7 @@ eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort, ULONG ulBaudRate, eMBParity eP
         pxMBMasterFrameCBByteReceived = xMBMasterASCIIReceiveFSM;
         pxMBMasterFrameCBTransmitterEmpty = xMBMasterASCIITransmitFSM;
         pxMBMasterPortCBTimerExpired = xMBMasterASCIITimerT1SExpired;
-        eMBMasterCurrentMode = MB_RTU;
+        eMBMasterCurrentMode = eMode;
 
         eStatus = eMBMasterASCIIInit(ucPort, ulBaudRate, eParity );
         break;
@@ -391,6 +391,10 @@ eMBMasterPoll( void )
                 break;
             case EV_MASTER_EXECUTE:
                 if (xCurTransactionId == xEvent.xTransactionId) {
+                    if ( xMBMasterRequestIsBroadcast() 
+                         && (( ucMBMasterGetCommMode() == MB_RTU ) || ( ucMBMasterGetCommMode() == MB_ASCII ) ) ) {
+                        ucMBRcvFrame = ucMBSendFrame;
+                    }
                     MB_PORT_CHECK(ucMBRcvFrame, MB_EILLSTATE, "receive buffer initialization fail.");
                     ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_EXECUTE", xEvent.xTransactionId);
                     ucFunctionCode = ucMBRcvFrame[MB_PDU_FUNC_OFF];
