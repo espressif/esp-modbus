@@ -106,7 +106,7 @@ after_script:
       --manifest-rootpath .
       --manifest-file .build-test-rules.yml
     # delete all other build artifacts, except esp32
-    - echo "delete build folders:" $(find . -type d -regex '^\./.*build_esp32[a-z]+[0-9]+[_a-z]*' -print -exec rm -rf {} +)
+    - echo "Delete build folders:" $(find . -type d -regex '^\./.*build_esp32[a-z]+[0-9]+[_a-z]*' -print -exec rm -rf {} +)
   variables:
     TEST_TARGETS: "esp32"
 
@@ -264,4 +264,5 @@ upload_to_component_manager:
   script:
     - pip install idf-component-manager
     - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
-    - python -m idf_component_manager upload-component --allow-existing --name=esp-modbus --namespace=espressif
+    - compote component upload --namespace=espressif --name=esp-modbus --allow-existing
+
