@@ -9,3 +9,5 @@ files:
     - "docs"
     - "test/**/*"
     - "test"
+    - "arch"
+    - "arch/**/*"

@@ -483,6 +483,29 @@ static esp_err_t master_init(void)
     return err;
 }
 
+#ifndef UCHAR
+#define UCHAR uint8_t
+#define USHORT uint16_t
+#define MB_PDU_DATA_OFF 1
+#endif
+
+#define EV_ERROR_EXECUTE_FUNCTION 3
+
+void vMBMasterErrorCBUserHandler( uint64_t xTransId, USHORT usError, UCHAR ucDestAddress, const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                                        const UCHAR* pucSendData, USHORT ucSendLength )
+{
+    ESP_LOGW("USER_ERR_CB", "The transaction error type: %u", usError);
+    if ((usError == EV_ERROR_EXECUTE_FUNCTION) && pucRecvData && ucRecvLength) {
+        ESP_LOGW("USER_ERR_CB", "The command is unsupported or an exception on slave happened: %x", (int)pucRecvData[1]);
+    }
+    if (pucRecvData && ucRecvLength) {
+        ESP_LOG_BUFFER_HEX_LEVEL("Received buffer", (void *)pucRecvData, (USHORT)ucRecvLength, ESP_LOG_WARN);
+    }
+    if (pucSendData && ucSendLength) {
+        ESP_LOG_BUFFER_HEX_LEVEL("Sent buffer", (void *)pucSendData, (USHORT)ucSendLength, ESP_LOG_WARN);
+    }
+}
+
 void app_main(void)
 {
     // Initialization of device peripheral and objects

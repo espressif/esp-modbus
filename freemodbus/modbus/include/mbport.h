@@ -207,16 +207,20 @@ void            vMBMasterPortTimersDisable( void );
 
 
 /* ----------------- Callback for the master error process ------------------*/
-void            vMBMasterErrorCBRespondTimeout( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                                USHORT ucPDULength );
+void            vMBMasterErrorCBRespondTimeout( uint64_t xTransId, UCHAR ucDestAddress,
+                                                const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterErrorCBReceiveData( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                             USHORT ucPDULength );
+void            vMBMasterErrorCBReceiveData( uint64_t xTransId, UCHAR ucDestAddress, 
+                                                const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                                const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterErrorCBExecuteFunction( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                                 USHORT ucPDULength );
+void            vMBMasterErrorCBExecuteFunction( uint64_t xTransId, UCHAR ucDestAddress, 
+                                                    const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                                    const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterCBRequestSuccess( void );
+void            vMBMasterCBRequestSuccess( uint64_t xTransId, UCHAR ucDestAddress,
+                                            const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                            const UCHAR* pucSendData, USHORT ucSendLength );
 #endif
 /* ----------------------- Callback for the protocol stack ------------------*/
 /*!
