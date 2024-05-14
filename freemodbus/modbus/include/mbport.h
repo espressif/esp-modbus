@@ -95,7 +95,7 @@ typedef struct _MbEventType {
     eMBMasterEventEnum eEvent;      /*!< event itself. */
     uint64_t xTransactionId;        /*!< ID of the transaction */
     uint64_t xPostTimestamp;        /*!< timestamp of event posted */
-    uint64_t xGetTimestamp;         /*!< timestamp of event get */ 
+    uint64_t xGetTimestamp;         /*!< timestamp of event get */
 } xMBMasterEventType;
 
 #endif

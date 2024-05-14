@@ -392,6 +392,13 @@ static void master_operation_func(void *arg)
                             alarm_state = true;
                             break;
                     }
+                    mb_trans_info_t tinfo = {0};
+                    if (mbc_master_get_transaction_info(&tinfo) == ESP_OK) {
+                        ESP_LOGI("TRANS_INFO", "Id: %" PRIu64 ", Addr: %x, FC: %x, Exp: %u, Err: %x",
+                                    (uint64_t)tinfo.trans_id, (int)tinfo.dest_addr,
+                                    (unsigned)tinfo.func_code, (unsigned)tinfo.exception,
+                                    (int)tinfo.err_type);
+                    }
                 } else if ((cid >= CID_RELAY_P1) && (cid <= CID_DISCR_P1)) {
                     if (TEST_VERIFY_VALUES(param_descriptor, (uint8_t *)temp_data_ptr) == ESP_OK) {
                         uint8_t state = *(uint8_t *)temp_data_ptr;
@@ -483,26 +490,22 @@ static esp_err_t master_init(void)
     return err;
 }
 
-#ifndef UCHAR
-#define UCHAR uint8_t
-#define USHORT uint16_t
 #define MB_PDU_DATA_OFF 1
-#endif
 
 #define EV_ERROR_EXECUTE_FUNCTION 3
 
-void vMBMasterErrorCBUserHandler( uint64_t xTransId, USHORT usError, UCHAR ucDestAddress, const UCHAR* pucRecvData, USHORT ucRecvLength,
-                                                        const UCHAR* pucSendData, USHORT ucSendLength )
+void vMBMasterErrorCBUserHandler( uint64_t xTransId, uint16_t usError, uint8_t ucDestAddress, const uint8_t *pucRecvData, uint16_t ucRecvLength,
+                                                        const uint8_t *pucSendData, uint16_t ucSendLength )
 {
-    ESP_LOGW("USER_ERR_CB", "The transaction error type: %u", usError);
+    ESP_LOGW("USER_ERR_CB", "The transaction %" PRIu64 ", error type: %u", xTransId, usError);
     if ((usError == EV_ERROR_EXECUTE_FUNCTION) && pucRecvData && ucRecvLength) {
-        ESP_LOGW("USER_ERR_CB", "The command is unsupported or an exception on slave happened: %x", (int)pucRecvData[1]);
+        ESP_LOGW("USER_ERR_CB", "The command is unsupported or an exception on slave happened: %x", (int)pucRecvData[MB_PDU_DATA_OFF]);
     }
     if (pucRecvData && ucRecvLength) {
-        ESP_LOG_BUFFER_HEX_LEVEL("Received buffer", (void *)pucRecvData, (USHORT)ucRecvLength, ESP_LOG_WARN);
+        ESP_LOG_BUFFER_HEX_LEVEL("Received buffer", (void *)pucRecvData, (uint16_t)ucRecvLength, ESP_LOG_WARN);
     }
     if (pucSendData && ucSendLength) {
-        ESP_LOG_BUFFER_HEX_LEVEL("Sent buffer", (void *)pucSendData, (USHORT)ucSendLength, ESP_LOG_WARN);
+        ESP_LOG_BUFFER_HEX_LEVEL("Sent buffer", (void *)pucSendData, (uint16_t)ucSendLength, ESP_LOG_WARN);
     }
 }
 

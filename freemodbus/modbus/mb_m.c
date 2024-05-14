@@ -71,11 +71,20 @@
 
 /* ----------------------- Static variables ---------------------------------*/
 
-static UCHAR ucMBMasterDestAddress;
+static UCHAR ucMBMasterDestAddress = 0;
 static BOOL xMBRunInMasterMode = FALSE;
-static volatile eMBMasterErrorEventType eMBMasterCurErrorType;
+static volatile eMBMasterErrorEventType eMBMasterCurErrorType = EV_ERROR_INIT;
 static volatile USHORT usMasterSendPDULength;
 static volatile eMBMode eMBMasterCurrentMode;
+
+static UCHAR    *pucMBSendFrame = NULL;
+static UCHAR    *pucMBRecvFrame = NULL;
+static UCHAR    ucRecvAddress = 0;
+static UCHAR    ucLastFunctionCode = 0;
+static UCHAR    usLastFrameError = 0;
+static eMBException eLastException = MB_EX_NONE;
+static uint64_t xLastTransactionId = 0;
+static uint64_t xCurTransactionId = 0;
 
 /*------------------------ Shared variables ---------------------------------*/
 
@@ -182,7 +191,13 @@ eMBMasterTCPInit( USHORT ucTCPPort )
         {
             eStatus = MB_EPORTERR;
         }
-
+        /* initialize the state values. */
+        ucRecvAddress = 0;
+        ucLastFunctionCode = 0;
+        usLastFrameError = 0;
+        eLastException = MB_EX_NONE;
+        xCurTransactionId = 0;
+        eMBMasterCurErrorType = EV_ERROR_INIT;
     }
     return eStatus;
 }
@@ -240,6 +255,13 @@ eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort, ULONG ulBaudRate, eMBParity eP
         else
         {
             eMBState = STATE_DISABLED;
+            /* initialize the state values. */
+            ucRecvAddress = 0;
+            ucLastFunctionCode = 0;
+            usLastFrameError = 0;
+            eLastException = MB_EX_NONE;
+            xCurTransactionId = 0;
+            eMBMasterCurErrorType = EV_ERROR_INIT;
         }
         /* initialize the OS resource for modbus master. */
         vMBMasterOsResInit();
@@ -311,18 +333,14 @@ eMBMasterDisable( void )
 eMBErrorCode
 eMBMasterPoll( void )
 {
-    static UCHAR    *pucMBSendFrame = NULL;
-    static UCHAR    *pucMBRecvFrame = NULL;
-    static UCHAR    ucRcvAddress;
-    static UCHAR    ucFunctionCode;
-    static USHORT   usLength;
-    static eMBException eException;
-    static uint64_t xCurTransactionId = 0;
-    int             i;
-    int             j;
-    eMBErrorCode    eStatus = MB_ENOERR;
+    int                     i;
+    int                     j;
+    eMBErrorCode            eStatus = MB_ENOERR;
     xMBMasterEventType      xEvent;
     eMBMasterErrorEventType errorType;
+    eMBException            eException = MB_EX_NONE;
+    UCHAR                   ucFunctionCode = 0;
+    static USHORT           usRecvLength = 0;
 
     /* Check if the protocol stack is ready. */
     if( eMBState != STATE_ENABLED ) {
@@ -352,6 +370,7 @@ eMBMasterPoll( void )
                     ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ":Frame send error = %d", xEvent.xTransactionId, (unsigned)eStatus );
                 }
                 xCurTransactionId = xEvent.xTransactionId;
+                atomic_store(&(xLastTransactionId), xCurTransactionId);
                 break;
             case EV_MASTER_FRAME_SENT:
                 if (xCurTransactionId == xEvent.xTransactionId) {
@@ -361,15 +380,15 @@ eMBMasterPoll( void )
                 break;
             case EV_MASTER_FRAME_RECEIVED:
                 ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_FRAME_RECEIVED", xEvent.xTransactionId );
-                eStatus = peMBMasterFrameReceiveCur( &ucRcvAddress, &pucMBRecvFrame, &usLength);
+                eStatus = peMBMasterFrameReceiveCur( &ucRecvAddress, &pucMBRecvFrame, &usRecvLength);
                 if (xCurTransactionId == xEvent.xTransactionId) {
                     MB_PORT_CHECK(pucMBSendFrame, MB_EILLSTATE, "Send buffer initialization fail.");
                     // Check if the frame is for us. If not ,send an error process event.
-                    if ( ( eStatus == MB_ENOERR ) && ( ( ucRcvAddress == ucMBMasterGetDestAddress() )
-                                                    || ( ucRcvAddress == MB_TCP_PSEUDO_ADDRESS) ) ) {
+                    if ( ( eStatus == MB_ENOERR ) && ( ( ucRecvAddress == ucMBMasterGetDestAddress() )
+                                                    || ( ucRecvAddress == MB_TCP_PSEUDO_ADDRESS) ) ) {
                         if ( ( pucMBRecvFrame[MB_PDU_FUNC_OFF]  & ~MB_FUNC_ERROR ) == ( pucMBSendFrame[MB_PDU_FUNC_OFF] ) ) {
                             ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ": Packet data received successfully (%u).", xEvent.xTransactionId, (unsigned)eStatus);
-                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)pucMBRecvFrame, (uint16_t)usLength, ESP_LOG_DEBUG);
+                            ESP_LOG_BUFFER_HEX_LEVEL("POLL receive buffer", (void*)pucMBRecvFrame, (uint16_t)usRecvLength, ESP_LOG_DEBUG);
                             ( void ) xMBMasterPortEventPost( EV_MASTER_EXECUTE );
                         } else {
                             ESP_LOGE( MB_PORT_TAG, "Drop incorrect frame, receive_func(%u) != send_func(%u)",
@@ -381,7 +400,7 @@ eMBMasterPoll( void )
                         vMBMasterSetErrorType(EV_ERROR_RECEIVE_DATA);
                         ( void ) xMBMasterPortEventPost( EV_MASTER_ERROR_PROCESS );
                         ESP_LOGD( MB_PORT_TAG, "%" PRIu64 ": Packet data receive failed (addr=%u)(%u).",
-                                               xEvent.xTransactionId, (unsigned)ucRcvAddress, (unsigned)eStatus);
+                                               xEvent.xTransactionId, (unsigned)ucRecvAddress, (unsigned)eStatus);
                     }
                 } else {
                     // Ignore the `EV_MASTER_FRAME_RECEIVED` event because the respond timeout occurred
@@ -398,6 +417,7 @@ eMBMasterPoll( void )
                     MB_PORT_CHECK(pucMBRecvFrame, MB_EILLSTATE, "receive buffer initialization fail.");
                     ESP_LOGD(MB_PORT_TAG, "%" PRIu64 ":EV_MASTER_EXECUTE", xEvent.xTransactionId);
                     ucFunctionCode = pucMBRecvFrame[MB_PDU_FUNC_OFF];
+                    atomic_store(&(ucLastFunctionCode), ucFunctionCode);
                     eException = MB_EX_ILLEGAL_FUNCTION;
                     /* If receive frame has exception. The receive function code highest bit is 1.*/
                     if (ucFunctionCode & MB_FUNC_ERROR) {
@@ -415,20 +435,21 @@ eMBMasterPoll( void )
                                 * the master need execute function for all slave.
                                 */
                                 if ( xMBMasterRequestIsBroadcast() ) {
-                                    usLength = usMBMasterGetPDUSndLength();
+                                    USHORT usLength = usMBMasterGetPDUSndLength();
                                     for(j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++)
                                     {
                                         vMBMasterSetDestAddress(j);
                                         eException = xMasterFuncHandlers[i].pxHandler(pucMBRecvFrame, &usLength);
                                     }
                                 } else {
-                                    eException = xMasterFuncHandlers[i].pxHandler( pucMBRecvFrame, &usLength );
+                                    eException = xMasterFuncHandlers[i].pxHandler(pucMBRecvFrame, &usRecvLength);
                                 }
                                 vMBMasterSetCBRunInMasterMode( FALSE );
                                 break;
                             }
                         }
                     }
+                    atomic_store(&(eLastException), eException);
                     /* If master has exception, will send error process event. Otherwise the master is idle.*/
                     if ( eException != MB_EX_NONE ) {
                         vMBMasterSetErrorType( EV_ERROR_EXECUTE_FUNCTION );
@@ -456,24 +477,28 @@ eMBMasterPoll( void )
                             vMBMasterErrorCBRespondTimeout( xEvent.xTransactionId,
                                                             ucMBMasterGetDestAddress( ),
                                                             pucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            atomic_store(&(usLastFrameError), ( UCHAR )errorType);
                             break;
                         case EV_ERROR_RECEIVE_DATA:
                             vMBMasterErrorCBReceiveData( xEvent.xTransactionId,
                                                             ucMBMasterGetDestAddress( ),
-                                                            pucMBRecvFrame, usLength,
+                                                            pucMBRecvFrame, usRecvLength,
                                                             pucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            atomic_store(&(usLastFrameError), ( UCHAR )errorType);
                             break;
                         case EV_ERROR_EXECUTE_FUNCTION:
                             vMBMasterErrorCBExecuteFunction( xEvent.xTransactionId,
                                                             ucMBMasterGetDestAddress( ),
-                                                            pucMBRecvFrame, usLength,
+                                                            pucMBRecvFrame, usRecvLength,
                                                             pucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            atomic_store(&(usLastFrameError), ( UCHAR )errorType);
                             break;
                         case EV_ERROR_OK:
                             vMBMasterCBRequestSuccess( xEvent.xTransactionId,
                                                         ucMBMasterGetDestAddress( ),
-                                                        pucMBRecvFrame, usLength,
+                                                        pucMBRecvFrame, usRecvLength,
                                                         pucMBSendFrame, usMBMasterGetPDUSndLength( ) );
+                            atomic_store(&(usLastFrameError), ( UCHAR )errorType);
                             break;
                         default:
                             ESP_LOGE( MB_PORT_TAG, "%" PRIu64 ":incorrect error type = %d.", xEvent.xTransactionId, (int)errorType);
@@ -581,6 +606,23 @@ void vMBMasterRequestSetType( BOOL xIsBroadcast )
 eMBMode ucMBMasterGetCommMode(void)
 {
     return eMBMasterCurrentMode;
+}
+
+/* Get current transaction information */
+BOOL xMBMasterGetLastTransactionInfo( uint64_t *pxTransId, UCHAR *pucDestAddress,
+                                        UCHAR *pucFunctionCode, UCHAR *pucException,
+                                        USHORT *pusErrorType )
+{
+    BOOL xState = (eMBState == STATE_ENABLED);
+    if (xState && pxTransId && pucDestAddress && pucFunctionCode 
+        && pucException && pusErrorType) {
+        *pxTransId = atomic_load(&xLastTransactionId);
+        *pucDestAddress = ucMBMasterGetDestAddress();
+        *pucFunctionCode = atomic_load(&ucLastFunctionCode);
+        *pucException =  (UCHAR) atomic_load(&eLastException);
+        *pusErrorType = atomic_load(&usLastFrameError);
+    }
+    return xState;
 }
 
 #endif // MB_MASTER_RTU_ENABLED || MB_MASTER_ASCII_ENABLED || MB_MASTER_TCP_ENABLED

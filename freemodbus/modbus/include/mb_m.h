@@ -100,9 +100,9 @@ typedef enum
  */
 typedef enum
 {
-	MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
-	MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
-	MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast ,then delay sometime.*/
+    MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
+    MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
+    MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast ,then delay sometime.*/
 } eMBMasterTimerMode;
 
 /* ----------------------- Function prototypes ------------------------------*/
@@ -128,7 +128,7 @@ typedef enum
  *    - eMBErrorCode::MB_EPORTERR IF the porting layer returned an error.
  */
 eMBErrorCode    eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort,
-		                 ULONG ulBaudRate, eMBParity eParity );
+                                        ULONG ulBaudRate, eMBParity eParity );
 
 /*! \ingroup modbus
  * \brief Initialize the Modbus Master protocol stack for Modbus TCP.
@@ -220,7 +220,7 @@ eMBErrorCode    eMBMasterPoll( void );
  *   valid it returns eMBErrorCode::MB_EINVAL.
  */
 eMBErrorCode    eMBMasterRegisterCB( UCHAR ucFunctionCode,
-                               pxMBFunctionHandler pxHandler );
+                                        pxMBFunctionHandler pxHandler );
 
 /* ----------------------- Callback -----------------------------------------*/
 
@@ -261,7 +261,7 @@ eMBErrorCode    eMBMasterRegisterCB( UCHAR ucFunctionCode,
  *       <b>ILLEGAL DATA ADDRESS</b> is sent as a response.
  */
 eMBErrorCode eMBMasterRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress,
-		USHORT usNRegs );
+                                        USHORT usNRegs );
 
 /*! \ingroup modbus_registers
  * \brief Callback function used if a <em>Holding Register</em> value is
@@ -290,7 +290,7 @@ eMBErrorCode eMBMasterRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress,
  *       <b>ILLEGAL DATA ADDRESS</b> is sent as a response.
  */
 eMBErrorCode eMBMasterRegHoldingCB( UCHAR * pucRegBuffer, USHORT usAddress,
-		USHORT usNRegs, eMBRegisterMode eMode );
+                                        USHORT usNRegs, eMBRegisterMode eMode );
 
 /*! \ingroup modbus_registers
  * \brief Callback function used if a <em>Coil Register</em> value is
@@ -319,7 +319,7 @@ eMBErrorCode eMBMasterRegHoldingCB( UCHAR * pucRegBuffer, USHORT usAddress,
  *       <b>ILLEGAL DATA ADDRESS</b> is sent as a response.
  */
 eMBErrorCode eMBMasterRegCoilsCB( UCHAR * pucRegBuffer, USHORT usAddress,
-		USHORT usNCoils, eMBRegisterMode eMode );
+                                        USHORT usNCoils, eMBRegisterMode eMode );
 
 /*! \ingroup modbus_registers
  * \brief Callback function used if a <em>Input Discrete Register</em> value is
@@ -342,7 +342,7 @@ eMBErrorCode eMBMasterRegCoilsCB( UCHAR * pucRegBuffer, USHORT usAddress,
  *       <b>ILLEGAL DATA ADDRESS</b> is sent as a response.
  */
 eMBErrorCode eMBMasterRegDiscreteCB( UCHAR * pucRegBuffer, USHORT usAddress,
-		USHORT usNDiscrete );
+                                        USHORT usNDiscrete );
 
 /*! \ingroup modbus
  *\brief These Modbus functions are called for user when Modbus run in Master Mode.
@@ -353,20 +353,20 @@ eMBMasterReqErrCode
 eMBMasterReqWriteHoldingRegister( UCHAR ucSndAddr, USHORT usRegAddr, USHORT usRegData, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqWriteMultipleHoldingRegister( UCHAR ucSndAddr, USHORT usRegAddr,
-		USHORT usNRegs, USHORT * pusDataBuffer, LONG lTimeOut );
+        USHORT usNRegs, USHORT * pusDataBuffer, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqReadHoldingRegister( UCHAR ucSndAddr, USHORT usRegAddr, USHORT usNRegs, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqReadWriteMultipleHoldingRegister( UCHAR ucSndAddr,
-		USHORT usReadRegAddr, USHORT usNReadRegs, USHORT * pusDataBuffer,
-		USHORT usWriteRegAddr, USHORT usNWriteRegs, LONG lTimeOut );
+        USHORT usReadRegAddr, USHORT usNReadRegs, USHORT * pusDataBuffer,
+        USHORT usWriteRegAddr, USHORT usNWriteRegs, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqReadCoils( UCHAR ucSndAddr, USHORT usCoilAddr, USHORT usNCoils, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqWriteCoil( UCHAR ucSndAddr, USHORT usCoilAddr, USHORT usCoilData, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqWriteMultipleCoils( UCHAR ucSndAddr,
-		USHORT usCoilAddr, USHORT usNCoils, UCHAR * pucDataBuffer, LONG lTimeOut );
+        USHORT usCoilAddr, USHORT usNCoils, UCHAR * pucDataBuffer, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqReadDiscreteInputs( UCHAR ucSndAddr, USHORT usDiscreteAddr, USHORT usNDiscreteIn, LONG lTimeOut );
 
@@ -409,6 +409,9 @@ eMBMasterErrorEventType eMBMasterGetErrorType( void );
 void vMBMasterSetErrorType( eMBMasterErrorEventType errorType );
 eMBMasterReqErrCode eMBMasterWaitRequestFinish( void );
 eMBMode ucMBMasterGetCommMode( void );
+BOOL xMBMasterGetLastTransactionInfo( uint64_t *pxTransId, UCHAR *pucDestAddress,
+                                        UCHAR *pucFunctionCode, UCHAR *pucException,
+                                        USHORT *pusErrorType );
 
 /* ----------------------- Callback -----------------------------------------*/
 

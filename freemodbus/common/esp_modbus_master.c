@@ -237,6 +237,24 @@ eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
     return error;
 }
 
+/**
+ * Helper function to get current transaction info
+ */
+esp_err_t mbc_master_get_transaction_info(mb_trans_info_t *ptinfo)
+{
+    mb_trans_info_t tinfo = {0};
+    MB_MASTER_CHECK((ptinfo),
+                    ESP_ERR_INVALID_ARG,
+                    "Wrong argument.");
+    MB_MASTER_CHECK(xMBMasterGetLastTransactionInfo(&tinfo.trans_id, &tinfo.dest_addr,
+                                                    &tinfo.func_code, &tinfo.exception,
+                                                    &tinfo.err_type),
+                    ESP_ERR_INVALID_STATE,
+                    "Master can not get transaction info.");
+    *ptinfo = tinfo;
+    return ESP_OK;
+}
+
 // Helper function to set parameter buffer according to its type
 esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param_type, size_t param_size)
 {

@@ -215,7 +215,7 @@ BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, U
  */
 MB_ATTR_WEAK
 void vMBMasterErrorCBUserHandler( uint64_t xTransId, USHORT usError, UCHAR ucDestAddress, const UCHAR* pucRecvData, USHORT ucRecvLength,
-                                                        const UCHAR* pucSendData, USHORT ucSendLength );
+                                    const UCHAR* pucSendData, USHORT ucSendLength );
 
 #ifdef __cplusplus
 PR_END_EXTERN_C
