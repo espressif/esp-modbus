@@ -433,6 +433,82 @@ The function writes characteristic's value defined as a name and cid parameter i
             ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
         }
 
+The above functions propagate the status of the transaction as a return error code. This return code does not clarify some information such as slave exception code returned in the response. In this case the below function can be useful.
+
+:cpp:func:`mbc_master_get_transaction_info`
+
+Allows to return the below information as a :cpp:type:`mb_trans_info_t` structure.
+
+.. list-table:: Table 4 Transaction extended information
+  :widths: 2 68
+  :header-rows: 1
+  
+  * - Field
+    - Description
+  * - uint64_t ``trans_id``
+    - The unique transaction identificator stored as uint64_t timestamp.
+  * - uint8_t ``dest_addr``
+    - Destination short address (or UID - Unit Identificator) of the slave being accessed.
+  * - uint8_t ``func_code``
+    - The last transaction function code.
+  * - uint8_t ``exception``
+    - The last transaction exception code returned by slave. :cpp:type:`eMBException`.
+  * - uint16_t ``err_type``
+    - The last transaction error type.
+      :cpp:enumerator:`EV_ERROR_INIT` = 0, No error, initial state or the request is in progress.
+      :cpp:enumerator:`EV_ERROR_RESPOND_TIMEOUT` = 1, Slave respond timeout. No response during response timeout. 
+      :cpp:enumerator:`EV_ERROR_RECEIVE_DATA` = 2, Receive frame data error.
+      :cpp:enumerator:`EV_ERROR_EXECUTE_FUNCTION` = 3, Execute function error. Function is not supported or slave returned an error.
+      :cpp:enumerator:`EV_ERROR_OK` = 4, No error, processing completed successfully.
+
+Below is the way to expose the transaction info and request/response buffers defining the user error handling function. This funcion defined as described in the code below will be executed from internal final state machine before returning from blocking :cpp:func:`mbc_master_set_parameter` or :cpp:func:`mbc_master_get_parameter` functions and expose the internal parameters.
+
+.. code:: c
+
+    #define MB_PDU_DATA_OFF 1
+
+    #define EV_ERROR_EXECUTE_FUNCTION 3
+
+    void vMBMasterErrorCBUserHandler( uint64_t trans_id, uint16_t err_type, uint8_t dest_addr, const uint8_t *precv_buf, uint16_t recv_length,
+                                                            const uint8_t *psent_buf, uint16_t sent_length )
+    {
+        ESP_LOGW("USER_ERR_CB", "The transaction %" PRIu64 ", error type: %u", trans_id, err_type);
+        if ((err_type == EV_ERROR_EXECUTE_FUNCTION) && precv_buf && recv_length) {
+            ESP_LOGW("USER_ERR_CB", "The command is unsupported or an exception on slave happened: %x", (int)precv_buf[MB_PDU_DATA_OFF]);
+        }
+        if (precv_buf && recv_length) {
+            ESP_LOG_BUFFER_HEX_LEVEL("Received buffer", (void *)precv_buf, (uint16_t)recv_length, ESP_LOG_WARN);
+        }
+        if (psent_buf && sent_length) {
+            ESP_LOG_BUFFER_HEX_LEVEL("Sent buffer", (void *)psent_buf, (uint16_t)sent_length, ESP_LOG_WARN);
+        }
+    }
+
+.. list-table:: Table 5 Transaction user handler parameters
+  :widths: 2 68
+  :header-rows: 1
+  
+  * - Field
+    - Description
+  * - uint64_t ``trans_id``;
+    - The unique transaction identificator stored as uint64_t timestamp.
+  * - uint16_t ``err_type``;
+    - The last transaction error type.
+  * - uint8_t ``dest_addr``;
+    - Destination short address (or UID - Unit Identificator) of the slave being accessed.
+  * - ``precv_buf``;
+    - The last transaction internal receive buffer pointer that points to the Modbus PDU frame. NULL - not actual.
+  * - ``recv_length``;
+    - The last transaction receive buffer length.
+  * - ``psent_buf``;
+    - The last transaction internal sent buffer pointer that points to the Modbus PDU frame. NULL - not actual.
+  * - ``sent_length``;
+    - The last transaction sent buffer length.
+
+The user handler function can be useful to check the Modbus frame buffers and expose some information right before returning from the call :cpp:func:`mbc_master_set_parameter` or :cpp:func:`mbc_master_get_parameter` functions.
+
+.. note:: The above handler function may prevent the Modbus FSM to work properly! The body of the handler needs to be as short as possible and contain just simple functionality that will not block processing for relatively long time. This is user software responcibility to not break the Modbus functionality using the function.
+
 .. _modbus_api_master_destroy:
 
 Modbus Master Teardown
