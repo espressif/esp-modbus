@@ -180,7 +180,7 @@ esp_err_t mbc_master_start(void)
 }
 
 eMBErrorCode eMBMasterRegDiscreteCB(UCHAR * pucRegBuffer, USHORT usAddress,
-                            USHORT usNDiscrete)
+                                        USHORT usNDiscrete)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -194,7 +194,7 @@ eMBErrorCode eMBMasterRegDiscreteCB(UCHAR * pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegCoilsCB(UCHAR* pucRegBuffer, USHORT usAddress,
-        USHORT usNCoils, eMBRegisterMode eMode)
+                                    USHORT usNCoils, eMBRegisterMode eMode)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -209,7 +209,7 @@ eMBErrorCode eMBMasterRegCoilsCB(UCHAR* pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegHoldingCB(UCHAR * pucRegBuffer, USHORT usAddress,
-        USHORT usNRegs, eMBRegisterMode eMode)
+                                    USHORT usNRegs, eMBRegisterMode eMode)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -224,7 +224,7 @@ eMBErrorCode eMBMasterRegHoldingCB(UCHAR * pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
-                                USHORT usNRegs)
+                                    USHORT usNRegs)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -242,16 +242,14 @@ eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
  */
 esp_err_t mbc_master_get_transaction_info(mb_trans_info_t *ptinfo)
 {
-    mb_trans_info_t tinfo = {0};
     MB_MASTER_CHECK((ptinfo),
                     ESP_ERR_INVALID_ARG,
                     "Wrong argument.");
-    MB_MASTER_CHECK(xMBMasterGetLastTransactionInfo(&tinfo.trans_id, &tinfo.dest_addr,
-                                                    &tinfo.func_code, &tinfo.exception,
-                                                    &tinfo.err_type),
+    MB_MASTER_CHECK(xMBMasterGetLastTransactionInfo(&ptinfo->trans_id, &ptinfo->dest_addr,
+                                                    &ptinfo->func_code, &ptinfo->exception,
+                                                    &ptinfo->err_type),
                     ESP_ERR_INVALID_STATE,
                     "Master can not get transaction info.");
-    *ptinfo = tinfo;
     return ESP_OK;
 }
 

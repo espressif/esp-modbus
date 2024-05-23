@@ -37,6 +37,8 @@
 #ifndef PORT_COMMON_H_
 #define PORT_COMMON_H_
 
+#include "sys/lock.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"         // for queue
 
@@ -52,7 +54,7 @@
 
 #include "mbconfig.h"
 
-#define INLINE                      inline
+#define INLINE                      inline __attribute__((always_inline))
 #define PR_BEGIN_EXTERN_C           extern "C" {
 #define PR_END_EXTERN_C             }
 
@@ -122,6 +124,57 @@
         callback_func(); \
     } \
 } while(0)
+
+int lock_obj(_lock_t *plock);
+void unlock_obj(_lock_t *plock);
+
+#define CRITICAL_SECTION_INIT(lock)   \
+    do                                \
+    {                                 \
+        _lock_init((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_CLOSE(lock)   \
+    do                                 \
+    {                                  \
+        _lock_close((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_LOCK(lock) \
+    do                              \
+    {                               \
+        lock_obj((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_UNLOCK(lock) \
+    do                                \
+    {                                 \
+        unlock_obj((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION(lock) for (int st = lock_obj((_lock_t *)&lock); (st > 0); unlock_obj((_lock_t *)&lock), st = -1)
+
+#define CRITICAL_STORE(LOCK, PTR, DES) \
+__extension__ \
+({  \
+    __auto_type __atomic_ptr = (PTR); \
+    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp = (DES); \
+    lock_obj((_lock_t *)&LOCK); \
+    *__atomic_ptr = __atomic_tmp; \
+    unlock_obj((_lock_t *)&LOCK); \
+    (__atomic_tmp); \
+})
+
+#define CRITICAL_LOAD(LOCK, PTR) \
+__extension__ \
+({  \
+    __auto_type __atomic_ptr = (PTR); \
+    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp; \
+    lock_obj((_lock_t *)&LOCK); \
+    __atomic_tmp = (*__atomic_ptr); \
+    unlock_obj((_lock_t *)&LOCK); \
+    (__atomic_tmp); \
+})
 
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
@@ -213,9 +266,8 @@ BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, U
  * @param pucSendData Send buffer data
  * @param ucSendLength Send buffer length
  */
-MB_ATTR_WEAK
 void vMBMasterErrorCBUserHandler( uint64_t xTransId, USHORT usError, UCHAR ucDestAddress, const UCHAR* pucRecvData, USHORT ucRecvLength,
-                                    const UCHAR* pucSendData, USHORT ucSendLength );
+                                    const UCHAR* pucSendData, USHORT ucSendLength ) MB_ATTR_WEAK;
 
 #ifdef __cplusplus
 PR_END_EXTERN_C

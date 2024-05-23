@@ -40,6 +40,7 @@
 
 #include "mbconfig.h"   // for options
 
+
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
 #endif
@@ -92,10 +93,10 @@ typedef enum {
 } eMBMasterErrorEventType;
 
 typedef struct _MbEventType {
-    eMBMasterEventEnum eEvent;      /*!< event itself. */
-    uint64_t xTransactionId;        /*!< ID of the transaction */
-    uint64_t xPostTimestamp;        /*!< timestamp of event posted */
-    uint64_t xGetTimestamp;         /*!< timestamp of event get */
+    eMBMasterEventEnum eEvent;          /*!< event itself. */
+    uint64_t xTransactionId;            /*!< ID of the transaction */
+    uint64_t xPostTimestamp;            /*!< timestamp of event posted */
+    uint64_t xGetTimestamp;             /*!< timestamp of event get */
 } xMBMasterEventType;
 
 #endif

@@ -105,6 +105,12 @@ typedef enum
     MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast ,then delay sometime.*/
 } eMBMasterTimerMode;
 
+extern _lock_t xMBMLock; // Modbus lock object
+
+#define MB_ATOMIC_SECTION() CRITICAL_SECTION(xMBMLock)
+#define MB_ATOMIC_STORE(PTR, DES) CRITICAL_STORE(xMBMLock, PTR, DES)
+#define MB_ATOMIC_LOAD(PTR) CRITICAL_LOAD(xMBMLock, PTR)
+
 /* ----------------------- Function prototypes ------------------------------*/
 /*! \ingroup modbus
  * \brief Initialize the Modbus Master protocol stack.

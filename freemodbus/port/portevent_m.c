@@ -36,8 +36,6 @@
 
 /* ----------------------- Modbus includes ----------------------------------*/
 
-#include <stdatomic.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -93,7 +91,7 @@ xMBMasterPortEventPost( eMBMasterEventEnum eEvent)
     xEvent.xPostTimestamp = esp_timer_get_time();
     
     if (eEvent & EV_MASTER_TRANS_START) {
-        atomic_store(&(xTransactionID), xEvent.xPostTimestamp);
+        MB_ATOMIC_STORE(&(xTransactionID), xEvent.xPostTimestamp);
     }
     xEvent.eEvent = (eEvent & ~EV_MASTER_TRANS_START);
 
@@ -120,7 +118,7 @@ xMBMasterPortEventGet(xMBMasterEventType *peEvent)
     BOOL xEventHappened = FALSE;
 
     if (xQueueReceive(xQueueMasterHdl, peEvent, portMAX_DELAY) == pdTRUE) {
-        peEvent->xTransactionId = atomic_load(&xTransactionID);
+        peEvent->xTransactionId = MB_ATOMIC_LOAD(&xTransactionID);
         // Set event bits in confirmation group (for synchronization with port task)
         xEventGroupSetBits(xEventGroupMasterConfirmHdl, peEvent->eEvent);
         peEvent->xGetTimestamp = esp_timer_get_time();
@@ -147,7 +145,7 @@ xMBMasterPortFsmWaitConfirmation( eMBMasterEventEnum eEventMask, ULONG ulTimeout
 
 uint64_t xMBMasterPortGetTransactionId( )
 {
-    return atomic_load(&xTransactionID);
+    return MB_ATOMIC_LOAD(&xTransactionID);
 }
 
 // This function is initialize the OS resource for modbus master.
@@ -204,8 +202,9 @@ void vMBMasterErrorCBRespondTimeout(uint64_t xTransId, UCHAR ucDestAddress, cons
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RESPOND_TIMEOUT );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback respond timeout.", __func__);
     if (vMBMasterErrorCBUserHandler) {
-        vMBMasterErrorCBUserHandler( xTransId, (USHORT)EV_ERROR_RESPOND_TIMEOUT, 
-                                        ucDestAddress, NULL, 0,
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_RESPOND_TIMEOUT, ucDestAddress,
+                                        NULL, 0,
                                         pucSendData, ucSendLength );
     }
 }
@@ -228,9 +227,10 @@ void vMBMasterErrorCBReceiveData(uint64_t xTransId, UCHAR ucDestAddress,
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RECEIVE_DATA );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback receive data failure.", __func__);
     if (vMBMasterErrorCBUserHandler) {
-        vMBMasterErrorCBUserHandler( xTransId, (USHORT)EV_ERROR_RECEIVE_DATA,
-                                    ucDestAddress, pucRecvData, ucRecvLength,
-                                    pucSendData, ucSendLength );
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_RECEIVE_DATA, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
+                                        pucSendData, ucSendLength );
     }
 }
 
@@ -254,8 +254,9 @@ void vMBMasterErrorCBExecuteFunction(uint64_t xTransId, UCHAR ucDestAddress,
     xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_EXECUTE_FUNCTION );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback execute data handler failure.", __func__);
     if (vMBMasterErrorCBUserHandler) {
-        vMBMasterErrorCBUserHandler( xTransId, (USHORT)EV_ERROR_EXECUTE_FUNCTION,
-                                        ucDestAddress, pucRecvData, ucRecvLength,
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_EXECUTE_FUNCTION, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
                                         pucSendData, ucSendLength );
     }
 }
@@ -279,8 +280,9 @@ void vMBMasterCBRequestSuccess(uint64_t xTransId, UCHAR ucDestAddress,
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_PROCESS_SUCCESS );
     ESP_LOGD(MB_PORT_TAG,"%s: Callback request success.", __func__);
     if (vMBMasterErrorCBUserHandler) {
-        vMBMasterErrorCBUserHandler( xTransId, (USHORT)EV_ERROR_OK,
-                                        ucDestAddress, pucRecvData, ucRecvLength,
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_OK, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
                                         pucSendData, ucSendLength );
     }
 }

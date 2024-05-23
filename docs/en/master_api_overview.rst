@@ -433,7 +433,9 @@ The function writes characteristic's value defined as a name and cid parameter i
             ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
         }
 
-The above functions propagate the status of the transaction as a return error code. This return code does not clarify some information such as slave exception code returned in the response. In this case the below function can be useful.
+# Extra error information
+
+In case the does not clarify some information, such as slave exception code returned in the response, the functions below can be useful.
 
 :cpp:func:`mbc_master_get_transaction_info`
 
@@ -507,7 +509,7 @@ Below is the way to expose the transaction info and request/response buffers def
 
 The user handler function can be useful to check the Modbus frame buffers and expose some information right before returning from the call :cpp:func:`mbc_master_set_parameter` or :cpp:func:`mbc_master_get_parameter` functions.
 
-.. note:: The above handler function may prevent the Modbus FSM to work properly! The body of the handler needs to be as short as possible and contain just simple functionality that will not block processing for relatively long time. This is user software responcibility to not break the Modbus functionality using the function.
+.. warning:: The above handler function may prevent the Modbus FSM to work properly! The body of the handler needs to be as short as possible and contain just simple functionality that will not block processing for relatively long time. This is user software responcibility to not break the Modbus functionality using the function.
 
 .. _modbus_api_master_destroy:
 

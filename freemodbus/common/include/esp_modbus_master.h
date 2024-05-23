@@ -155,10 +155,10 @@ typedef struct {
  */
 typedef struct {
     uint64_t trans_id;              /*!< Modbus unique transaction identificator */
+    uint16_t err_type;              /*!< Modbus last transaction error type */
     uint8_t dest_addr;              /*!< Modbus destination short address (or UID) */
     uint8_t func_code;              /*!< Modbus last transaction function code */
     uint8_t exception;              /*!< Modbus last transaction exception code returned by slave */
-    uint16_t err_type;              /*!< Modbus last transaction error type */
 } mb_trans_info_t;
 
 /**
