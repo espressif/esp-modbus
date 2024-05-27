@@ -9,7 +9,8 @@ The following overview describes how to setup Modbus master communication. The o
 2. :ref:`modbus_api_master_configure_descriptor` - Configure data descriptors to access slave parameters.
 3. :ref:`modbus_api_master_setup_communication_options` - Allows to setup communication options for selected port.
 4. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
-5. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
+5. :ref:`modbus_api_master_expose_information` - Expose extra information from stack.
+6. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_master_configure_descriptor:
 
@@ -433,7 +434,10 @@ The function writes characteristic's value defined as a name and cid parameter i
             ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
         }
 
-# Extra error information
+.. _modbus_api_master_expose_information:
+
+Expose Extra Information
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 In case the does not clarify some information, such as slave exception code returned in the response, the functions below can be useful.
 
@@ -463,7 +467,30 @@ Allows to return the below information as a :cpp:type:`mb_trans_info_t` structur
       :cpp:enumerator:`EV_ERROR_EXECUTE_FUNCTION` = 3, Execute function error. Function is not supported or slave returned an error.
       :cpp:enumerator:`EV_ERROR_OK` = 4, No error, processing completed successfully.
 
-Below is the way to expose the transaction info and request/response buffers defining the user error handling function. This funcion defined as described in the code below will be executed from internal final state machine before returning from blocking :cpp:func:`mbc_master_set_parameter` or :cpp:func:`mbc_master_get_parameter` functions and expose the internal parameters.
+.. warning:: The functionality described in this section is for advanced users and should to be handled correctly.
+
+.. note:: The above function returns the latest transaction information which may not be actual if another IO call is performed from higher priority task right before the :cpp:func:`mbc_master_get_transaction_info`. In this case the ``trans_id`` field can clarify if the returned information is obsolete. The transaction ID is just a timestamp of type `uint64_t` returned by function `esp_timer_get_time()`. In this case it is possible determining if the information retrieved corresponds to the actual request using timestamp kept before the IO call and transaction identificator.
+
+.. code:: c
+
+  #define MAX_TRANSACTION_TOUT_US 640000
+  
+  uint64_t start_timestamp = esp_timer_get_time(); // Get current timestamp in microseconds
+  esp_err_t err = mbc_master_get_parameter(param_descriptor->cid, (char*)param_descriptor->param_key, (uint8_t*)temp_data, &type);
+
+  mb_trans_info_t tinfo = {0};
+  if (mbc_master_get_transaction_info(&tinfo) == ESP_OK) {
+    ESP_LOGI("TRANSACTION_INFO", "Id: %" PRIu64 ", Addr: %x, FC: %x, Exp: %u, Err: %x",
+                (uint64_t)tinfo.trans_id, (int)tinfo.dest_addr,
+                (unsigned)tinfo.func_code, (unsigned)tinfo.exception,
+                (int)tinfo.err_type);
+  }
+  
+  if (tinfo.trans_id >= (start_timestamp + MAX_TRANSACTION_TOUT_US)) {
+    ESP_LOGI("TRANSACTION_INFO", "Transaction Id: %" PRIu64 " is expired", tinfo.trans_id);
+  }
+
+Below is the way to expose the transaction information and request/response buffers defining the user error handling function. This funcion defined as described in the code below will be executed from internal final state machine before returning from blocking :cpp:func:`mbc_master_set_parameter` or :cpp:func:`mbc_master_get_parameter` functions and expose the internal parameters.
 
 .. code:: c
 
@@ -472,7 +499,7 @@ Below is the way to expose the transaction info and request/response buffers def
     #define EV_ERROR_EXECUTE_FUNCTION 3
 
     void vMBMasterErrorCBUserHandler( uint64_t trans_id, uint16_t err_type, uint8_t dest_addr, const uint8_t *precv_buf, uint16_t recv_length,
-                                                            const uint8_t *psent_buf, uint16_t sent_length )
+                                      const uint8_t *psent_buf, uint16_t sent_length )
     {
         ESP_LOGW("USER_ERR_CB", "The transaction %" PRIu64 ", error type: %u", trans_id, err_type);
         if ((err_type == EV_ERROR_EXECUTE_FUNCTION) && precv_buf && recv_length) {
