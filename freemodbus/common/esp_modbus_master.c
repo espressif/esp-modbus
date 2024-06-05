@@ -180,7 +180,7 @@ esp_err_t mbc_master_start(void)
 }
 
 eMBErrorCode eMBMasterRegDiscreteCB(UCHAR * pucRegBuffer, USHORT usAddress,
-                            USHORT usNDiscrete)
+                                        USHORT usNDiscrete)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -194,7 +194,7 @@ eMBErrorCode eMBMasterRegDiscreteCB(UCHAR * pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegCoilsCB(UCHAR* pucRegBuffer, USHORT usAddress,
-        USHORT usNCoils, eMBRegisterMode eMode)
+                                    USHORT usNCoils, eMBRegisterMode eMode)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -209,7 +209,7 @@ eMBErrorCode eMBMasterRegCoilsCB(UCHAR* pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegHoldingCB(UCHAR * pucRegBuffer, USHORT usAddress,
-        USHORT usNRegs, eMBRegisterMode eMode)
+                                    USHORT usNRegs, eMBRegisterMode eMode)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -224,7 +224,7 @@ eMBErrorCode eMBMasterRegHoldingCB(UCHAR * pucRegBuffer, USHORT usAddress,
 }
 
 eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
-                                USHORT usNRegs)
+                                    USHORT usNRegs)
 {
     eMBErrorCode error = MB_ENOERR;
     MB_MASTER_CHECK((master_interface_ptr != NULL),
@@ -235,6 +235,22 @@ eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
                     "Master interface is not correctly initialized.");
     error = master_interface_ptr->master_reg_cb_input(pucRegBuffer, usAddress, usNRegs);
     return error;
+}
+
+/**
+ * Helper function to get current transaction info
+ */
+esp_err_t mbc_master_get_transaction_info(mb_trans_info_t *ptinfo)
+{
+    MB_MASTER_CHECK((ptinfo),
+                    ESP_ERR_INVALID_ARG,
+                    "Wrong argument.");
+    MB_MASTER_CHECK(xMBMasterGetLastTransactionInfo(&ptinfo->trans_id, &ptinfo->dest_addr,
+                                                    &ptinfo->func_code, &ptinfo->exception,
+                                                    &ptinfo->err_type),
+                    ESP_ERR_INVALID_STATE,
+                    "Master can not get transaction info.");
+    return ESP_OK;
 }
 
 // Helper function to set parameter buffer according to its type

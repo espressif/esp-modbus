@@ -151,6 +151,17 @@ typedef struct {
 } mb_param_request_t;
 
 /**
+ * @brief Modbus transacion info structure
+ */
+typedef struct {
+    uint64_t trans_id;              /*!< Modbus unique transaction identificator */
+    uint16_t err_type;              /*!< Modbus last transaction error type */
+    uint8_t dest_addr;              /*!< Modbus destination short address (or UID) */
+    uint8_t func_code;              /*!< Modbus last transaction function code */
+    uint8_t exception;              /*!< Modbus last transaction exception code returned by slave */
+} mb_trans_info_t;
+
+/**
  * @brief Initialize Modbus controller and stack for TCP port
  *
  * @param[out] handler handler(pointer) to master data structure
@@ -320,6 +331,18 @@ esp_err_t mbc_master_set_parameter(uint16_t cid, char* name, uint8_t* value, uin
  *     - esp_err_t ESP_ERR_NOT_SUPPORTED - the request command is not supported by slave
 */
 esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param_type, size_t param_size);
+
+/**
+ * @brief The helper function to expose transaction info from modbus layer
+ *
+ * @param[in] ptinfo the pointer to transaction info structure
+ *
+ * @return
+ *     - esp_err_t ESP_OK - the transaction info is saved in the appropriate parameter structure
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *     - esp_err_t ESP_ERR_INVALID_STATE - invalid state during data processing or allocation failure
+*/
+esp_err_t mbc_master_get_transaction_info(mb_trans_info_t *ptinfo);
 
 #ifdef __cplusplus
 }

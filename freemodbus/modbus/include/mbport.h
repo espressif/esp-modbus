@@ -40,6 +40,7 @@
 
 #include "mbconfig.h"   // for options
 
+
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
 #endif
@@ -92,10 +93,10 @@ typedef enum {
 } eMBMasterErrorEventType;
 
 typedef struct _MbEventType {
-    eMBMasterEventEnum eEvent;      /*!< event itself. */
-    uint64_t xTransactionId;        /*!< ID of the transaction */
-    uint64_t xPostTimestamp;        /*!< timestamp of event posted */
-    uint64_t xGetTimestamp;         /*!< timestamp of event get */ 
+    eMBMasterEventEnum eEvent;          /*!< event itself. */
+    uint64_t xTransactionId;            /*!< ID of the transaction */
+    uint64_t xPostTimestamp;            /*!< timestamp of event posted */
+    uint64_t xGetTimestamp;             /*!< timestamp of event get */
 } xMBMasterEventType;
 
 #endif
@@ -207,16 +208,20 @@ void            vMBMasterPortTimersDisable( void );
 
 
 /* ----------------- Callback for the master error process ------------------*/
-void            vMBMasterErrorCBRespondTimeout( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                                USHORT ucPDULength );
+void            vMBMasterErrorCBRespondTimeout( uint64_t xTransId, UCHAR ucDestAddress,
+                                                const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterErrorCBReceiveData( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                             USHORT ucPDULength );
+void            vMBMasterErrorCBReceiveData( uint64_t xTransId, UCHAR ucDestAddress, 
+                                                const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                                const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterErrorCBExecuteFunction( UCHAR ucDestAddress, const UCHAR* pucPDUData,
-                                                 USHORT ucPDULength );
+void            vMBMasterErrorCBExecuteFunction( uint64_t xTransId, UCHAR ucDestAddress, 
+                                                    const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                                    const UCHAR* pucSendData, USHORT ucSendLength );
 
-void            vMBMasterCBRequestSuccess( void );
+void            vMBMasterCBRequestSuccess( uint64_t xTransId, UCHAR ucDestAddress,
+                                            const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                            const UCHAR* pucSendData, USHORT ucSendLength );
 #endif
 /* ----------------------- Callback for the protocol stack ------------------*/
 /*!

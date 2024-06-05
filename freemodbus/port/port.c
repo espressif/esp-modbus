@@ -39,7 +39,6 @@
 /* ----------------------- Modbus includes ----------------------------------*/
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-#include "sys/lock.h"
 #include "port.h"
 
 /* ----------------------- Variables ----------------------------------------*/
@@ -47,13 +46,24 @@ static _lock_t s_port_lock;
 static UCHAR ucPortMode = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
-inline void
+INLINE int lock_obj(_lock_t *plock)
+{
+    _lock_acquire(plock);
+    return 1;
+}
+
+INLINE void unlock_obj(_lock_t *plock)
+{
+    _lock_release(plock);
+}
+
+INLINE void
 vMBPortEnterCritical(void)
 {
     _lock_acquire(&s_port_lock);
 }
 
-inline void
+INLINE void
 vMBPortExitCritical(void)
 {
     _lock_release(&s_port_lock);

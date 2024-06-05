@@ -35,7 +35,6 @@
  */
 
 /* ----------------------- Modbus includes ----------------------------------*/
-
 #include <stdatomic.h>
 
 #include "freertos/FreeRTOS.h"
@@ -66,7 +65,7 @@ static EventGroupHandle_t xEventGroupMasterHdl;
 static EventGroupHandle_t xEventGroupMasterConfirmHdl;
 static QueueHandle_t xQueueMasterHdl;
 
-static uint64_t xTransactionID = 0;
+static _Atomic uint64_t xTransactionID = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
 
@@ -80,7 +79,7 @@ xMBMasterPortEventInit( void )
     xQueueMasterHdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(xMBMasterEventType));
     MB_PORT_CHECK(xQueueMasterHdl, FALSE, "mb stack event group creation error.");
     vQueueAddToRegistry(xQueueMasterHdl, "MbMasterPortEventQueue");
-    xTransactionID = 0;
+    atomic_init(&xTransactionID, 0);
     return TRUE;
 }
 
@@ -191,30 +190,49 @@ void vMBMasterRunResRelease( void )
  * This is modbus master respond timeout error process callback function.
  * @note There functions will block modbus master poll while execute OS waiting.
  *
+ * @param xTransId - the identification of the trasaction
  * @param ucDestAddress destination salve address
- * @param pucPDUData PDU buffer data
- * @param ucPDULength PDU buffer length
+ * @param pucRecvData current receive data pointer
+ * @param ucRecvLength current length of receive buffer
+ * @param pucSendData Send buffer data
+ * @param ucSendLength Send buffer length
  *
  */
-void vMBMasterErrorCBRespondTimeout(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
+void vMBMasterErrorCBRespondTimeout(uint64_t xTransId, UCHAR ucDestAddress, const UCHAR* pucSendData, USHORT ucSendLength)
 {
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RESPOND_TIMEOUT );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback respond timeout.", __func__);
+    if (vMBMasterErrorCBUserHandler) {
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_RESPOND_TIMEOUT, ucDestAddress,
+                                        NULL, 0,
+                                        pucSendData, ucSendLength );
+    }
 }
 
 /**
  * This is modbus master receive data error process callback function.
  * @note There functions will block modbus master poll while execute OS waiting.
  *
+ * @param xTransId - the identification of the trasaction
  * @param ucDestAddress destination salve address
- * @param pucPDUData PDU buffer data
- * @param ucPDULength PDU buffer length
+ * @param pucRecvData current receive data pointer
+ * @param ucRecvLength current length of receive buffer
+ * @param pucSendData Send buffer data
+ * @param ucSendLength Send buffer length
  */
-void vMBMasterErrorCBReceiveData(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
+void vMBMasterErrorCBReceiveData(uint64_t xTransId, UCHAR ucDestAddress, 
+                                    const UCHAR* pucRecvData, USHORT ucRecvLength, 
+                                    const UCHAR* pucSendData, USHORT ucSendLength)
 {
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_RECEIVE_DATA );
-    ESP_LOGD(MB_PORT_TAG,"%s:Callback receive data timeout failure.", __func__);
-    ESP_LOG_BUFFER_HEX_LEVEL("Err rcv buf", (void *)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
+    ESP_LOGD(MB_PORT_TAG,"%s:Callback receive data failure.", __func__);
+    if (vMBMasterErrorCBUserHandler) {
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_RECEIVE_DATA, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
+                                        pucSendData, ucSendLength );
+    }
 }
 
 /**
@@ -222,27 +240,52 @@ void vMBMasterErrorCBReceiveData(UCHAR ucDestAddress, const UCHAR* pucPDUData, U
  * @note There functions will block modbus master poll while execute OS waiting.
  * So,for real-time of system.Do not execute too much waiting process.
  *
+ * @param xTransId - the identification of the trasaction
  * @param ucDestAddress destination salve address
- * @param pucPDUData PDU buffer data
- * @param ucPDULength PDU buffer length
+ * @param pucRecvData current receive data pointer
+ * @param ucRecvLength current length of receive buffer
+ * @param pucSendData Send buffer data
+ * @param ucSendLength Send buffer length
  *
  */
-void vMBMasterErrorCBExecuteFunction(UCHAR ucDestAddress, const UCHAR* pucPDUData, USHORT ucPDULength)
+void vMBMasterErrorCBExecuteFunction(uint64_t xTransId, UCHAR ucDestAddress,
+                                        const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                        const UCHAR* pucSendData, USHORT ucSendLength)
 {
     xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_ERROR_EXECUTE_FUNCTION );
     ESP_LOGD(MB_PORT_TAG,"%s:Callback execute data handler failure.", __func__);
-    ESP_LOG_BUFFER_HEX_LEVEL("Exec func buf", (void*)pucPDUData, (USHORT)ucPDULength, ESP_LOG_DEBUG);
+    if (vMBMasterErrorCBUserHandler) {
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_EXECUTE_FUNCTION, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
+                                        pucSendData, ucSendLength );
+    }
 }
 
 /**
  * This is modbus master request process success callback function.
  * @note There functions will block modbus master poll while execute OS waiting.
  * So,for real-time of system. Do not execute too much waiting process.
+ * 
+ * @param xTransId - the identification of the trasaction
+ * @param ucDestAddress destination salve address
+ * @param pucRecvData current receive data pointer
+ * @param ucRecvLength current length of receive buffer
+ * @param pucSendData Send buffer data
+ * @param ucSendLength Send buffer length
  */
-void vMBMasterCBRequestSuccess( void ) 
+void vMBMasterCBRequestSuccess(uint64_t xTransId, UCHAR ucDestAddress,
+                                        const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                        const UCHAR* pucSendData, USHORT ucSendLength)
 {
     (void)xEventGroupSetBits( xEventGroupMasterHdl, EV_MASTER_PROCESS_SUCCESS );
     ESP_LOGD(MB_PORT_TAG,"%s: Callback request success.", __func__);
+    if (vMBMasterErrorCBUserHandler) {
+        vMBMasterErrorCBUserHandler( xTransId,
+                                        (USHORT)EV_ERROR_OK, ucDestAddress,
+                                        pucRecvData, ucRecvLength,
+                                        pucSendData, ucSendLength );
+    }
 }
 
 /**

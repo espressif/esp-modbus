@@ -18,6 +18,7 @@
 #include "esp_modbus_common.h"      // for common types
 #include "esp_modbus_master.h"      // for public master types
 #include "esp_modbus_callbacks.h"
+#include "mb_m.h"                   // this is required to expose current transaction info
 
 /* ----------------------- Defines ------------------------------------------*/
 
