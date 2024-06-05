@@ -71,6 +71,9 @@
 /*------------------------ Shared variables ---------------------------------*/
 
 _lock_t xMBMLock; // base modbus object lock
+volatile UCHAR ucMasterSndBuf[MB_SERIAL_BUF_SIZE];
+volatile UCHAR ucMasterRcvBuf[MB_SERIAL_BUF_SIZE];
+
 static _Atomic USHORT usMasterSendPDULength = 0;
 static _Atomic eMBMasterErrorEventType eMBMasterCurErrorType = EV_ERROR_INIT;
 static _Atomic BOOL xMBRunInMasterMode = FALSE;
@@ -88,8 +91,6 @@ static UCHAR *pucMBSendFrame = NULL;
 static UCHAR *pucMBRecvFrame = NULL;
 static UCHAR ucRecvAddress = 0;
 static eMBMode eMBMasterCurrentMode;
-static UCHAR ucMasterSndBuf[MB_SERIAL_BUF_SIZE];
-static UCHAR ucMasterRcvBuf[MB_SERIAL_BUF_SIZE];
 
 static enum
 {
@@ -263,7 +264,7 @@ eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort, ULONG ulBaudRate, eMBParity eP
             atomic_init(&usMasterSendPDULength, 0);
             atomic_init(&eMBMasterCurErrorType, EV_ERROR_INIT);
             atomic_init(&xMBRunInMasterMode, FALSE);
-            atomic_init(&ucMBMasterDestAddress, MB_TCP_PSEUDO_ADDRESS);
+            atomic_init(&ucMBMasterDestAddress, 0);
             atomic_init(&ucLastFunctionCode, 0);
             atomic_init(&usLastFrameError, 0);
             atomic_init(&eLastException, MB_EX_NONE);
