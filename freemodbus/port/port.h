@@ -154,28 +154,6 @@ void unlock_obj(_lock_t *plock);
 
 #define CRITICAL_SECTION(lock) for (int st = lock_obj((_lock_t *)&lock); (st > 0); unlock_obj((_lock_t *)&lock), st = -1)
 
-#define CRITICAL_STORE(LOCK, PTR, DES) \
-__extension__ \
-({  \
-    __auto_type __atomic_ptr = (PTR); \
-    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp = (DES); \
-    lock_obj((_lock_t *)&LOCK); \
-    *__atomic_ptr = __atomic_tmp; \
-    unlock_obj((_lock_t *)&LOCK); \
-    (__atomic_tmp); \
-})
-
-#define CRITICAL_LOAD(LOCK, PTR) \
-__extension__ \
-({  \
-    __auto_type __atomic_ptr = (PTR); \
-    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp; \
-    lock_obj((_lock_t *)&LOCK); \
-    __atomic_tmp = (*__atomic_ptr); \
-    unlock_obj((_lock_t *)&LOCK); \
-    (__atomic_tmp); \
-})
-
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
 #endif /* __cplusplus */
