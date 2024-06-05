@@ -95,6 +95,19 @@ typedef enum
     MB_MRE_EXE_FUN                  /*!< execute function error. */
 } eMBMasterReqErrCode;
 
+
+/*! \ingroup modbus
+ * \brief Transaction information structure.
+ */
+typedef struct
+{
+    uint64_t xTransId;
+    UCHAR ucDestAddr;
+    UCHAR ucFuncCode;
+    eMBException eException;
+    UCHAR ucFrameError;
+} TransactionInfo_t;
+
 /*! \ingroup modbus
  *  \brief TimerMode is Master 3 kind of Timer modes.
  */
@@ -107,9 +120,7 @@ typedef enum
 
 extern _lock_t xMBMLock; // Modbus lock object
 
-#define MB_ATOMIC_SECTION() CRITICAL_SECTION(xMBMLock)
-#define MB_ATOMIC_STORE(PTR, DES) CRITICAL_STORE(xMBMLock, PTR, DES)
-#define MB_ATOMIC_LOAD(PTR) CRITICAL_LOAD(xMBMLock, PTR)
+#define MB_ATOMIC_SECTION CRITICAL_SECTION(xMBMLock)
 
 /* ----------------------- Function prototypes ------------------------------*/
 /*! \ingroup modbus

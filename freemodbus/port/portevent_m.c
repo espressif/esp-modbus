@@ -35,6 +35,7 @@
  */
 
 /* ----------------------- Modbus includes ----------------------------------*/
+#include <stdatomic.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -64,7 +65,7 @@ static EventGroupHandle_t xEventGroupMasterHdl;
 static EventGroupHandle_t xEventGroupMasterConfirmHdl;
 static QueueHandle_t xQueueMasterHdl;
 
-static uint64_t xTransactionID = 0;
+static _Atomic uint64_t xTransactionID = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
 
@@ -78,7 +79,7 @@ xMBMasterPortEventInit( void )
     xQueueMasterHdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(xMBMasterEventType));
     MB_PORT_CHECK(xQueueMasterHdl, FALSE, "mb stack event group creation error.");
     vQueueAddToRegistry(xQueueMasterHdl, "MbMasterPortEventQueue");
-    xTransactionID = 0;
+    atomic_init(&xTransactionID, 0);
     return TRUE;
 }
 
@@ -91,7 +92,7 @@ xMBMasterPortEventPost( eMBMasterEventEnum eEvent)
     xEvent.xPostTimestamp = esp_timer_get_time();
     
     if (eEvent & EV_MASTER_TRANS_START) {
-        MB_ATOMIC_STORE(&(xTransactionID), xEvent.xPostTimestamp);
+        atomic_store(&(xTransactionID), xEvent.xPostTimestamp);
     }
     xEvent.eEvent = (eEvent & ~EV_MASTER_TRANS_START);
 
@@ -118,7 +119,7 @@ xMBMasterPortEventGet(xMBMasterEventType *peEvent)
     BOOL xEventHappened = FALSE;
 
     if (xQueueReceive(xQueueMasterHdl, peEvent, portMAX_DELAY) == pdTRUE) {
-        peEvent->xTransactionId = MB_ATOMIC_LOAD(&xTransactionID);
+        peEvent->xTransactionId = atomic_load(&xTransactionID);
         // Set event bits in confirmation group (for synchronization with port task)
         xEventGroupSetBits(xEventGroupMasterConfirmHdl, peEvent->eEvent);
         peEvent->xGetTimestamp = esp_timer_get_time();
@@ -145,7 +146,7 @@ xMBMasterPortFsmWaitConfirmation( eMBMasterEventEnum eEventMask, ULONG ulTimeout
 
 uint64_t xMBMasterPortGetTransactionId( )
 {
-    return MB_ATOMIC_LOAD(&xTransactionID);
+    return atomic_load(&xTransactionID);
 }
 
 // This function is initialize the OS resource for modbus master.
