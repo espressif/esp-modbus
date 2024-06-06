@@ -272,7 +272,7 @@ eMBMasterSerialInit( eMBMode eMode, UCHAR ucPort, ULONG ulBaudRate, eMBParity eP
             atomic_init(&usMasterSendPDULength, 0);
             atomic_init(&eMBMasterCurErrorType, EV_ERROR_INIT);
             atomic_init(&xMBRunInMasterMode, FALSE);
-            atomic_init(&ucMBMasterDestAddress, MB_TCP_PSEUDO_ADDRESS);
+            atomic_init(&ucMBMasterDestAddress, 0);
         }
         /* initialize the OS resource for modbus master. */
         vMBMasterOsResInit();
@@ -514,7 +514,7 @@ eMBMasterPoll( void )
                 ESP_LOGD( MB_PORT_TAG, "Transaction (%" PRIu64 "), processing time(us) = %" PRId64, xCurTransactionId, xProcTime );
                 MB_ATOMIC_SECTION {
                     xTransactionInfo.xTransId = xCurTransactionId;
-                    xTransactionInfo.ucDestAddr = atomic_load(&ucMBMasterDestAddress);
+                    xTransactionInfo.ucDestAddr = ucMBMasterGetDestAddress();
                     xTransactionInfo.ucFuncCode = ucFunctionCode;
                     xTransactionInfo.eException = eException;
                     xTransactionInfo.ucFrameError = errorType;
