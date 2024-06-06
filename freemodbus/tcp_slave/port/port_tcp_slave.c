@@ -381,13 +381,7 @@ vMBTCPPortBindAddr(const CHAR* pcBindIp)
     xHint.ai_socktype = (xConfig.eMbProto == MB_PROTO_UDP) ? SOCK_DGRAM : SOCK_STREAM;
     // The LWIP has an issue when connection to IPv6 socket
     xHint.ai_protocol = (xConfig.eMbProto == MB_PROTO_UDP) ? IPPROTO_UDP : IPPROTO_TCP;
-    xHint.ai_flags = AI_NUMERICSERV;
-
-    if (pcBindIp == NULL) {
-        xHint.ai_flags |= AI_PASSIVE;
-    } else {
-        xHint.ai_flags |= AI_CANONNAME;
-    }
+    xHint.ai_flags = AI_NUMERICSERV | AI_PASSIVE | AI_CANONNAME;
 
     if (asprintf(&pcStr, "%u", xConfig.usPort) == -1) {
         abort();
