@@ -83,7 +83,6 @@ typedef enum
 /* These Modbus values are shared in ASCII mode*/
 extern volatile UCHAR   ucMasterRcvBuf[];
 extern volatile UCHAR   ucMasterSndBuf[];
-extern volatile eMBMasterTimerMode eMasterCurTimerMode;
 
 /* ----------------------- Static functions ---------------------------------*/
 static UCHAR    prvucMBCHAR2BIN( UCHAR ucCharacter );

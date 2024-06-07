@@ -6,6 +6,7 @@
 
 #include "string.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "modbus_params.h"  // for modbus parameters structures
 #include "mbcontroller.h"
 #include "sdkconfig.h"
@@ -378,6 +379,7 @@ static void master_operation_func(void *arg)
                     }
 #endif
                 } else  if (cid <= CID_HOLD_DATA_2) {
+                    uint64_t start_timestamp = esp_timer_get_time(); // Get current timestamp in microseconds
                     if (TEST_VERIFY_VALUES(param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
                                 (int)param_descriptor->cid,
@@ -391,6 +393,22 @@ static void master_operation_func(void *arg)
                         (value < param_descriptor->param_opts.min))) {
                             alarm_state = true;
                             break;
+                    }
+                    mb_trans_info_t tinfo = {0};
+                    if (mbc_master_get_transaction_info(&tinfo) == ESP_OK) {
+                        bool trans_is_expired = (tinfo.trans_id >= (start_timestamp + (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND * 1000)));
+                        ESP_LOGW("TRANS_INFO", "Id: %" PRIu64 ", Addr: %x, FC: 0x%x, Exception: %u, Err: %u %s",
+                                    (uint64_t)tinfo.trans_id, (int)tinfo.dest_addr,
+                                    (int)tinfo.func_code, (unsigned)tinfo.exception,
+                                    (int)tinfo.err_type,
+                                    trans_is_expired ? "(EXPIRED)" : "");
+                        // Check if the response time is expired sinse start of transaction,
+                        // or the other IO is performed from different thread.
+                        if (trans_is_expired) {
+                            ESP_LOGE("TRANS_INFO", "Transaction Id: %" PRIu64 ", is expired.", tinfo.trans_id);
+                            alarm_state = true;
+                            break;
+                        }
                     }
                 } else if ((cid >= CID_RELAY_P1) && (cid <= CID_DISCR_P1)) {
                     if (TEST_VERIFY_VALUES(param_descriptor, (uint8_t *)temp_data_ptr) == ESP_OK) {
@@ -481,6 +499,25 @@ static esp_err_t master_init(void)
                                 "mb controller set descriptor fail, returns(0x%x).", (int16_t)err);
     ESP_LOGI(TAG, "Modbus master stack initialized...");
     return err;
+}
+
+#define MB_PDU_DATA_OFF 1
+
+#define EV_ERROR_EXECUTE_FUNCTION 3
+
+void vMBMasterErrorCBUserHandler( uint64_t xTransId, uint16_t usError, uint8_t ucDestAddress, const uint8_t *pucRecvData, uint16_t ucRecvLength,
+                                                        const uint8_t *pucSendData, uint16_t ucSendLength )
+{
+    ESP_LOGW("USER_ERR_CB", "The transaction %" PRIu64 ", error type: %u", xTransId, usError);
+    if ((usError == EV_ERROR_EXECUTE_FUNCTION) && pucRecvData && ucRecvLength) {
+        ESP_LOGW("USER_ERR_CB", "The command is unsupported or an exception on slave happened: %x", (int)pucRecvData[MB_PDU_DATA_OFF]);
+    }
+    if (pucRecvData && ucRecvLength) {
+        ESP_LOG_BUFFER_HEX_LEVEL("Received buffer", (void *)pucRecvData, (uint16_t)ucRecvLength, ESP_LOG_WARN);
+    }
+    if (pucSendData && ucSendLength) {
+        ESP_LOG_BUFFER_HEX_LEVEL("Sent buffer", (void *)pucSendData, (uint16_t)ucSendLength, ESP_LOG_WARN);
+    }
 }
 
 void app_main(void)

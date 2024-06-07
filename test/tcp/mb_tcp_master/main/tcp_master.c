@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/queue.h>
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
@@ -729,6 +730,7 @@ static void master_operation_func(void *arg)
                     }
 #endif
                 } else  if (cid <= CID_HOLD_DATA_2) {
+                    uint64_t start_timestamp = esp_timer_get_time(); // Get current timestamp in microseconds
                     if (TEST_VERIFY_VALUES(param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
                                 (int)param_descriptor->cid,
@@ -742,6 +744,22 @@ static void master_operation_func(void *arg)
                         (value < param_descriptor->param_opts.min))) {
                             alarm_state = true;
                             break;
+                    }
+                    mb_trans_info_t tinfo = {0}; // The transaction information structure
+                    if (mbc_master_get_transaction_info(&tinfo) == ESP_OK) {
+                        bool trans_is_expired = (tinfo.trans_id >= (start_timestamp + (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND * 1000)));
+                        ESP_LOGW("TRANS_INFO", "Id: %" PRIu64 ", Addr: %x, FC: 0x%x, Exception: %u, Err: %u %s",
+                                    (uint64_t)tinfo.trans_id, (int)tinfo.dest_addr,
+                                    (int)tinfo.func_code, (unsigned)tinfo.exception,
+                                    (int)tinfo.err_type,
+                                    trans_is_expired ? "(EXPIRED)" : "");
+                        // Check if the response time is expired sinse start of transaction,
+                        // or the other IO is performed from different thread.
+                        if (trans_is_expired) {
+                            ESP_LOGE("TRANS_INFO", "Transaction Id: %" PRIu64 ", is expired.", tinfo.trans_id);
+                            alarm_state = true;
+                            break;
+                        }
                     }
                 } else if ((cid >= CID_RELAY_P1) && (cid <= CID_DISCR_P1)) {
                     if (TEST_VERIFY_VALUES(param_descriptor, (uint8_t *)temp_data_ptr) == ESP_OK) {
