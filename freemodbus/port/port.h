@@ -37,6 +37,8 @@
 #ifndef PORT_COMMON_H_
 #define PORT_COMMON_H_
 
+#include "sys/lock.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"         // for queue
 
@@ -52,7 +54,7 @@
 
 #include "mbconfig.h"
 
-#define INLINE                      inline
+#define INLINE                      inline __attribute__((always_inline))
 #define PR_BEGIN_EXTERN_C           extern "C" {
 #define PR_END_EXTERN_C             }
 
@@ -105,6 +107,8 @@
 
 #define MB_TCP_DEBUG                    (LOG_LOCAL_LEVEL >= ESP_LOG_DEBUG) // Enable legacy debug output in TCP module.
 
+#define MB_ATTR_WEAK                    __attribute__ ((weak))
+
 #define MB_TCP_GET_FIELD(buffer, field) ((USHORT)((buffer[field] << 8U) | buffer[field + 1]))
 
 #define MB_PORT_CHECK(a, ret_val, str, ...) \
@@ -120,6 +124,35 @@
         callback_func(); \
     } \
 } while(0)
+
+int lock_obj(_lock_t *plock);
+void unlock_obj(_lock_t *plock);
+
+#define CRITICAL_SECTION_INIT(lock)   \
+    do                                \
+    {                                 \
+        _lock_init((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_CLOSE(lock)   \
+    do                                 \
+    {                                  \
+        _lock_close((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_LOCK(lock) \
+    do                              \
+    {                               \
+        lock_obj((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION_UNLOCK(lock) \
+    do                                \
+    {                                 \
+        unlock_obj((_lock_t *)&lock); \
+    } while (0)
+
+#define CRITICAL_SECTION(lock) for (int st = lock_obj((_lock_t *)&lock); (st > 0); unlock_obj((_lock_t *)&lock), st = -1)
 
 #ifdef __cplusplus
 PR_BEGIN_EXTERN_C
@@ -197,6 +230,22 @@ void vMBPortSetMode( UCHAR ucMode );
 UCHAR ucMBPortGetMode( void );
 
 BOOL xMBPortSerialWaitEvent(QueueHandle_t xMbUartQueue, uart_event_t* pxEvent, ULONG xTimeout);
+
+/**
+ * This is modbus master user error handling funcion.
+ * If it is defined in the user application, then helps to handle the errors
+ * and received/sent buffers to transfer as well as handle the slave exception codes.
+ * 
+ * @param xTransId - the identification of the trasaction
+ * @param ucDestAddress destination salve address
+ * @param usError - the error code, see the enumeration eMBMasterErrorEventType
+ * @param pucRecvData current receive data pointer
+ * @param ucRecvLength current length of receive buffer
+ * @param pucSendData Send buffer data
+ * @param ucSendLength Send buffer length
+ */
+void vMBMasterErrorCBUserHandler( uint64_t xTransId, USHORT usError, UCHAR ucDestAddress, const UCHAR* pucRecvData, USHORT ucRecvLength,
+                                    const UCHAR* pucSendData, USHORT ucSendLength ) MB_ATTR_WEAK;
 
 #ifdef __cplusplus
 PR_END_EXTERN_C
