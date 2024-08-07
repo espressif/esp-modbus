@@ -160,9 +160,7 @@ extern "C" {
 #define MB_FUNC_READWRITE_HOLDING_ENABLED       (1)
 
 /*! @} */
-#ifdef __cplusplus
-}
-#endif
+
 
 #if MB_MASTER_RTU_ENABLED || MB_MASTER_ASCII_ENABLED || MB_MASTER_TCP_ENABLED
 /*! \brief If master send a broadcast frame, the master will wait time of convert to delay,
