@@ -440,7 +440,7 @@ vMBTCPPortBindAddr(const CHAR* pcBindIp)
             }
         }
         // Bind was successful
-        pcStr = (pxCurAddr->ai_canonname == NULL) ? (CHAR*)"\0" : pxCurAddr->ai_canonname;
+        pcStr = (pxCurAddr->ai_canonname == NULL) ? (CHAR*)"ANY_IP" : pxCurAddr->ai_canonname;
         ESP_LOGI(TAG, "Socket (#%d), listener %s on port: %u, errno=%u",
                                             (int)xListenSockFd, pcStr, (unsigned)xConfig.usPort, (unsigned)errno);
         break;
