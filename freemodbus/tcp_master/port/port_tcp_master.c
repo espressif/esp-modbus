@@ -498,7 +498,7 @@ static BOOL xMBTCPPortMasterCheckHost(const CHAR *pcHostStr, ip_addr_t *pxHostAd
     if (pxHostAddr) {
         *pxHostAddr = xTargetAddr;
     }
-    ESP_LOGI(TAG, "Host[IP]: \"%s\"[%s]", pxAddrList->ai_canonname, pcStr);
+    ESP_LOGI(TAG, "Host IP: [%s]", pcStr);
     freeaddrinfo(pxAddrList);
     return TRUE;
 }
