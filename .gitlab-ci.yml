@@ -45,7 +45,6 @@ after_script:
 
 .before_script_build_jobs:
   before_script:
-    - pip install idf-component-manager --upgrade
     - pip install "idf_build_apps~=1.0.1"
 
 .check_idf_ver: &check_idf_ver |
@@ -126,17 +125,17 @@ build_idf_master:
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
 
+build_idf_v5.3:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.3
+  variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c6 esp32c3"
+
 build_idf_v5.0:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.0
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
-
-build_idf_v4.4:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v4.4
-  variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
 
 .target_test_template:
   image: $TARGET_TEST_ENV_IMAGE
@@ -196,6 +195,19 @@ target_test_master:
     artifacts: true
   after_script: []
 
+target_test_5.3:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+  extends: .test_template
+  parallel:
+    matrix:
+      - TEST_PORT: ["serial"]
+        TEST_SUBDIR: ["examples/serial", "test_apps"] # test only serial examples for now
+  needs:
+    job: build_idf_v5.3
+    artifacts: true
+  after_script: []
+
 target_test_v5.0:
   stage: target_test
   image: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:3"
@@ -206,19 +218,6 @@ target_test_v5.0:
         TEST_SUBDIR: ["examples/serial", "test_apps"]
   needs:
     job: build_idf_v5.0
-    artifacts: true
-  after_script: []
-
-target_test_v4.4:
-  stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:3"
-  extends: .test_template
-  parallel:
-    matrix:
-      - TEST_PORT: ["serial"]
-        TEST_SUBDIR: ["examples/serial", "test_apps"]
-  needs:
-    job: build_idf_v4.4
     artifacts: true
   after_script: []
 
