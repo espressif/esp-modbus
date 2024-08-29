@@ -117,7 +117,7 @@ build_idf_master:
     matrix:
       - SUBDIR: ["serial", "tcp", "generic"]
   variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2 esp32p4"
 
 build_idf_v5.0:
   extends: .build_pytest_template
