@@ -39,7 +39,7 @@ class ModbusTestDut(IdfDut):
     TEST_IP_PROMPT = r'Waiting IP([0-9]{1,2}) from stdin:\r\r\n'
     TEST_IP_SET_CONFIRM = r'.*IP\([0-9]+\) = \[([0-9a-zA-Z\.\:]+)\] set from stdin.*'
     TEST_IP_ADDRESS_REGEXP = r'.*example_[a-z]+: .* IPv4 [a-z]+:.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*'
-    TEST_APP_NAME = r'.*Project name:     ([_a-z]*)'
+    TEST_APP_NAME = r'I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)'
 
     TEST_EXPECT_STR_TIMEOUT = 120
     TEST_ACK_TIMEOUT = 60
@@ -294,6 +294,7 @@ def build_dir(app_path: str, target: Optional[str], config: Optional[str]) -> st
         valid build directory
     """
     check_dirs = []
+
     if target is not None and config is not None:
         check_dirs.append(f'build_{target}_{config}')
     if target is not None:
@@ -312,8 +313,13 @@ def build_dir(app_path: str, target: Optional[str], config: Optional[str]) -> st
             'checking binary path: %s... missing... try another place', binary_path
         )
 
+    if config is not None and 'dummy' in config:
+        logging.warning('no build dir valid for application: %s, config: %s. Skip test.', binary_path, config)
+        return None
+
     recommend_place = check_dirs[0]
     logging.error(
         f'no build dir valid. Please build the binary via "idf.py -B {recommend_place} build" and run pytest again'
     )
+
     sys.exit(1)

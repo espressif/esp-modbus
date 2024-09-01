@@ -2,10 +2,9 @@
 | ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
 
 # Modbus Slave Example
-
-This example demonstrates using of FreeModbus TCP slave stack port implementation for supported ESP32 target chips. The external Modbus host is able to read/write device parameters using Modbus protocol transport. The parameters accessible thorough Modbus are located in `mb_example_common/modbus_params.h\c` files and can be updated by user.
+The stack located in `modbus` folder and includes support for ESP32 target chips. There are some parameters that can be configured in KConfig file to start stack correctly (See description below for more information). The external Modbus host is able to read/write device parameters using Modbus protocol transport. The parameters accessible thorough Modbus are located in `mb_example_common/modbus_params.h\c` files and can be updated by user.
 These are represented in structures holding_reg_params, input_reg_params, coil_reg_params, discrete_reg_params for holding registers, input parameters, coils and discrete inputs accordingly. The app_main application demonstrates how to setup Modbus stack and use notifications about parameters change from host system.
-The FreeModbus stack located in `components/freemodbus` folder and contain `/port` folder inside which contains FreeModbus stack port for ESP32 target chips. There are some parameters that can be configured in KConfig file to start stack correctly (See description below for more information).
+
 
 The slave example uses shared parameter structures defined in ```examples/protocols/modbus/mb_example_common``` folder.
 
@@ -28,7 +27,7 @@ idf.py menuconfig
 To configure the example to use Wi-Fi or Ethernet connection, open the project configuration menu and navigate to "Example Connection Configuration" menu. Select either "Wi-Fi" or "Ethernet" in the "Connect using" choice.
 Follow the instructions in `examples/common_components/protocol_examples_common` for further configuration.
 
-The communication parameters of freemodbus stack (Component config->Modbus configuration) allow to configure it appropriately but usually it is enough to use default settings.
+The communication parameters of esp-modbus stack (Component config->Modbus configuration) allow to configure it appropriately but usually it is enough to use default settings.
 See the help strings of parameters for more information.
 
 ### Setup external Modbus master software

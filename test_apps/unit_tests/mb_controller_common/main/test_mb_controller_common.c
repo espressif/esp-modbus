@@ -23,10 +23,10 @@
 
 #define TEST_MASTER_RESPOND_TOUT_MS CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
 
-#define TAG "MODBUS_SERIAL_TEST"
+#define TAG "MODBUS_CONTROLLER_COMMON_TEST"
 
 // The workaround to statically link whole test library
- __attribute__((unused)) bool mb_test_include_impl = 1;
+__attribute__((unused)) bool mb_test_include_impl = true;
 
 enum {
     CID_DEV_REG0_INPUT,
@@ -34,7 +34,8 @@ enum {
     CID_DEV_REG1_INPUT,
     CID_DEV_REG0_COIL,
     CID_DEV_REG0_DISCRITE,
-    CID_DEV_REG_CNT
+    CID_DEV_REG_CNT,
+    CID_ITEMS_CNT
 };
 
 // Example Data (Object) Dictionary for Modbus parameters
@@ -68,7 +69,42 @@ TEST_TEAR_DOWN(unit_test_controller)
     test_common_stop();
 }
 
-TEST(unit_test_controller, test_setup_destroy_master)
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+
+TEST(unit_test_controller, test_setup_destroy_master_tcp)
+{
+    mb_communication_info_t master_config = {
+        .tcp_opts.port = TEST_TCP_PORT_NUM,
+        .tcp_opts.mode = MB_TCP,
+        .tcp_opts.addr_type = MB_IPV4,
+        .tcp_opts.ip_addr_table = (void *)(0x44332211),
+        .tcp_opts.uid = MB_DEVICE_ADDR1,
+        .tcp_opts.start_disconnected = true,
+        .tcp_opts.response_tout_ms = 1,
+        .tcp_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US,
+        .tcp_opts.ip_netif_ptr = (void *)(0x11223344)
+    };
+
+    ESP_LOGI(TAG, "TEST: Verify master create-destroy sequence TCP.");
+
+    void *mbm_handle = NULL;
+    mb_base_t *pmb_base = NULL;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_tcp_create(&master_config.tcp_opts, (void *)&pmb_base));
+
+    mbm_tcp_create_ExpectAnyArgsAndReturn(MB_ENOERR);
+    mbm_tcp_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_port_tcp_get_slave_info_IgnoreAndReturn((void *)(0x11223344));
+    TEST_ESP_OK(mbc_master_create_tcp(&master_config, &mbm_handle));
+    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
+    TEST_ESP_OK(mbc_master_delete(mbm_handle));
+    ESP_LOGI(TAG, "Test passed successfully.");
+}
+
+#endif
+
+#if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
+
+TEST(unit_test_controller, test_setup_destroy_master_serial)
 {
     mb_communication_info_t master_config = {
         .ser_opts.port = TEST_SER_PORT_NUM,
@@ -86,7 +122,7 @@ TEST(unit_test_controller, test_setup_destroy_master)
     
     void *mbm_handle = NULL;
     mb_base_t *pmb_base = NULL;
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&master_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
 
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
@@ -105,7 +141,7 @@ TEST(unit_test_controller, test_setup_destroy_master)
     ESP_LOGI(TAG, "Test passed successfully.");
 }
 
-TEST(unit_test_controller, test_setup_destroy_slave)
+TEST(unit_test_controller, test_setup_destroy_slave_serial)
 {
     // Initialize and start Modbus controller
     mb_communication_info_t slave_config = {
@@ -122,7 +158,7 @@ TEST(unit_test_controller, test_setup_destroy_slave)
     ESP_LOGI(TAG, "TEST: Verify slave create-destroy sequence.");
     void *mbs_handle = NULL;
     mb_base_t *pmb_base = mbs_handle;
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&slave_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&pmb_base));
     mbs_rtu_create_ExpectAndReturn(&slave_config.ser_opts, (void *)pmb_base, MB_ENOERR);
     mbs_rtu_create_IgnoreArg_in_out_obj();
     mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
@@ -153,14 +189,14 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
     mb_base_t *pmb_base = NULL; // fake mb_base handle 
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&master_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
     pmb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
-    mb_port_evt_res_take_ExpectAnyArgsAndReturn(true);
-    mb_port_evt_res_release_ExpectAnyArgs();
+    mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
+    mb_port_event_res_release_ExpectAnyArgs();
     TEST_ESP_OK(mbc_master_start(mbm_handle));
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
@@ -225,7 +261,7 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
 // Check if modbus controller object forms correct modbus request from data dictionary
 // and is able to transfer data using mb_object. Check possible errors returned back from
 // mb_object and make sure the modbus controller handles them correctly.
-TEST(unit_test_controller, test_master_send_request)
+TEST(unit_test_controller, test_master_send_request_serial)
 {
     TEST_ESP_ERR(ESP_OK, test_master_registers(CID_DEV_REG0_INPUT, MB_ENOERR));
     TEST_ESP_ERR(ESP_ERR_TIMEOUT, test_master_registers(CID_DEV_REG0_INPUT, MB_ETIMEDOUT));
@@ -237,9 +273,19 @@ TEST(unit_test_controller, test_master_send_request)
     TEST_ESP_ERR(ESP_ERR_TIMEOUT, test_master_registers(CID_DEV_REG0_DISCRITE, MB_ETIMEDOUT));
 }
 
+#endif
+
 TEST_GROUP_RUNNER(unit_test_controller)
 {
-    RUN_TEST_CASE(unit_test_controller, test_setup_destroy_master);
-    RUN_TEST_CASE(unit_test_controller, test_setup_destroy_slave);
-    RUN_TEST_CASE(unit_test_controller, test_master_send_request);
+
+#if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
+    RUN_TEST_CASE(unit_test_controller, test_setup_destroy_master_serial);
+    RUN_TEST_CASE(unit_test_controller, test_setup_destroy_slave_serial);
+    RUN_TEST_CASE(unit_test_controller, test_master_send_request_serial);
+#endif
+
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+    RUN_TEST_CASE(unit_test_controller, test_setup_destroy_master_tcp);
+#endif
+
 }

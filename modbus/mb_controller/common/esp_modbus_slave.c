@@ -278,7 +278,7 @@ static esp_err_t mbc_slave_send_param_info(void *ctx, mb_event_group_t par_type,
     par_info.mb_offset = mb_offset;
     BaseType_t status = xQueueSend(mbs_opts->notification_queue_handle, &par_info, MB_PAR_INFO_TOUT);
     if (pdTRUE == status) {
-        ESP_LOGD(TAG, "Queue send parameter info (type, address, size): %d, 0x%" PRIu32 ", %d",
+        ESP_LOGD(TAG, "Queue send parameter info (type, address, size): %d, 0x%" PRIx32 ", %d",
                         (int)par_type, (uint32_t)par_address, (int)par_size);
         error = ESP_OK;
     } else if (errQUEUE_FULL == status) {

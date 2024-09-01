@@ -17,28 +17,27 @@
 #define unity_utils_task_delete test_utils_task_delete
 #endif
 
-#define TEST_SER_PORT_NUM       (1)
-#define TEST_TASK_TIMEOUT_MS    (30000)
-#define TEST_SEND_TOUT_US       (30000)
-#define TEST_RESP_TOUT_MS       (1000)
+#define TEST_SER_PORT_NUM               (1)
+#define TEST_TASK_TIMEOUT_MS            (160000)
+#define TEST_SEND_TOUT_US               (30000)
+#define TEST_RESP_TOUT_MS               (1000)
+#define TEST_BAUD_RATE                  (115200)
 
 #if CONFIG_IDF_TARGET_ESP32
-#define TEST_SER_PIN_RX         (22)
-#define TEST_SER_PIN_TX         (23)
+#define TEST_SER_PIN_RX                 (22)
+#define TEST_SER_PIN_TX                 (23)
 // RTS for RS485 Half-Duplex Mode manages DE/~RE
-#define TEST_SER_PIN_RTS        (18)
-#define TEST_BAUD_RATE          (115200)
-#elif CONFIG_IDF_TARGET_ESP32C3
-#define TEST_SER_PIN_RX         (4)
-#define TEST_SER_PIN_TX         (5)
-#define TEST_SER_PIN_RTS        (10)
-#define TEST_BAUD_RATE          (115200)
+#define TEST_SER_PIN_RTS                (18)
+#else
+#define TEST_SER_PIN_RX                 (4)
+#define TEST_SER_PIN_TX                 (5)
+#define TEST_SER_PIN_RTS                (10)
 #endif
 
-#define TEST_MASTER_RESPOND_TOUT_MS CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+#define TEST_MASTER_RESPOND_TOUT_MS     (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND)
 
 // The workaround to statically link the whole test library
- __attribute__((unused)) bool mb_test_include_impl = 1;
+__attribute__((unused)) bool mb_test_include_phys_impl_serial = true;
 
 #define TAG "MODBUS_SERIAL_COMM_TEST"
 
@@ -61,32 +60,6 @@ static const mb_parameter_descriptor_t descriptors[] = {
 // The number of parameters in the table
 const uint16_t num_descriptors = (sizeof(descriptors) / sizeof(descriptors[0]));
 
-static void test_task_start_wait_done(TaskHandle_t task_handle)
-{
-    uint32_t test_task = 0;
-
-    // Start test sequence intentionally in the task
-    test_common_task_notify_start(task_handle, 1);
-    
-    for (int i = 0; (i < 2); i++) {
-        test_task = test_common_wait_done(pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS));
-        if (test_task == (uint32_t)task_handle) {
-            unity_utils_task_delete((TaskHandle_t)test_task);
-            break;
-        }
-    }
-    
-    vTaskDelay(5); // A small delay to let the test lower priority task delete itself
-    if (test_task != (uint32_t)task_handle) {
-        ESP_LOGI(TAG, "Could not complete task 0x%" PRIx32" after %d ms, force kill the task.", 
-                        (uint32_t)task_handle, TEST_TASK_TIMEOUT_MS);
-        unity_utils_task_delete((TaskHandle_t)task_handle);
-    }
-
-    TEST_ASSERT_EQUAL(test_task, (uint32_t)task_handle);
-    ESP_LOGI(TAG, "Test task 0x%" PRIx32 ", done successfully.", (uint32_t)task_handle);
-}
-
 static void test_modbus_rs485_rtu_slave(void)
 {
     mb_communication_info_t slave_config1 = {
@@ -104,7 +77,7 @@ static void test_modbus_rs485_rtu_slave(void)
     TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX, 
                                 TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
-    TaskHandle_t slave_task_handle = test_slave_serial_create(&slave_config1);
+    TaskHandle_t slave_task_handle = test_common_slave_serial_create(&slave_config1, 0);
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(slave_config1.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
@@ -114,8 +87,8 @@ static void test_modbus_rs485_rtu_slave(void)
     unity_send_signal("Slave_ready");
     unity_wait_for_signal("Master_started");
 
-    test_task_start_wait_done(slave_task_handle);
-
+    test_common_task_start(slave_task_handle, 1);
+    TEST_ASSERT_TRUE(test_common_task_wait_done(slave_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
 
 static void test_modbus_rs485_rtu_master(void)
@@ -136,14 +109,15 @@ static void test_modbus_rs485_rtu_master(void)
         .ser_opts.test_tout_us = TEST_SEND_TOUT_US
     };
 
-    TaskHandle_t master_task_handle = test_master_serial_create(&master_config, &descriptors[0], num_descriptors);
+    TaskHandle_t master_task_handle = test_common_master_serial_create(&master_config, 0, &descriptors[0], num_descriptors);
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(master_config.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
     TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX, 
                                 TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
-    test_task_start_wait_done(master_task_handle);
+    test_common_task_start(master_task_handle, 1);
+    TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
 
 /* 
@@ -168,7 +142,7 @@ static void test_modbus_rs485_ascii_slave(void)
     TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX, 
                                 TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
-    TaskHandle_t slave_task_handle = test_slave_serial_create(&slave_config1);
+    TaskHandle_t slave_task_handle = test_common_slave_serial_create(&slave_config1, 0);
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(slave_config1.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
@@ -178,9 +152,9 @@ static void test_modbus_rs485_ascii_slave(void)
     unity_send_signal("Slave_ready");
     unity_wait_for_signal("Master_started");
 
-    test_task_start_wait_done(slave_task_handle);
-
-}
+    test_common_task_start(slave_task_handle, 1);
+    TEST_ASSERT_TRUE(test_common_task_wait_done(slave_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
+};
 
 static void test_modbus_rs485_ascii_master(void)
 {
@@ -199,16 +173,16 @@ static void test_modbus_rs485_ascii_master(void)
         .ser_opts.test_tout_us = TEST_SEND_TOUT_US
     };
 
-    TaskHandle_t master_task_handle = test_master_serial_create(&master_config, &descriptors[0], num_descriptors);
+    TaskHandle_t master_task_handle = test_common_master_serial_create(&master_config, 0, &descriptors[0], num_descriptors);
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(master_config.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
     TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX, 
                                 TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
-    
     unity_send_signal("Master_started");
 
-    test_task_start_wait_done(master_task_handle);
+    test_common_task_start(master_task_handle, 1);
+    TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
 
 /* 

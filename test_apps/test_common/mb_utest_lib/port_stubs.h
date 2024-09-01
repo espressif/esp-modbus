@@ -6,17 +6,17 @@
 
 #pragma once
 
-#include <sdkconfig.h>
 #include "esp_log.h"
 #include "mb_common.h"
 #include "mb_port_types.h"
+#include "sdkconfig.h"
 
 // Serial port function wrappers
 
-bool __wrap_mb_port_evt_get(mb_port_base_t *inst, mb_event_t *pevent);
-bool __wrap_mb_port_evt_post(mb_port_base_t *inst, mb_event_t event);
-extern bool __real_mb_port_evt_get(mb_port_base_t *inst, mb_event_t *pevent);
-extern bool __real_mb_port_evt_post(mb_port_base_t *inst, mb_event_t event);
+bool __wrap_mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent);
+bool __wrap_mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
+extern bool __real_mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent);
+extern bool __real_mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
@@ -46,7 +46,7 @@ void __wrap_mbm_port_tcp_enable(mb_port_base_t *inst);
 void __wrap_mbm_port_tcp_disable(mb_port_base_t *inst);
 void __wrap_mbm_port_tcp_set_conn_cb(mb_port_base_t *inst, void *conn_fp, void *arg);
 mb_uid_info_t *__wrap_mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb_sock_state_t exp_state);
-//bool __wrap_mbm_port_timer_expired(void *inst);
+//bool __wrap_mbm_port__expired(void *inst);
 
 extern void __real_mbm_port_tcp_enable(mb_port_base_t *inst);
 extern void __real_mbm_port_tcp_disable(mb_port_base_t *inst);

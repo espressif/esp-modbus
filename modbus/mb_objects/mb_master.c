@@ -175,7 +175,7 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->cur_state = STATE_DISABLED;
     transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
     transp_obj->get_rx_frm(transp_obj, (uint8_t **)&mbm_obj->rcv_frame);
-    mbm_obj->base.port_obj = transp_obj->port_obj; // binding of the modbus object with port objet
+    mbm_obj->base.port_obj = transp_obj->port_obj; // binding of the modbus object with port object
     mbm_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbm_obj->base);
     ESP_LOGD(TAG, "created object %s", mbm_obj->base.descr.parent_name);
@@ -253,10 +253,10 @@ error:
 
 mb_err_enum_t mbm_delete(mb_base_t *inst)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     mb_err_enum_t status = MB_ENOERR;
     if (mbm_obj->cur_state == STATE_DISABLED) {
-        if (mbm_obj->base.transp_obj->frm_delete) {
+        if (MB_OBJ(mbm_obj->base.transp_obj)->frm_delete) {
             // call destructor of the transport object
             mbm_obj->base.transp_obj->frm_delete(inst->transp_obj);
         }
@@ -275,13 +275,13 @@ mb_err_enum_t mbm_delete(mb_base_t *inst)
 
 mb_err_enum_t mbm_enable(mb_base_t *inst)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     mb_err_enum_t status = MB_ENOERR;
     CRITICAL_SECTION(inst->lock)
     {
         if (mbm_obj->cur_state == STATE_DISABLED) {
             /* Activate the protocol stack. */
-            mbm_obj->base.transp_obj->frm_start(mbm_obj->base.transp_obj);
+            MB_OBJ(mbm_obj->base.transp_obj)->frm_start(mbm_obj->base.transp_obj);
             mbm_obj->cur_state = STATE_ENABLED;
             status = MB_ENOERR;
         } else {
@@ -294,11 +294,11 @@ mb_err_enum_t mbm_enable(mb_base_t *inst)
 mb_err_enum_t mbm_disable(mb_base_t *inst)
 {
     mb_err_enum_t status = MB_ENOERR;
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     CRITICAL_SECTION(inst->lock)
     {
         if (mbm_obj->cur_state == STATE_ENABLED) {
-            mbm_obj->base.transp_obj->frm_stop(mbm_obj->base.transp_obj);
+            MB_OBJ(mbm_obj->base.transp_obj)->frm_stop(mbm_obj->base.transp_obj);
             mbm_obj->cur_state = STATE_DISABLED;
             status = MB_ENOERR;
         } else if (mbm_obj->cur_state == STATE_DISABLED) {
@@ -312,20 +312,20 @@ mb_err_enum_t mbm_disable(mb_base_t *inst)
 
 static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
-    mbm_obj->base.transp_obj->get_tx_frm(mbm_obj->base.transp_obj, pbuf);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
+    MB_OBJ(mbm_obj->base.transp_obj)->get_tx_frm(mbm_obj->base.transp_obj, pbuf);
 }
 
 __attribute__((unused))
 static void mbm_get_pdu_recv_buf(mb_base_t *inst, uint8_t **pbuf)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
-    mbm_obj->base.transp_obj->get_rx_frm(mbm_obj->base.transp_obj, pbuf);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
+    MB_OBJ(mbm_obj->base.transp_obj)->get_rx_frm(mbm_obj->base.transp_obj, pbuf);
 }
 
 static void mbm_set_pdu_send_length(mb_base_t *inst, uint16_t length)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     CRITICAL_SECTION(inst->lock)
     {
         mbm_obj->pdu_snd_len = length;
@@ -334,13 +334,13 @@ static void mbm_set_pdu_send_length(mb_base_t *inst, uint16_t length)
 
 static uint16_t mbm_get_pdu_send_length(mb_base_t *inst)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     return mbm_obj->pdu_snd_len;
 }
 
 static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     CRITICAL_SECTION(inst->lock)
     {
         mbm_obj->master_dst_addr = dest_addr;
@@ -349,37 +349,37 @@ static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr)
 
 static uint8_t mbm_get_dest_addr(mb_base_t *inst)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
     return mbm_obj->master_dst_addr;
 }
 
 void mbm_error_cb_respond_timeout(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_evt_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RESPOND_TIMEOUT);
-    ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_WARN);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RESPOND_TIMEOUT);
+    ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_receive_data(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_evt_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RECEIVE_DATA);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RECEIVE_DATA);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_execute_function(mb_base_t *inst, uint8_t dest_address, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_evt_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_EXECUTE_FUNCTION);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_EXECUTE_FUNCTION);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_request_success(mb_base_t *inst, uint8_t dest_address, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_evt_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_PROCESS_SUCCESS);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_PROCESS_SUCCESS);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 mb_err_enum_t mbm_poll(mb_base_t *inst)
 {
-    mbm_object_t *mbm_obj = __containerof(inst, mbm_object_t, base);
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
 
     uint16_t length;
     mb_exception_t exception;
@@ -394,69 +394,78 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
 
     /* Check if there is a event available. If not return control to caller.
      * Otherwise we will handle the event. */
-    if (mb_port_evt_get(mbm_obj->base.port_obj, &event)) {
+    if (mb_port_event_get(MB_OBJ(mbm_obj->base.port_obj), &event)) {
         switch (event.event) {
             case EV_READY:
-                ESP_LOGW(TAG, MB_OBJ_FMT":EV_READY", MB_OBJ_PTR(inst));
-                mb_port_evt_res_release(inst->port_obj);
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_READY", MB_OBJ_PARENT(inst));
+                mb_port_event_res_release(MB_OBJ(inst->port_obj));
                 break;
 
             case EV_FRAME_TRANSMIT:
                 mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
-                ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_TRANSMIT"), (void *)mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_WARN);
-                status = inst->transp_obj->frm_send(inst->transp_obj, mbm_obj->master_dst_addr, mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
+                ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_TRANSMIT"), 
+                                            (void *)mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_DEBUG);
+                status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbm_obj->master_dst_addr, 
+                                                                mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 if (status != MB_ENOERR) {
-                    mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_RECEIVE_DATA);
-                    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
-                    ESP_LOGE(TAG, MB_OBJ_FMT", frame send error. %d", MB_OBJ_PTR(inst), (int)status);
+                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RECEIVE_DATA);
+                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
+                    ESP_LOGE(TAG, MB_OBJ_FMT", frame send error. %d", MB_OBJ_PARENT(inst), (int)status);
                 }
                 // Initialize modbus transaction
                 mbm_obj->curr_trans_id = event.trans_id;
                 break;
 
             case EV_FRAME_SENT:
-                ESP_LOGD(TAG, MB_OBJ_FMT":EV_MASTER_FRAME_SENT", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_SENT", MB_OBJ_PARENT(inst));
                 break;
 
             case EV_FRAME_RECEIVED:
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_RECEIVED", MB_OBJ_PARENT(inst));
                 mbm_obj->pdu_rcv_len = event.length;
-                status = inst->transp_obj->frm_rcv(inst->transp_obj, &mbm_obj->rcv_addr, &mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
+                status = MB_OBJ(inst->transp_obj)->frm_rcv(inst->transp_obj, &mbm_obj->rcv_addr,
+                                                            &mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
                 MB_RETURN_ON_FALSE(mbm_obj->snd_frame, MB_EILLSTATE, TAG, "Send buffer initialization fail.");
                 if (event.trans_id == mbm_obj->curr_trans_id) {
                     // Check if the frame is for us. If not ,send an error process event.
-                    if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr) 
+                    if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr)
                             || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS))) {
                         if ((mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR) == (mbm_obj->snd_frame[MB_PDU_FUNC_OFF])) {
-                            ESP_LOGD(TAG, MB_OBJ_FMT", frame data received successfully, (%d).", MB_OBJ_PTR(inst), (int)status);
+                            ESP_LOGD(TAG, MB_OBJ_FMT", frame data received successfully, (%d).", MB_OBJ_PARENT(inst), (int)status);
                             ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_RECV"), (void *)mbm_obj->rcv_frame, 
-                                                        (uint16_t)mbm_obj->pdu_rcv_len, ESP_LOG_WARN);
-                            (void)mb_port_evt_post(inst->port_obj, EVENT(EV_EXECUTE));
+                                                        (uint16_t)mbm_obj->pdu_rcv_len, ESP_LOG_DEBUG);
+                            (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE));
                         } else {
                             ESP_LOGE(TAG, MB_OBJ_FMT", drop incorrect frame, receive_func(%u) != send_func(%u)",
-                                        MB_OBJ_PTR(inst), (mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR), 
+                                        MB_OBJ_PARENT(inst), (mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR), 
                                         mbm_obj->snd_frame[MB_PDU_FUNC_OFF]);
-                            mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_RECEIVE_DATA);
-                            (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
+                            mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RECEIVE_DATA);
+                            (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                         }
                     } else {
-                        mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_RECEIVE_DATA);
-                        (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
+                        mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RECEIVE_DATA);
+                        (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                         ESP_LOGD(TAG, MB_OBJ_FMT", packet data receive failed (addr=%u)(%u).",
-                                    MB_OBJ_PTR(inst), (unsigned)mbm_obj->rcv_addr, (unsigned)status);
+                                    MB_OBJ_PARENT(inst), (unsigned)mbm_obj->rcv_addr, (unsigned)status);
                     }
                 } else {
                     // Ignore the `EV_FRAME_RECEIVED` event because the respond timeout occurred
                     // and this is likely respond to previous transaction
-                    ESP_LOGE(TAG, MB_OBJ_FMT", drop data received outside of transaction.", MB_OBJ_PTR(inst));
-                    mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_RESPOND_TIMEOUT);
-                    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
+                    ESP_LOGE(TAG, MB_OBJ_FMT", drop data received outside of transaction.", MB_OBJ_PARENT(inst));
+                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
+                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                 }
                 break;
 
             case EV_EXECUTE:
                 if (event.trans_id == mbm_obj->curr_trans_id) {
-                    MB_RETURN_ON_FALSE(mbm_obj->rcv_frame, MB_EILLSTATE, TAG, MB_OBJ_FMT", receive buffer initialization fail.", MB_OBJ_PTR(inst));
-                    ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PTR(inst));
+                    if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)
+                        && ((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
+                        mbm_obj->rcv_frame = mbm_obj->snd_frame;
+                    }
+                    MB_RETURN_ON_FALSE(mbm_obj->rcv_frame, MB_EILLSTATE, TAG,
+                                        MB_OBJ_FMT", receive buffer initialization fail.", MB_OBJ_PARENT(inst));
+                    ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PARENT(inst));
                     mbm_obj->func_code = mbm_obj->rcv_frame[MB_PDU_FUNC_OFF];
                     exception = MB_EX_ILLEGAL_FUNCTION;
                     /* If receive frame has exception. The receive function code highest bit is 1.*/
@@ -472,7 +481,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                                 /* If master request is broadcast,
                                 * the master need execute function for all slave.
                                 */
-                                if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+                                if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)) {
                                     length = mbm_obj->pdu_snd_len;
                                     for (int j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++) {
                                         mbm_set_dest_addr(inst, j);
@@ -487,28 +496,28 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                     }
                     /* If master has exception, will send error process event. Otherwise the master is idle.*/
                     if (exception != MB_EX_NONE) {
-                        mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_EXECUTE_FUNCTION);
-                        (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
+                        mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_EXECUTE_FUNCTION);
+                        (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                     } else {
-                        error_type = mb_port_evt_get_err_type(inst->port_obj);
+                        error_type = mb_port_event_get_err_type(MB_OBJ(inst->port_obj));
                         if (error_type == EV_ERROR_INIT) {
-                            ESP_LOGD(TAG, MB_OBJ_FMT", set event EV_ERROR_OK", MB_OBJ_PTR(inst));
-                            mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_OK);
-                            (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
+                            ESP_LOGD(TAG, MB_OBJ_FMT", set event EV_ERROR_OK", MB_OBJ_PARENT(inst));
+                            mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_OK);
+                            (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                         }
                     }
                 } else {
-                    mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_EXECUTE_FUNCTION);
-                    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_ERROR_PROCESS));
-                    ESP_LOGE(TAG, MB_OBJ_FMT", execution is expired.", MB_OBJ_PTR(inst));
+                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_EXECUTE_FUNCTION);
+                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
+                    ESP_LOGE(TAG, MB_OBJ_FMT", execution is expired.", MB_OBJ_PARENT(inst));
                 }
                 break;
 
             case EV_ERROR_PROCESS:
-                ESP_LOGW(TAG, MB_OBJ_FMT":EV_ERROR_PROCESS", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_ERROR_PROCESS", MB_OBJ_PARENT(inst));
                 // stop timer and execute specified error process callback function.
-                mb_port_tmr_disable(inst->port_obj);
-                error_type = mb_port_evt_get_err_type(inst->port_obj);
+                mb_port_timer_disable(MB_OBJ(inst->port_obj));
+                error_type = mb_port_event_get_err_type(MB_OBJ(inst->port_obj));
                 mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
                 switch (error_type)
                 {
@@ -529,23 +538,23 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                                                     mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                         break;
                     default:
-                        ESP_LOGE(TAG, MB_OBJ_FMT", incorrect error type = %d.", MB_OBJ_PTR(inst), (int)error_type);
+                        ESP_LOGE(TAG, MB_OBJ_FMT", incorrect error type = %d.", MB_OBJ_PARENT(inst), (int)error_type);
                         break;
                 }
-                mb_port_evt_set_err_type(inst->port_obj, EV_ERROR_INIT);
+                mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_INIT);
                 uint64_t time_div_us = mbm_obj->curr_trans_id ? (event.get_ts - mbm_obj->curr_trans_id) : 0;
                 mbm_obj->curr_trans_id = 0;
-                ESP_LOGW(TAG, MB_OBJ_FMT", transaction processing time(us) = %" PRId64, MB_OBJ_PTR(inst), time_div_us);
-                mb_port_evt_res_release(inst->port_obj);
+                ESP_LOGD(TAG, MB_OBJ_FMT", transaction processing time(us) = %" PRId64, MB_OBJ_PARENT(inst), time_div_us);
+                mb_port_event_res_release(MB_OBJ(inst->port_obj));
                 break;
 
             default:
-                ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PTR(inst), (int)event.event);
+                ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PARENT(inst), (int)event.event);
                 break;
         }
     } else {
         // Something went wrong and task unblocked but there are no any correct events set
-        ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PTR(inst), (int)event.event);
+        ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PARENT(inst), (int)event.event);
         status = MB_EILLSTATE;
     }
     return status;

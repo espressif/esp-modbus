@@ -44,8 +44,13 @@
 #define TEST_INPUT_REG_START(field) (INPUT_OFFSET(field) >> 1)
 #define TEST_INPUT_REG_SIZE(field) (sizeof(((input_reg_params_t *)0)->field) >> 1)
 
-#define TEST_VALUE 12345 // default test value
-#define TEST_ASCII_BIN 0xAAAAAAAA
+#define TEST_VALUE (12345) // default test value
+#define TEST_ASCII_BIN (0xAAAAAAAA)
+#define TEST_ARR_REG_SZ (58)
+#define TEST_HUMI_MIN (-40)
+#define TEST_HUMI_MAX (50)
+#define TEST_TEMP_MIN (0)
+#define TEST_TEMP_MAX (100)
 
 // Options can be used as bit masks or parameter limits
 #define OPTS(min_val, max_val, step_val) { .opt1 = min_val, .opt2 = max_val, .opt3 = step_val }
@@ -107,31 +112,31 @@ const mb_parameter_descriptor_t device_parameters[] = {
     { CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
             INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
             HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
             INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
             HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
             INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
-            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
             HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, 
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(test_regs), 58,
-            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, 116, 
-            OPTS( 0, 100, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
+            TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,
+            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, (TEST_ARR_REG_SZ * 2),
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
             COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1, 
             OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
@@ -427,10 +432,9 @@ static void master_operation_func(void *arg)
     }
 
     if (alarm_state) {
-        ESP_LOGI(TAG, "Alarm triggered by cid #%d.",
-                                        (int)param_descriptor->cid);
+        ESP_LOGI(TAG, "Alarm triggered by cid #%u.", param_descriptor->cid);
     } else {
-        ESP_LOGE(TAG, "Alarm is not triggered after %d retries.",
+        ESP_LOGE(TAG, "Alarm is not triggered after %u retries.",
                                         MASTER_MAX_RETRY);
     }
     ESP_LOGI(TAG, "Destroy master...");

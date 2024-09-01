@@ -7,16 +7,6 @@
 #include "unity.h"
 #include "test_common.h"
 
-void setUp(void)
-{
-    test_common_start();
-}
-
-void tearDown(void)
-{
-    test_common_stop();
-}
-
 void app_main(void)
 {
     printf("Modbus RS485 multi-device test cases/n");

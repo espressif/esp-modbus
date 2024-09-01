@@ -27,6 +27,7 @@ set(srcs
     "mb_ports/common/port_event.c"
     "mb_ports/common/port_other.c"
     "mb_ports/common/port_timer.c"
+    "mb_ports/common/mb_transaction.c"
     "mb_ports/serial/port_serial.c"
     "mb_ports/tcp/port_tcp_master.c"
     "mb_ports/tcp/port_tcp_slave.c"
@@ -79,11 +80,13 @@ foreach(req ${optional_reqs} ${exclude_comps})
     if(req IN_LIST build_components)
         idf_component_get_property(req_lib ${req} COMPONENT_LIB)
         target_link_libraries(${COMPONENT_LIB} PRIVATE ${req_lib})
-        message(STATUS "Req ${req} is found and added into ${COMPONENT_NAME} dependencies.") # FATAL_ERROR
-        target_compile_definitions(${COMPONENT_LIB} PUBLIC -DMB_MDNS_IS_INCLUDED) 
+        message(STATUS "Req ${req} is found and added into ${COMPONENT_NAME} dependencies.")
+        target_compile_definitions(${COMPONENT_LIB} PUBLIC -DMB_MDNS_IS_INCLUDED)
     endif()
 endforeach()
 
 # target_link_options(${COMPONENT_LIB} INTERFACE -fsanitize=undefined -fsanitize=alignment) #-fsanitize=address -fsanitize=undefined
+# target_link_options(${COMPONENT_LIB} INTERFACE -fsanitize=address)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-strict-aliasing -Wno-write-strings -Werror)
 
 message(STATUS "The mdns included is: ${MB_MDNS_IS_INCLUDED}")

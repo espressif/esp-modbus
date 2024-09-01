@@ -25,7 +25,7 @@ typedef struct
     uint16_t snd_buf_cnt;
     uint16_t rcv_buf_pos;
     bool frame_is_broadcast;
-    volatile mb_tmr_mode_enum_t cur_tmr_mode;
+    volatile mb_timer_mode_enum_t cur_timer_mode;
     mb_rtu_state_enum_t state;
 } mbm_rtu_transp_t;
 
@@ -36,7 +36,7 @@ static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
 static mb_err_enum_t mbm_rtu_transp_send(mb_trans_base_t *inst, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
 static bool mbm_rtu_transp_rcv_fsm(mb_trans_base_t *inst);
 static bool mbm_rtu_transp_snd_fsm(mb_trans_base_t *inst);
-static bool mbm_rtu_transp_tmr_35_expired(void *inst);
+static bool mbm_rtu_transp_timer_expired(void *inst);
 static void mbm_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 static void mbm_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 // static uint16_t mbm_rtu_transp_get_snd_len(mb_trans_base_t *inst);
@@ -67,17 +67,17 @@ mb_err_enum_t mbm_rtu_transp_create(mb_serial_opts_t *ser_opts, void **in_out_in
     mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
     ret = mb_port_ser_create(ser_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG, "serial port creation, err: %d", ret);
-    ret = mb_port_tmr_create(port_obj, MB_RTU_GET_T35_VAL(ser_opts->baudrate));
+    ret = mb_port_timer_create(port_obj, MB_RTU_GET_T35_VAL(ser_opts->baudrate));
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG, "timer port creation, err: %d", ret);
     // Override default response time if defined
     if (ser_opts->response_tout_ms) {
-        mb_port_tmr_set_response_time(port_obj, ser_opts->response_tout_ms);
+        mb_port_timer_set_response_time(port_obj, ser_opts->response_tout_ms);
     }
-    ret = mb_port_evt_create(port_obj);
+    ret = mb_port_event_create(port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG, "event port creation, err: %d", ret);
     transp->base.port_obj = port_obj;
     // Set callback function pointer for the timer
-    port_obj->cb.tmr_expired = mbm_rtu_transp_tmr_35_expired;
+    port_obj->cb.tmr_expired = mbm_rtu_transp_timer_expired;
     port_obj->cb.tx_empty = NULL;
     port_obj->cb.byte_rcvd = NULL;
     port_obj->arg = (void *)transp;
@@ -89,10 +89,10 @@ mb_err_enum_t mbm_rtu_transp_create(mb_serial_opts_t *ser_opts, void **in_out_in
 
 error:
     if (port_obj->timer_obj) {
-        mb_port_tmr_delete(port_obj);
+        mb_port_timer_delete(port_obj);
     }
     if (port_obj->event_obj) {
-        mb_port_evt_delete(port_obj);
+        mb_port_event_delete(port_obj);
     }
     if (port_obj) {
         mb_port_ser_delete(port_obj);
@@ -106,8 +106,8 @@ bool mbm_rtu_transp_delete(mb_trans_base_t *inst)
 {
     mbm_rtu_transp_t *transp = __containerof(inst, mbm_rtu_transp_t, base);
     mb_port_ser_delete(transp->base.port_obj);
-    mb_port_tmr_delete(transp->base.port_obj);
-    mb_port_evt_delete(transp->base.port_obj);
+    mb_port_timer_delete(transp->base.port_obj);
+    mb_port_event_delete(transp->base.port_obj);
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);
     return true;
@@ -119,17 +119,17 @@ static void mbm_rtu_transp_start(mb_trans_base_t *inst)
     transp->state = MB_RTU_STATE_INIT;
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_enable(inst->port_obj);
-        mb_port_tmr_enable(inst->port_obj);
+        mb_port_timer_enable(inst->port_obj);
     };
     /* No special startup required for RTU. */
-    (void)mb_port_evt_post(transp->base.port_obj, EVENT(EV_READY));
+    (void)mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
 }
 
 static void mbm_rtu_transp_stop(mb_trans_base_t *inst)
 {
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_disable(inst->port_obj);
-        mb_port_tmr_disable(inst->port_obj);
+        mb_port_timer_disable(inst->port_obj);
     };
 }
 
@@ -207,9 +207,9 @@ static mb_err_enum_t mbm_rtu_transp_send(mb_trans_base_t *inst, uint8_t slv_addr
         // If the frame is broadcast, master will enable timer of convert delay,
         // else master will enable timer of respond timeout. */
         if (transp->frame_is_broadcast) {
-            mb_port_tmr_convert_delay_enable(transp->base.port_obj);
+            mb_port_timer_convert_delay_enable(transp->base.port_obj);
         } else {
-            mb_port_tmr_respond_timeout_enable(transp->base.port_obj);
+            mb_port_timer_respond_timeout_enable(transp->base.port_obj);
         }
 
     } else {
@@ -231,35 +231,35 @@ static bool mbm_rtu_transp_snd_fsm(mb_trans_base_t *inst)
 }
 
 
-static bool mbm_rtu_transp_tmr_35_expired(void *inst)
+static bool mbm_rtu_transp_timer_expired(void *inst)
 {
     mbm_rtu_transp_t *transp = __containerof(inst, mbm_rtu_transp_t, base);
     
     bool need_poll = false;
-    mb_tmr_mode_enum_t timer_mode = mb_port_get_cur_tmr_mode(transp->base.port_obj);
+    mb_timer_mode_enum_t timer_mode = mb_port_get_cur_timer_mode(transp->base.port_obj);
 
-    mb_port_tmr_disable(transp->base.port_obj);
+    mb_port_timer_disable(transp->base.port_obj);
 
     switch(timer_mode) {
         case MB_TMODE_T35:
-            //need_poll = mb_port_evt_post(transp->base.port_obj, EVENT(EV_READY));
+            //need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
             //ESP_EARLY_LOGD(TAG, "%p:EV_READY", transp->base.descr.parent);
             break;
 
         case MB_TMODE_RESPOND_TIMEOUT:
-            mb_port_evt_set_err_type(transp->base.port_obj, EV_ERROR_RESPOND_TIMEOUT);
-            need_poll = mb_port_evt_post(transp->base.port_obj, EVENT(EV_ERROR_PROCESS));
+            mb_port_event_set_err_type(transp->base.port_obj, EV_ERROR_RESPOND_TIMEOUT);
+            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_ERROR_PROCESS));
             ESP_EARLY_LOGW(TAG, "%p:EV_ERROR_RESPOND_TIMEOUT", transp->base.descr.parent);
             break;
 
         case MB_TMODE_CONVERT_DELAY:
             /* If timer mode is convert delay, the master event then turns EV_MASTER_EXECUTE status. */
-            need_poll = mb_port_evt_post(transp->base.port_obj, EVENT(EV_EXECUTE));
+            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_EXECUTE));
             ESP_EARLY_LOGD(TAG, "%p:MB_TMODE_CONVERT_DELAY", transp->base.descr.parent);
             break;
             
         default:
-            need_poll = mb_port_evt_post(transp->base.port_obj, EVENT(EV_READY));
+            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
             break;
     }
     

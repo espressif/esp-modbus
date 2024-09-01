@@ -11,7 +11,7 @@
 #include "port_common.h"
 
 /* ----------------------- Variables ----------------------------------------*/
-static uint32_t inst_counter = 0;
+static _Atomic uint32_t inst_counter = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
 int lock_obj(_lock_t *plock)
@@ -58,6 +58,7 @@ QueueHandle_t queue_create(int queue_size)
 
 void queue_delete(QueueHandle_t queue)
 {
+    queue_flush(queue);
     vQueueDelete(queue);
 }
 
@@ -65,7 +66,7 @@ esp_err_t queue_push(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t 
 {
     frame_entry_t frame_info = {0};
 
-    if (!queue || !pbuf || (len <= 0)) {
+    if (!queue) { // || !pbuf || (len <= 0)
         return -1;
     }
 
@@ -73,12 +74,16 @@ esp_err_t queue_push(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t 
         frame_info = *pframe;
     }
 
-    frame_info.pbuf = calloc(1, len + 1);
-    if (!frame_info.pbuf) {
-        return ESP_ERR_NO_MEM;
+    if (pbuf && (len > 0)) {
+        if (!frame_info.pbuf) {
+            frame_info.pbuf = calloc(1, len);
+        }
+        if (!frame_info.pbuf) {
+            return ESP_ERR_NO_MEM;
+        }
+        frame_info.len = len;
+        memcpy(frame_info.pbuf, pbuf, len);
     }
-    frame_info.len = len;
-    memcpy(frame_info.pbuf, pbuf, len);
 
     // try send to queue and check if the queue is full
     if (xQueueSend(queue, &frame_info, portMAX_DELAY) != pdTRUE) {
@@ -100,10 +105,13 @@ ssize_t queue_pop(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t *pf
         if (len > frame_info.len) {
             len = frame_info.len;
         }
-        // if the input buffer pointer is defined copy the data and free
+        // if the input buffer pointer is defined copy the data and free queued buffer,
+        // otherwise just return the frame entry
         if (frame_info.pbuf && pbuf) {
             memcpy(pbuf, frame_info.pbuf, len);
-            free(frame_info.pbuf);
+            if (!pframe) {
+                free(frame_info.pbuf); // must free the buffer manually!
+            }
         }
     } else {
         goto err;

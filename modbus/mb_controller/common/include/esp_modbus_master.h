@@ -405,7 +405,7 @@ esp_err_t mbc_master_set_parameter_with(void *ctx, uint16_t cid, uint8_t uid, ui
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode);
+mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 /**
  * @brief Input register read/write callback function
@@ -419,7 +419,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs);
+mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs) __attribute__ ((weak));
 
 /**
  * @brief Discrete register read/write callback function
@@ -433,7 +433,7 @@ mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete);
+mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete) __attribute__ ((weak));
 
 /**
  * @brief Coil register read/write callback function
@@ -448,7 +448,7 @@ mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, u
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode);
+mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 /**
  * @brief The helper function to set data of parameters according to its type

@@ -225,12 +225,12 @@ error:
 
 mb_err_enum_t mbs_delete(mb_base_t *inst)
 {
-    mbs_object_t *mbs_obj = __containerof(inst, mbs_object_t, base);
+    mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_err_enum_t status = MB_ENOERR;
     if (mbs_obj->cur_state == STATE_DISABLED) {
-        if (mbs_obj->base.transp_obj->frm_delete) {
+        if (MB_OBJ(mbs_obj->base.transp_obj)->frm_delete) {
             // call destructor of the transport object
-            mbs_obj->base.transp_obj->frm_delete(inst->transp_obj);
+            MB_OBJ(mbs_obj->base.transp_obj)->frm_delete(inst->transp_obj);
         }
         // delete the modbus instance
         free(mbs_obj->base.descr.parent_name);
@@ -247,12 +247,12 @@ mb_err_enum_t mbs_delete(mb_base_t *inst)
 
 mb_err_enum_t mbs_enable(mb_base_t *inst)
 {
-    mbs_object_t *mbs_obj = __containerof(inst, mbs_object_t, base);
+    mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_err_enum_t status = MB_ENOERR;
     CRITICAL_SECTION(inst->lock) {
         if (mbs_obj->cur_state == STATE_DISABLED) {
             /* Activate the protocol stack. */
-            mbs_obj->base.transp_obj->frm_start(mbs_obj->base.transp_obj);
+            MB_OBJ(mbs_obj->base.transp_obj)->frm_start(mbs_obj->base.transp_obj);
             mbs_obj->cur_state = STATE_ENABLED;
             status = MB_ENOERR;
         } else {
@@ -269,10 +269,10 @@ mb_err_enum_t mbs_enable(mb_base_t *inst)
 mb_err_enum_t mbs_disable(mb_base_t *inst)
 {
     mb_err_enum_t status = MB_ENOERR;
-    mbs_object_t *mbs_obj = __containerof(inst, mbs_object_t, base);
+    mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);;
     CRITICAL_SECTION(inst->lock) {
         if (mbs_obj->cur_state == STATE_ENABLED) {
-            mbs_obj->base.transp_obj->frm_stop(mbs_obj->base.transp_obj);
+            MB_OBJ(mbs_obj->base.transp_obj)->frm_stop(mbs_obj->base.transp_obj);
             mbs_obj->cur_state = STATE_DISABLED;
             status = MB_ENOERR;
         } else if (mbs_obj->cur_state == STATE_DISABLED) {
@@ -286,7 +286,7 @@ mb_err_enum_t mbs_disable(mb_base_t *inst)
 
 mb_err_enum_t mbs_poll(mb_base_t *inst)
 {
-    mbs_object_t *mbs_obj = __containerof(inst, mbs_object_t, base);
+    mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);;
 
     mb_exception_t exception;
     mb_err_enum_t status = MB_ENOERR;
@@ -298,45 +298,44 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
     }
 
     /* Check if there is a event available. If not, return control to caller. Otherwise we will handle the event. */
-    if (mb_port_evt_get(mbs_obj->base.port_obj, &event)) {
+    if (mb_port_event_get(MB_OBJ(mbs_obj->base.port_obj), &event)) {
         switch(event.event) {
             case EV_READY:
-                ESP_LOGW(TAG, MB_OBJ_FMT":EV_READY", MB_OBJ_PTR(inst));
-                mb_port_evt_res_release(inst->port_obj);
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_READY", MB_OBJ_PARENT(inst));
+                mb_port_event_res_release(MB_OBJ(inst->port_obj));
                 break;
                 
             case EV_FRAME_RECEIVED:
-                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_RECEIVED", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_RECEIVED", MB_OBJ_PARENT(inst));
                 mbs_obj->length = event.length;
-                status = inst->transp_obj->frm_rcv(inst->transp_obj, &mbs_obj->rcv_addr, &mbs_obj->frame, &mbs_obj->length);
+                status = MB_OBJ(inst->transp_obj)->frm_rcv(inst->transp_obj, &mbs_obj->rcv_addr, &mbs_obj->frame, &mbs_obj->length);
                 // Check if the frame is for us. If not ,send an error process event.
                 if (status == MB_ENOERR) {
                     // Check if the frame is for us. If not ignore the frame.
                     if((mbs_obj->rcv_addr == mbs_obj->mb_address) || (mbs_obj->rcv_addr == MB_ADDRESS_BROADCAST) 
                             || (mbs_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS)) {
                         mbs_obj->curr_trans_id = event.get_ts;
-                        (void)mb_port_evt_post(inst->port_obj, EVENT(EV_EXECUTE | EV_TRANS_START));
+                        (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE | EV_TRANS_START));
                         ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_RECV"), &mbs_obj->frame[MB_PDU_FUNC_OFF], 
-                                                    (uint16_t)mbs_obj->length, ESP_LOG_WARN);
+                                                    (uint16_t)mbs_obj->length, ESP_LOG_DEBUG);
                     }
                 }
                 break;
 
             case EV_EXECUTE:
                 MB_RETURN_ON_FALSE(mbs_obj->frame, MB_EILLSTATE, TAG, "receive buffer fail.");
-                ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PARENT(inst));
                 mbs_obj->func_code = mbs_obj->frame[MB_PDU_FUNC_OFF];
                 exception = MB_EX_ILLEGAL_FUNCTION;
                 // If receive frame has exception. The receive function code highest bit is 1.
                 for (int i = 0; (i < MB_FUNC_HANDLERS_MAX); i++) {
                     // No more function handlers registered. Abort.
                     if (mbs_obj->func_handlers[i].func_code == 0) {
+                        ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), handler is not found.", MB_OBJ_PARENT(inst), (int)mbs_obj->func_code);
                         break;
                     }
                     if ((mbs_obj->func_handlers[i].func_code) == mbs_obj->func_code) {
-                        if (mbs_obj->func_code == 0x04) {
-                            ESP_LOGW(TAG, "Read input registers");
-                        } 
+                        ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), start handler.", MB_OBJ_PARENT(inst), (int)mbs_obj->func_code);
                         exception = mbs_obj->func_handlers[i].handler(inst, mbs_obj->frame, &mbs_obj->length);
                         break;
                     }
@@ -350,34 +349,34 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                         mbs_obj->frame[mbs_obj->length++] = exception;
                     }
                     if ((mbs_obj->cur_mode == MB_ASCII) && MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS) {
-                        mb_port_tmr_delay(inst->port_obj, MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS);
+                        mb_port_timer_delay(MB_OBJ(inst->port_obj), MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS);
                     }
-                    ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_SEND"), (void *)mbs_obj->frame, mbs_obj->length, ESP_LOG_WARN);
-                    status = inst->transp_obj->frm_send(inst->transp_obj, mbs_obj->rcv_addr, mbs_obj->frame, mbs_obj->length);
+                    ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_SEND"), (void *)mbs_obj->frame, mbs_obj->length, ESP_LOG_DEBUG);
+                    status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbs_obj->rcv_addr, mbs_obj->frame, mbs_obj->length);
                     if (status != MB_ENOERR) {
-                        ESP_LOGE(TAG, MB_OBJ_FMT":frame send error. %d", MB_OBJ_PTR(inst), (int)status);
+                        ESP_LOGE(TAG, MB_OBJ_FMT":frame send error. %d", MB_OBJ_PARENT(inst), (int)status);
                     }
                 }
                 break;
 
             case EV_FRAME_TRANSMIT:
-                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_TRANSMIT", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_FRAME_TRANSMIT", MB_OBJ_PARENT(inst));
                 break;
 
             case EV_FRAME_SENT:
-                ESP_LOGD(TAG, MB_OBJ_FMT":EV_MASTER_FRAME_SENT", MB_OBJ_PTR(inst));
+                ESP_LOGD(TAG, MB_OBJ_FMT":EV_MASTER_FRAME_SENT", MB_OBJ_PARENT(inst));
                 uint64_t time_div_us = mbs_obj->curr_trans_id ? (event.get_ts - mbs_obj->curr_trans_id) : 0;
                 mbs_obj->curr_trans_id = 0;
-                ESP_LOGW(TAG, MB_OBJ_FMT", transaction processing time(us) = %" PRId64, MB_OBJ_PTR(inst), time_div_us);
+                ESP_LOGD(TAG, MB_OBJ_FMT", transaction processing time(us) = %" PRId64, MB_OBJ_PARENT(inst), time_div_us);
                 break;
 
             default:
-                ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event triggered 0x%02x.", MB_OBJ_PTR(inst), (int)event.event);
+                ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event triggered 0x%02x.", MB_OBJ_PARENT(inst), (int)event.event);
                 break;
         }
     } else {
         // Something went wrong and task unblocked but there are no any correct events set
-        ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event triggered 0x%02x, timeout?", MB_OBJ_PTR(inst), (int)event.event);
+        ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event triggered 0x%02x, timeout?", MB_OBJ_PARENT(inst), (int)event.event);
         status = MB_EILLSTATE;
     }
     return status;

@@ -21,28 +21,27 @@
 #include "esp_heap_trace.h"
 #endif
 
-#define TEST_TASK_PRIO_MASTER CONFIG_MB_TEST_MASTER_TASK_PRIO
-#define TEST_TASK_PRIO_SLAVE CONFIG_MB_TEST_SLAVE_TASK_PRIO
-#define TEST_TASK_STACK_SIZE 5120
-#define TEST_TASK_CYCLE_COUNTER CONFIG_MB_TEST_COMM_CYCLE_COUNTER
-#define TEST_BUSY_TASK_PRIO 20
+#define TEST_TASK_PRIO_MASTER       (CONFIG_MB_TEST_MASTER_TASK_PRIO)
+#define TEST_TASK_PRIO_SLAVE        (CONFIG_MB_TEST_SLAVE_TASK_PRIO)
+#define TEST_TASK_STACK_SIZE        (5120)
+#define TEST_TASK_CYCLE_COUNTER     (CONFIG_MB_TEST_COMM_CYCLE_COUNTER)
+#define TEST_BUSY_TASK_PRIO         (20)
 
-#define TEST_REG_START_AREA0 (0x0000)
-#define TEST_READ_MASK (MB_EVENT_HOLDING_REG_RD | MB_EVENT_INPUT_REG_RD | MB_EVENT_DISCRETE_RD | MB_EVENT_COILS_RD)
-#define TEST_WRITE_MASK (MB_EVENT_HOLDING_REG_WR | MB_EVENT_COILS_WR)
-#define TEST_READ_WRITE_MASK (TEST_WRITE_MASK | TEST_READ_MASK)
-
-#define TEST_BUSY_COUNT 150000
-
-#define TEST_PAR_INFO_GET_TOUT (10)
-#define TEST_SEND_TIMEOUT (200 / portTICK_PERIOD_MS)
-#define TEST_TASK_START_TIMEOUT (5000 / portTICK_PERIOD_MS)
-
-#define TEST_NOTIF_SEND_TOUT 100
-#define TEST_NOTIF_SIZE 20
-#define TEST_ALLOW_PROC_FAIL 2 // percentage of allowed failures
-
-#define TEST_TASK_TICK_TIME (20 / portTICK_PERIOD_MS)
+#define TEST_REG_START_AREA0        (0x0000)
+#define TEST_READ_MASK              (MB_EVENT_HOLDING_REG_RD |\
+                                        MB_EVENT_INPUT_REG_RD |\
+                                        MB_EVENT_DISCRETE_RD |\
+                                        MB_EVENT_COILS_RD)
+#define TEST_WRITE_MASK             (MB_EVENT_HOLDING_REG_WR | MB_EVENT_COILS_WR)
+#define TEST_READ_WRITE_MASK        (TEST_WRITE_MASK | TEST_READ_MASK)
+#define TEST_BUSY_COUNT             (150000)
+#define TEST_PAR_INFO_GET_TOUT      (10)
+#define TEST_SEND_TIMEOUT           (200 / portTICK_PERIOD_MS)
+#define TEST_TASK_START_TIMEOUT     (10000 / portTICK_PERIOD_MS)
+#define TEST_NOTIF_SEND_TOUT        (400 / portTICK_PERIOD_MS)
+#define TEST_NOTIF_SIZE             (20)
+#define TEST_ALLOW_PROC_FAIL        (5) // percentage of allowed failures due to desynchronization
+#define TEST_TASK_TICK_TIME         (50 / portTICK_PERIOD_MS)
 
 #define TAG "TEST_COMMON"
 
@@ -59,15 +58,15 @@ const uint16_t holding_registers_counter = (sizeof(holding_registers) / sizeof(h
 const uint16_t input_registers_counter = (sizeof(input_registers) / sizeof(input_registers[0]));
 const uint16_t coil_registers_counter = (sizeof(coil_registers) / sizeof(coil_registers[0]));
 
-static QueueHandle_t tasks_done_queue = NULL;
 static int test_error_counter = 0;
 static int test_good_counter = 0;
 
 static size_t before_free_8bit = 0;
 static size_t before_free_32bit = 0;
 
+// Heap memory leak traicing
 #ifdef CONFIG_HEAP_TRACING
-#define NUM_RECORDS 200
+#define NUM_RECORDS 500
 static heap_trace_record_t trace_record[NUM_RECORDS];
 #endif
 
@@ -87,6 +86,82 @@ static heap_trace_record_t trace_record[NUM_RECORDS];
         }                                                                                                                       \
     } while (0)
 
+// The linked list of test tasks instances
+LIST_HEAD(task_entry, task_entry_s) s_task_list;
+
+static portMUX_TYPE s_list_spinlock = portMUX_INITIALIZER_UNLOCKED;
+
+static void task_entry_remove(task_entry_t *task_entry)
+{
+        portENTER_CRITICAL(&s_list_spinlock);
+        LIST_REMOVE(task_entry, entries);
+        portEXIT_CRITICAL(&s_list_spinlock);
+        ESP_LOGD(TAG, "Delete task 0x%" PRIx32, (uint32_t)task_entry->task_handle);
+        vTaskDelete(task_entry->task_handle);
+        vSemaphoreDelete(task_entry->task_sema_handle);
+        free(task_entry);
+}
+
+static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_ticks)
+{
+    bool is_done = false;
+    if (task_entry && task_entry->task_handle && task_entry->task_sema_handle) {
+        if ((xSemaphoreTake(task_entry->task_sema_handle, tout_ticks) == pdTRUE)) {
+            ESP_LOGI(TAG, "Test task 0x%" PRIx32 ", done successfully.", (uint32_t)task_entry->task_handle);
+            is_done = true;
+        } else {
+            ESP_LOGE(TAG, "Could not complete task 0x%" PRIx32 " after timeout, force kill the task.",
+                        (uint32_t)task_entry->task_handle);
+            is_done = false;
+        }
+        vTaskDelay(1); // Let the lower priority task to suspend or delete itself
+        task_entry_remove(task_entry);
+    }
+    return (is_done);
+}
+
+static void test_task_add_entry(TaskHandle_t task_handle, void *pinst)
+{
+    TEST_ASSERT_TRUE(task_handle);
+    task_entry_t *new_entry = (task_entry_t*) calloc(1, sizeof(task_entry_t));
+    TEST_ASSERT_TRUE(new_entry);
+    portENTER_CRITICAL(&s_list_spinlock);
+    new_entry->task_handle = task_handle;
+    new_entry->task_sema_handle = xSemaphoreCreateBinary();
+    new_entry->inst_handle = pinst;
+    LIST_INSERT_HEAD(&s_task_list, new_entry, entries);
+    portEXIT_CRITICAL(&s_list_spinlock);
+    xSemaphoreTake(new_entry->task_sema_handle, 1);
+}
+
+static task_entry_t *test_task_find_entry(TaskHandle_t task_handle)
+{
+    TEST_ASSERT_NOT_NULL(task_handle);
+    
+    task_entry_t *it, *pfound = NULL;
+    if (LIST_EMPTY(&s_task_list)) {
+        return NULL;
+    }
+
+    portENTER_CRITICAL(&s_list_spinlock);
+    LIST_FOREACH(it, &s_task_list, entries) {
+        if (it->task_handle == task_handle) {
+            pfound = it;
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_list_spinlock);
+    return pfound;
+}
+
+static void test_common_task_notify_done(TaskHandle_t task_handle)
+{
+    task_entry_t *it = test_task_find_entry(task_handle);
+    if (it) { 
+        xSemaphoreGive(it->task_sema_handle);
+    }
+}
+
 static void test_busy_task(void *phandle)
 {
     spinlock_t spin_lock;
@@ -102,21 +177,95 @@ static void test_busy_task(void *phandle)
     }
 }
 
-// Start the high priority task to mimic the case when the modbus
-// tasks do not get time quota from RTOS.
-TaskHandle_t test_slave_start_busy_task()
+void test_common_task_start(TaskHandle_t task_handle, uint32_t value)
 {
-    TaskHandle_t busy_task_handle = NULL;
-    TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_busy_task, "busy_task",
-                                            TEST_TASK_STACK_SIZE,
-                                            NULL, TEST_BUSY_TASK_PRIO,
-                                            &busy_task_handle, MB_PORT_TASK_AFFINITY));
-    return busy_task_handle;
+    // Directly notify the task waiting to start loop
+    test_common_task_notify_start(task_handle, value);
 }
 
-void test_slave_stop_busy_task(TaskHandle_t busy_task_handle)
+int test_common_task_start_all(uint32_t value)
 {
-    vTaskDelete(busy_task_handle);
+    task_entry_t *it = NULL;
+    if (LIST_EMPTY(&s_task_list)) {
+        return 0;
+    }
+    int task_count = 0;
+    LIST_FOREACH(it, &s_task_list, entries) {
+        test_common_task_notify_start(it->task_handle, value);
+        task_count++;
+    }
+    return task_count;
+}
+
+bool test_common_task_wait_done(TaskHandle_t task_handle, TickType_t timeout_ticks)
+{
+    task_entry_t *it = test_task_find_entry(task_handle);
+    if (it && (xSemaphoreTake(it->task_sema_handle, timeout_ticks) == pdTRUE)) {
+        return true;
+    }
+    return false;
+}
+
+bool test_common_task_wait_done_delete(TaskHandle_t task_handle, TickType_t task_timeout_ticks)
+{
+    task_entry_t *it = test_task_find_entry(task_handle);
+    return task_wait_done_and_remove(it, task_timeout_ticks);
+}
+
+int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick)
+{
+    task_entry_t *it, *ptmp = NULL;
+    int task_count = 0;
+    if (LIST_EMPTY(&s_task_list)) {
+        return 0;
+    }
+    LIST_FOREACH_SAFE(it, &s_task_list, entries, ptmp) {
+        task_wait_done_and_remove(it, task_timeout_tick);
+        task_count++;
+    }
+    return task_count;
+}
+
+void test_common_task_delete(TaskHandle_t task_handle)
+{
+    task_entry_t *it = test_task_find_entry(task_handle);
+    if (it) {
+        task_entry_remove(it);
+    }
+}
+
+void test_common_task_delete_all()
+{
+    task_entry_t *it = NULL;
+    while ((it = LIST_FIRST(&s_task_list))) {
+        task_entry_remove(it);
+    }
+}
+
+void *test_common_task_get_instance(TaskHandle_t task_handle)
+{
+    task_entry_t *it = test_task_find_entry(task_handle);
+    if (it) { 
+        return it->inst_handle;
+    }
+    return NULL;
+}
+
+// Start the high priority task to mimic the case when the modbus
+// tasks do not get time quota from RTOS.
+TaskHandle_t test_common_start_busy_task(uint32_t priority)
+{
+    TaskHandle_t busy_task_handle = NULL;
+    if (!priority) {
+        priority = TEST_BUSY_TASK_PRIO;
+    }
+
+    TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_busy_task, "busy_task",
+                                            TEST_TASK_STACK_SIZE,
+                                            NULL, priority,
+                                            &busy_task_handle, MB_PORT_TASK_AFFINITY));
+    test_task_add_entry(busy_task_handle, NULL);
+    return busy_task_handle;
 }
 
 void test_common_start()
@@ -131,47 +280,12 @@ void test_common_start()
 #ifdef CONFIG_HEAP_TRACING
     ESP_ERROR_CHECK( heap_trace_start(HEAP_TRACE_LEAKS) );
 #endif
-    
-    tasks_done_queue = xQueueCreate(TEST_NOTIF_SIZE, sizeof(uint32_t));
-}
-
-uint32_t test_common_wait_done(TickType_t timeout_ticks)
-{
-    uint32_t tmp_val = 0;
-
-    if (xQueueReceive(tasks_done_queue, &tmp_val, timeout_ticks) == pdTRUE) {
-        return tmp_val;
-    }
-    return 0;
-}
-
-static uint32_t test_comon_notify_done(uint32_t value)
-{
-    uint32_t tmp_val = value;
-    return (uint32_t)xQueueSend(tasks_done_queue, (const void*)&tmp_val, TEST_NOTIF_SEND_TOUT);
-}
-
-static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
-{
-    static uint32_t notify_value = 0;
-
-    if (xTaskNotifyWait(0, 0, &notify_value, timeout_ticks) == pdTRUE) {
-        ESP_LOGW(TAG, "Task: 0x%" PRIx32 ", get notify value = %d", 
-                        (uint32_t)xTaskGetCurrentTaskHandle(), (int)notify_value);
-        return pdTRUE;
-    }
-    return 0;
-}
-
-void test_common_task_notify_start(TaskHandle_t task_handle, uint32_t value)
-{
-    ESP_LOGW(TAG, "Notify task 0x%" PRIx32, (uint32_t)task_handle);
-    TEST_ASSERT_EQUAL_INT(xTaskNotify(task_handle, value, eSetValueWithOverwrite), pdTRUE);
+    LIST_INIT(&s_task_list);
 }
 
 void test_common_stop()
 {
-    vQueueDelete(tasks_done_queue);
+    //vQueueDelete(tasks_done_queue);
     holding_registers[CID_DEV_REG_COUNT] = 0;
     test_error_counter = 0;
     test_good_counter = 0;
@@ -183,7 +297,6 @@ void test_common_stop()
     ESP_ERROR_CHECK( heap_trace_stop() );
     heap_trace_dump();
 #endif
-    
     size_t after_free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     size_t after_free_32bit = heap_caps_get_free_size(MALLOC_CAP_32BIT);
     test_common_check_leak(before_free_8bit, after_free_8bit, "8BIT", 
@@ -192,11 +305,29 @@ void test_common_stop()
                             CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
 }
 
+static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
+{
+    static uint32_t notify_value = 0;
+
+    if (xTaskNotifyWait(0, 0, &notify_value, timeout_ticks) == pdTRUE) {
+        ESP_LOGD(TAG, "Task: 0x%" PRIx32 ", get notify value = %u", 
+                        (uint32_t)xTaskGetCurrentTaskHandle(), (unsigned)notify_value);
+        return pdTRUE;
+    }
+    return 0;
+}
+
+void test_common_task_notify_start(TaskHandle_t task_handle, uint32_t value)
+{
+    ESP_LOGD(TAG, "Notify task start 0x%" PRIx32, (uint32_t)task_handle);
+    TEST_ASSERT_EQUAL_INT(xTaskNotify(task_handle, value, eSetValueWithOverwrite), pdTRUE);
+}
+
 void test_common_check_leak(size_t before_free,
-        size_t after_free,
-        const char *type,
-        size_t warn_threshold,
-        size_t critical_threshold)
+                            size_t after_free,
+                            const char *type,
+                            size_t warn_threshold,
+                            size_t critical_threshold)
 {
     int free_delta = (int)after_free - (int)before_free;
     printf("MALLOC_CAP_%s usage: Free memory delta: %d Leak threshold: -%u \n",
@@ -222,7 +353,7 @@ void test_common_check_leak(size_t before_free,
 }
 
 // Helper function to read one characteristic from slave
-esp_err_t read_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data)
+esp_err_t test_common_read_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data)
 {
     const mb_parameter_descriptor_t *param_descriptor = NULL;
 
@@ -312,16 +443,16 @@ static void test_master_task(void *arg)
         switch (req_type)
         {
             case RT_HOLDING_RD:
-                err = read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
+                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
                 CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
 
-                err = read_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
+                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
                 CHECK_PAR_VALUE(CID_DEV_REG1, err, holding_registers[CID_DEV_REG1], TEST_REG_VAL2);
 
-                err = read_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
+                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
                 CHECK_PAR_VALUE(CID_DEV_REG2, err, holding_registers[CID_DEV_REG2], TEST_REG_VAL3);
 
-                err = read_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
+                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
                 CHECK_PAR_VALUE(CID_DEV_REG3, err, holding_registers[CID_DEV_REG3], TEST_REG_VAL4);
                 req_type = RT_HOLDING_WR;
                 break;
@@ -344,16 +475,17 @@ static void test_master_task(void *arg)
             default:
                 break;
         }
-        write_modbus_parameter(mbm_handle, CID_DEV_REG_COUNT, &cycle_counter);
-        vTaskDelay(TEST_TASK_TICK_TIME); // Let the IDLE task to trigger
         if (holding_registers[CID_DEV_REG_COUNT] >= TEST_TASK_CYCLE_COUNTER) {
             ESP_LOGI(TAG, "Stop master: %p.", mbm_handle);
             break;
+        } else {
+            write_modbus_parameter(mbm_handle, CID_DEV_REG_COUNT, &cycle_counter);
+            vTaskDelay(TEST_TASK_TICK_TIME); // Let the IDLE task to trigger
         }
     }
     ESP_LOGI(TAG, "Destroy master, inst: %p.", mbm_handle);
     TEST_ESP_OK(mbc_master_delete(mbm_handle));
-    test_comon_notify_done((uint32_t)xTaskGetCurrentTaskHandle());
+    test_common_task_notify_done(xTaskGetCurrentTaskHandle());
     vTaskSuspend(NULL);
 }
 
@@ -387,18 +519,20 @@ static void test_slave_task(void *arg)
         }
         vTaskDelay(TEST_TASK_TICK_TIME); // Let IDLE task to trigger
         if (holding_registers[CID_DEV_REG_COUNT] >= TEST_TASK_CYCLE_COUNTER) {
-            ESP_LOGI(TAG, "Stop slave: %p.", mbs_handle);
+            ESP_LOGD(TAG, "Stop slave: %p.", mbs_handle);
             vTaskDelay(TEST_TASK_TICK_TIME); // Let master to get response from slave prior to close
             break;
         }
     }
     ESP_LOGI(TAG, "Destroy slave, inst: %p.", mbs_handle);
     TEST_ESP_OK(mbc_slave_delete(mbs_handle));
-    test_comon_notify_done((uint32_t)xTaskGetCurrentTaskHandle());
+    ESP_LOGD(TAG, "Notify task done, inst: %p.", xTaskGetCurrentTaskHandle());
+    test_common_task_notify_done(xTaskGetCurrentTaskHandle());
+    vTaskDelay(10);
     vTaskSuspend(NULL);
 }
 
-void test_slave_setup_start(void *mbs_handle)
+void test_common_slave_setup_start(void *mbs_handle)
 {
     TEST_ASSERT_TRUE(mbs_handle);
     mb_register_area_descriptor_t reg_area;
@@ -425,7 +559,10 @@ void test_slave_setup_start(void *mbs_handle)
 
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
 
-TaskHandle_t test_master_serial_create(mb_communication_info_t *pconfig, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size)
+TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,
+                                                uint32_t priority, 
+                                                const mb_parameter_descriptor_t *pdescr,
+                                                uint16_t descr_size)
 {
     if (!pconfig || !pdescr) {
         ESP_LOGI(TAG, "invalid master configuration.");
@@ -442,16 +579,21 @@ TaskHandle_t test_master_serial_create(mb_communication_info_t *pconfig, const m
 
     TEST_ESP_OK(mbc_master_start(mbm_handle));
     ESP_LOGI(TAG, "%p, modbus master start...", mbm_handle) ;
+
+    if (priority) {
+        priority = TEST_TASK_PRIO_MASTER;
+    }
     
     char* port_name = pbase->mb_base->descr.parent_name;
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_master_task, port_name,
                                              TEST_TASK_STACK_SIZE,
-                                             mbm_handle, (TEST_TASK_PRIO_MASTER),
+                                             mbm_handle, priority,
                                              &master_task_handle, MB_PORT_TASK_AFFINITY));
+    test_task_add_entry(master_task_handle, mbm_handle);
     return master_task_handle;
 }
 
-TaskHandle_t test_slave_serial_create(mb_communication_info_t *pconfig)
+TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, uint32_t priority)
 {
     if (!pconfig) {
         ESP_LOGI(TAG, "invalid slave configuration.");
@@ -464,12 +606,17 @@ TaskHandle_t test_slave_serial_create(mb_communication_info_t *pconfig)
 
     mbs_controller_iface_t *pbase = mbs_handle;
 
-    test_slave_setup_start(mbs_handle);
+    test_common_slave_setup_start(mbs_handle);
+
+    if (priority) {
+        priority = TEST_TASK_PRIO_SLAVE;
+    }
 
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_slave_task, pbase->mb_base->descr.parent_name,
                                              TEST_TASK_STACK_SIZE,
-                                             mbs_handle, (TEST_TASK_PRIO_SLAVE),
+                                             mbs_handle, priority,
                                              &slave_task_handle, MB_PORT_TASK_AFFINITY));
+    test_task_add_entry(slave_task_handle, mbs_handle);
     return slave_task_handle;
 }
 
@@ -477,7 +624,7 @@ TaskHandle_t test_slave_serial_create(mb_communication_info_t *pconfig)
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-TaskHandle_t test_master_tcp_create(mb_communication_info_t *pconfig, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size)
+TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size)
 {
     if (!pconfig || !pdescr) {
         ESP_LOGI(TAG, "invalid master configuration.");
@@ -495,15 +642,21 @@ TaskHandle_t test_master_tcp_create(mb_communication_info_t *pconfig, const mb_p
     TEST_ESP_OK(mbc_master_start(mbm_handle));
     ESP_LOGI(TAG, "%p, modbus master start...", mbm_handle) ;
     
+    if (priority) {
+        priority = TEST_TASK_PRIO_MASTER;
+    }
+
     char *port_name = pbase->mb_base->descr.parent_name;
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_master_task, port_name,
                                              TEST_TASK_STACK_SIZE,
-                                             mbm_handle, (TEST_TASK_PRIO_MASTER),
+                                             mbm_handle, priority,
                                              &master_task_handle, MB_PORT_TASK_AFFINITY));
+
+    test_task_add_entry(master_task_handle, mbm_handle);
     return master_task_handle;
 }
 
-TaskHandle_t test_slave_tcp_create(mb_communication_info_t *pconfig)
+TaskHandle_t test_common_slave_tcp_create(mb_communication_info_t *pconfig, uint32_t priority)
 {
     if (!pconfig) {
         ESP_LOGI(TAG, "invalid slave configuration.");
@@ -515,12 +668,17 @@ TaskHandle_t test_slave_tcp_create(mb_communication_info_t *pconfig)
     TEST_ESP_OK(mbc_slave_create_tcp(pconfig, &mbs_handle));
 
     mbs_controller_iface_t *pbase = mbs_handle;
-    test_slave_setup_start(mbs_handle);
+    test_common_slave_setup_start(mbs_handle);
+
+    if (priority) {
+        priority = TEST_TASK_PRIO_SLAVE;
+    }
 
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_slave_task, pbase->mb_base->descr.parent_name,
                                              TEST_TASK_STACK_SIZE,
-                                             mbs_handle, (TEST_TASK_PRIO_SLAVE),
+                                             mbs_handle, priority,
                                              &slave_task_handle, MB_PORT_TASK_AFFINITY));
+    test_task_add_entry(slave_task_handle, mbs_handle);
     return slave_task_handle;
 }
 

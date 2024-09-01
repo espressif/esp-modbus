@@ -114,6 +114,7 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
                            ESP_ERR_INVALID_STATE, TAG, "mb stack stop failure.");
     }
 
+    mbm_iface->is_active = false;
     vTaskDelete(mbm_opts->task_handle);
     mbm_opts->task_handle = NULL;
     vEventGroupDelete(mbm_opts->event_group_handle);
@@ -160,9 +161,8 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
     mb_err_enum_t mb_error = MB_EBUSY;
     esp_err_t error = ESP_FAIL;
 
-    if (mb_port_evt_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS)))
+    if (mb_port_event_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS)))
     {
-
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
@@ -172,7 +172,7 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
         mbm_opts->reg_buffer_size = mb_size;
 
-        mb_port_evt_res_release(mbm_controller_iface->mb_base->port_obj);
+        mb_port_event_res_release(mbm_controller_iface->mb_base->port_obj);
 
         // Calls appropriate request function to send request and waits response
         switch (mb_command)

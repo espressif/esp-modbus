@@ -5,12 +5,15 @@
  */
 #pragma once
 
+#include "stdatomic.h"
 #include "mb_config.h"
 #include "mb_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MB_ATTR_WEAK __attribute__ ((weak))
 
 typedef enum _mb_comm_mode mb_mode_type_t;
 
@@ -60,42 +63,44 @@ struct _port_tcp_opts {
     mb_addr_type_t addr_type;       /*!< Modbus address type */
     void *ip_addr_table;            /*!< Modbus address or table for connection */
     void *ip_netif_ptr;             /*!< Modbus network interface */
-    bool start_disconnected;        /*!< do not wait connection to all nodes before polling */
+    char *dns_name;                 /*!< Modbus node DNS name */
+    bool start_disconnected;        /*!< (Master only option) do not wait for connection to all nodes before polling */
 };
 
 typedef struct _port_tcp_opts mb_tcp_opts_t;
 
 // The common object descriptor struture (common for mb, transport, port objects)
 struct _obj_descr { 
-    char *parent_name;
-    char *obj_name;
-    void *parent;
-    uint32_t inst_index;
-    bool is_master;
+    char *parent_name;              /*!< Name of the parent (base) object */
+    char *obj_name;                 /*!< Name of the object */
+    void *parent;                   /*!< Pointer to the parent (base) object */
+    uint32_t inst_index;            /*!< The consicutive index of the object instance */
+    bool is_master;                 /*!< The current object is master or slave (false) */
 };
 
 typedef struct _obj_descr obj_descr_t;
 
 typedef enum _mb_sock_state {
-    MB_SOCK_STATE_UNDEF = 0x0000,
-    MB_SOCK_STATE_CLOSED,
-    MB_SOCK_STATE_READY,
-    MB_SOCK_STATE_OPENED,
-    MB_SOCK_STATE_RESOLVED,
-    MB_SOCK_STATE_CONNECTING,
-    MB_SOCK_STATE_CONNECTED
+    MB_SOCK_STATE_UNDEF = 0x0000,   /*!< Default init state */
+    MB_SOCK_STATE_CLOSED,           /*!< Node is closed */
+    MB_SOCK_STATE_READY,            /*!< Node is ready for communication */
+    MB_SOCK_STATE_OPENED,           /*!< Node is opened */
+    MB_SOCK_STATE_RESOLVED,         /*!< Node address is resolved */
+    MB_SOCK_STATE_CONNECTING,       /*!< Node connection is in progress */
+    MB_SOCK_STATE_CONNECTED,        /*!< Node is connected */
+    MB_SOCK_STATE_ACCEPTED          /*!< Slave node accepted the connection */
 } mb_sock_state_t;
 
 typedef struct _uid_info {
     uint16_t index;                 /*!< index of the address info */
-    int fd;                         /*!< slave global FD for VFS (reserved) */
-    char *node_name_str;            /*!< node name string (host name of slave to resolve) */
-    char *ip_addr_str;              /*!< represents the IP address of the slave */
+    int fd;                         /*!< node global FD for VFS (reserved) */
+    char *node_name_str;            /*!< node name string (host name of node to resolve) */
+    char *ip_addr_str;              /*!< represents the IP address of the node */
     mb_addr_type_t addr_type;       /*!< type of IP address */
-    uint16_t uid;                   /*!< slave unit ID (UID) field for MBAP frame  */
-    uint16_t port;                  /*!< slave port number */
+    uint16_t uid;                   /*!< node unit ID (UID) field for MBAP frame  */
+    uint16_t port;                  /*!< node port number */
     mb_comm_mode_t proto;           /*!< protocol type */
-    mb_sock_state_t state;          /*!< slave state */
+    _Atomic mb_sock_state_t state;  /*!< node state */
     void *inst;                     /*!< pointer to linked instance */
 } mb_uid_info_t;
 

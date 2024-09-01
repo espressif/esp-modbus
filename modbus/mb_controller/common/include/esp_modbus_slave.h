@@ -164,18 +164,6 @@ esp_err_t mbc_slave_start(void *ctx);
 esp_err_t mbc_slave_stop(void *ctx);
 
 /**
- * @brief Set Modbus communication parameters for the controller
- *
- * @param[in] ctx context pointer of the initialized modbus interface
- * @param comm_info Communication parameters structure.
- *
- * @return
- *     - ESP_OK Success
- *     - ESP_ERR_INVALID_ARG Incorrect parameter data
- */
-esp_err_t mbc_slave_setup(void *ctx, void *comm_info);
-
-/**
  * @brief Wait for specific event on parameter change.
  *
  * @param[in] ctx context pointer of the initialized modbus interface
@@ -226,7 +214,7 @@ esp_err_t mbc_slave_set_descriptor(void *ctx, mb_register_area_descriptor_t desc
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode);
+mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 /**
  * @brief Input register read/write callback function
@@ -240,7 +228,7 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs);
+mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs) __attribute__ ((weak));
 
 /**
  * @brief Discrete register read/write callback function
@@ -254,7 +242,7 @@ mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete);
+mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete) __attribute__ ((weak));
 
 /**
  * @brief Coil register read/write callback function
@@ -269,7 +257,7 @@ mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode);
+mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 #ifdef __cplusplus
 }

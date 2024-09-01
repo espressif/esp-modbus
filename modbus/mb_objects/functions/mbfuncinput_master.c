@@ -67,7 +67,7 @@ mb_err_enum_t mbm_rq_read_inp_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t re
     if (!inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
-    if (!mb_port_evt_res_take(inst->port_obj, tout)) {
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
     inst->get_send_buf(inst, &mb_frame_ptr);
@@ -83,8 +83,8 @@ mb_err_enum_t mbm_rq_read_inp_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t re
 
     inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE);
 
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
-    return mb_port_evt_wait_req_finish(inst->port_obj);
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
+    return mb_port_event_wait_req_finish(inst->port_obj);
 }
 
 mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)

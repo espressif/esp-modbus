@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// FreeModbus Master Example ESP32
+// esp-modbus Master Example ESP32
 
 #include <string.h>
 #include <sys/queue.h>
@@ -30,7 +30,7 @@
 #define MASTER_MAX_CIDS num_device_parameters
 
 // Number of reading of parameters from slave
-#define MASTER_MAX_RETRY                (30)
+#define MASTER_MAX_RETRY                (10)
 
 // Timeout to update cid over Modbus
 #define UPDATE_CIDS_TIMEOUT_MS          (500)
@@ -54,8 +54,13 @@
 #define TEST_INPUT_REG_START(field) (INPUT_OFFSET(field) >> 1)
 #define TEST_INPUT_REG_SIZE(field) (sizeof(((input_reg_params_t *)0)->field) >> 1)
 
-#define TEST_VALUE 12345 // default test value
-#define TEST_ASCII_BIN 0xAAAAAAAA
+#define TEST_VALUE (12345) // default test value
+#define TEST_ASCII_BIN (0xAAAAAAAA)
+#define TEST_ARR_REG_SZ (58)
+#define TEST_HUMI_MIN (-40)
+#define TEST_HUMI_MAX (50)
+#define TEST_TEMP_MIN (0)
+#define TEST_TEMP_MAX (100)
 
 // Options can be used as bit masks or parameter limits
 #define OPTS(min_val, max_val, step_val) { .opt1 = min_val, .opt2 = max_val, .opt3 = step_val }
@@ -84,8 +89,9 @@ static const char *TAG = "MASTER_TEST";
 // Each address in the table is a index of TCP slave ip address in mb_communication_info_t::tcp_ip_addr table
 enum {
     MB_DEVICE_ADDR1 = 1, // Slave UID = 1
-    MB_DEVICE_ADDR2 = 200,
-    MB_DEVICE_ADDR3 = 35
+    MB_DEVICE_ADDR2,
+    MB_DEVICE_ADDR3,
+    MB_DEVICE_COUNT = 3
 };
 
 // Enumeration of all supported CIDs for device (used in parameter definition table)
@@ -135,31 +141,31 @@ const mb_parameter_descriptor_t device_parameters[] = {
     { CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
             INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
             HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
             INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
             HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT,
             TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
             INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
-            OPTS( -40, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR3, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
             HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, 
-            OPTS( 0, 100, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(test_regs), 58,
-            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, 116, 
-            OPTS( 0, 100, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
+            TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,
+            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, (TEST_ARR_REG_SZ * 2),
+            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
             COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1, 
             OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
@@ -244,16 +250,26 @@ static void* master_handle = NULL;
 
 const size_t ip_table_sz;
 
-#if CONFIG_MB_SLAVE_IP_FROM_STDIN
-
 // This table represents slave IP addresses that correspond to the short address field of the slave in device_parameters structure
 // Modbus TCP stack shall use these addresses to be able to connect and read parameters from slave
-char *slave_ip_address_table[] = {
+char* slave_ip_address_table[MB_DEVICE_COUNT + 1] = {
+#if CONFIG_MB_SLAVE_IP_FROM_STDIN
     "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR1 and set to predefined value by user
-    //"FROM_STDIN",     // Corresponds to characteristic MB_DEVICE_ADDR2
-    //"FROM_STDIN",     // Corresponds to characteristic MB_DEVICE_ADDR3
+    "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR2 and set to predefined value by user
+    "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR3 and set to predefined value by user
     NULL              // End of table condition (must be included)
+#elif CONFIG_MB_MDNS_IP_RESOLVER
+    // This is workaround for the test to use the same slave for all CIDs and ignore UID setting in the slave
+    "01;mb_slave_tcp_01;1502",
+    "02;mb_slave_tcp_01;1502",
+    "03;mb_slave_tcp_01;1502",
+    NULL              // End of table condition (must be included)
+#endif
 };
+
+const size_t ip_table_sz = (size_t)(sizeof(slave_ip_address_table) / sizeof(slave_ip_address_table[0]));
+
+#if CONFIG_MB_SLAVE_IP_FROM_STDIN
 
 // Scan IP address according to IPV settings
 char *master_scan_addr(int *index, char *buffer)
@@ -262,20 +278,21 @@ char *master_scan_addr(int *index, char *buffer)
     int a[8] = {0};
     int buf_cnt = 0;
 #if !CONFIG_EXAMPLE_CONNECT_IPV6
-    buf_cnt = sscanf(buffer, "IP%d="IPSTR, index, &a[0], &a[1], &a[2], &a[3]);
+    buf_cnt = sscanf(buffer, "IP%d=" IPSTR, index, &a[0], &a[1], &a[2], &a[3]);
     if (buf_cnt == 5) {
-        if (-1 == asprintf(&ip_str, IPSTR, a[0], a[1], a[2], a[3])) {
+        if (-1 == asprintf(&ip_str, "%02x;" IPSTR, (int)(*index + 1), a[0], a[1], a[2], a[3])) {
             abort();
         }
     }
 #else
     buf_cnt = sscanf(buffer, "IP%d="IPV6STR, index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]);
     if (buf_cnt == 9) {
-        if (-1 == asprintf(&ip_str, IPV6STR, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
+        if (-1 == asprintf(&ip_str, "%02x;" IPV6STR, (int)(*index + 1), a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
             abort();
         }
     }
 #endif
+    printf("IP string: %s", ip_str);
     return ip_str;
 }
 
@@ -327,18 +344,7 @@ static int master_get_slave_ip_stdin(char **addr_table)
     return ip_cnt;
 }
 
-#elif CONFIG_MB_MDNS_IP_RESOLVER
-
-char *slave_ip_address_table[] = {
-    "01;mb_slave_tcp_01;502",      // Corresponds to characteristic MB_DEVICE_ADDR1 "mb_slave_tcp_01"
-    // "200;mb_slave_tcp_c8;1502",     // Corresponds to characteristic MB_DEVICE_ADDR2 "mb_slave_tcp_C8"
-    // "35;mb_slave_tcp_23;1502",
-    NULL                            // End of table condition (must be included)
-};
-
 #endif
-
-const size_t ip_table_sz = (size_t)(sizeof(slave_ip_address_table) / sizeof(slave_ip_address_table[0]));
 
 static void master_destroy_slave_list(char **table, size_t ip_table_size)
 {
@@ -572,7 +578,7 @@ static void master_operation_func(void *arg)
                                         MASTER_MAX_RETRY);
     }
     ESP_LOGI(TAG, "Destroy master...");
-    vTaskDelay(100);
+    vTaskDelay(1);
 }
 
 static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
@@ -709,6 +715,7 @@ void app_main(void)
         .tcp_opts.uid = 0,
         .tcp_opts.start_disconnected = false,
         .tcp_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
+        .tcp_opts.ip_netif_ptr = (void*)get_example_netif()
     };
 
     ESP_ERROR_CHECK(master_init(&tcp_master_config));

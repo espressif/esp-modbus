@@ -15,6 +15,8 @@
 #include "mb_common.h"
 #include "mb_frame.h"
 
+#include "port_tcp_driver.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,7 +28,16 @@ typedef struct _uid_info mb_uid_info_t;
 
 void mbm_port_tcp_set_conn_cb(mb_port_base_t *inst, void *conn_fp, void *arg);
 mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb_sock_state_t exp_state);
-//bool mbm_port_timer_expired(void *inst);
+
+MB_EVENT_HANDLER(mbm_on_ready);
+MB_EVENT_HANDLER(mbm_on_open);
+MB_EVENT_HANDLER(mbm_on_resolve);
+MB_EVENT_HANDLER(mbm_on_connect);
+MB_EVENT_HANDLER(mbm_on_send_data);
+MB_EVENT_HANDLER(mbm_on_recv_data);
+MB_EVENT_HANDLER(mbm_on_error);
+MB_EVENT_HANDLER(mbm_on_close);
+MB_EVENT_HANDLER(mbm_on_timeout);
 
 #endif
 
