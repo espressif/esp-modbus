@@ -41,7 +41,7 @@ extern "C" {
 
 /* ----------------------- Defines ------------------------------------------*/
 #define MB_RTU_SER_PDU_SIZE_MIN     4                       /*!< Minimum size of a Modbus RTU frame. */
-#define MB_RTU_SER_PDU_SIZE_MAX     MB_BUFFER_SIZE      /*!< Maximum size of a Modbus RTU frame. */
+#define MB_RTU_SER_PDU_SIZE_MAX     MB_BUFFER_SIZE          /*!< Maximum size of a Modbus RTU frame. */
 #define MB_RTU_SER_PDU_SIZE_CRC     2                       /*!< Size of CRC field in PDU. */
 #define MB_RTU_SER_PDU_ADDR_OFF     0                       /*!< Offset of slave address in Ser-PDU. */
 #define MB_RTU_SER_PDU_PDU_OFF      1                       /*!< Offset of Modbus-PDU in Ser-PDU. */

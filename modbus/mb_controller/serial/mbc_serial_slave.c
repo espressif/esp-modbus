@@ -133,6 +133,7 @@ static esp_err_t mbc_serial_slave_delete(void *ctx)
         }
     }
 
+    mbs_iface->is_active = false;
     vTaskDelete(mbs_opts->task_handle);
     vEventGroupDelete(mbs_opts->event_group_handle);
     vQueueDelete(mbs_opts->notification_queue_handle);

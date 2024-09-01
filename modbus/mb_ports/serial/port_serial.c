@@ -117,7 +117,7 @@ void mb_port_ser_enable(mb_port_base_t *inst)
     CRITICAL_SECTION (port_obj->base.lock) {
         atomic_store(&(port_obj->enabled), true);
         mb_port_ser_bus_sema_release(inst);
-        ESP_LOGW(TAG, "%s, resume port.", port_obj->base.descr.parent_name);
+        ESP_LOGD(TAG, "%s, resume port.", port_obj->base.descr.parent_name);
         // Resume receiver task from known position
         vTaskResume(port_obj->task_handle);
     }
@@ -129,7 +129,7 @@ void mb_port_ser_disable(mb_port_base_t *inst)
     CRITICAL_SECTION (port_obj->base.lock) {
         // Suspend port task by itself
         atomic_store(&(port_obj->enabled), false);
-        ESP_LOGW(TAG, "%s, suspend port.", port_obj->base.descr.parent_name);
+        ESP_LOGD(TAG, "%s, suspend port.", port_obj->base.descr.parent_name);
     }
 }
 
@@ -150,7 +150,7 @@ static void mb_port_ser_task(void *p_args)
             ESP_LOGD(TAG, "%s, UART[%d] event:", port_obj->base.descr.parent_name, port_obj->ser_opts.port);
             switch(event.type) {
                 case UART_DATA:
-                    ESP_LOGW(TAG, "%s, data event, len: %d.", port_obj->base.descr.parent_name, (int)event.size);
+                    ESP_LOGD(TAG, "%s, data event, len: %d.", port_obj->base.descr.parent_name, (int)event.size);
                     // This flag set in the event means that no more
                     // data received during configured timeout and UART TOUT feature is triggered
                     if (event.timeout_flag) {
@@ -162,12 +162,12 @@ static void mb_port_ser_task(void *p_args)
                         uart_get_buffered_data_len(port_obj->ser_opts.port, (unsigned int*)&event.size);
                         port_obj->recv_length = (event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE;
                         if (event.size <= MB_SER_PDU_SIZE_MIN) {
-                            ESP_LOGW(TAG, "%s, drop short packet %d byte(s)", port_obj->base.descr.parent_name, (int)event.size);
+                            ESP_LOGD(TAG, "%s, drop short packet %d byte(s)", port_obj->base.descr.parent_name, (int)event.size);
                             (void)mb_port_ser_rx_flush(&port_obj->base);
                             break;
                         }
                         // New frame is received, send an event to main FSM to read it into receiver buffer
-                        mb_port_evt_post(&port_obj->base, EVENT(EV_FRAME_RECEIVED, port_obj->recv_length, NULL, 0));
+                        mb_port_event_post(&port_obj->base, EVENT(EV_FRAME_RECEIVED, port_obj->recv_length, NULL, 0));
                         ESP_LOGD(TAG, "%s, frame %d bytes is ready.", port_obj->base.descr.parent_name, (int)port_obj->recv_length);
                     }
                     break;
@@ -187,12 +187,12 @@ static void mb_port_ser_task(void *p_args)
                     break;
                 //Event of UART parity check error
                 case UART_PARITY_ERR:
-                    ESP_LOGW(TAG, "%s, uart parity error.", port_obj->base.descr.parent_name);
+                    ESP_LOGD(TAG, "%s, uart parity error.", port_obj->base.descr.parent_name);
                     (void)mb_port_ser_rx_flush(&port_obj->base);
                     break;
                 //Event of UART frame error
                 case UART_FRAME_ERR:
-                    ESP_LOGW(TAG, "%s, uart frame error.", port_obj->base.descr.parent_name);
+                    ESP_LOGD(TAG, "%s, uart frame error.", port_obj->base.descr.parent_name);
                     (void)mb_port_ser_rx_flush(&port_obj->base);
                     break;
                 default:
@@ -293,21 +293,21 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **pp_ser_frame, uint16_
     uint16_t counter = *p_ser_length ? *p_ser_length : port_obj->recv_length;
     bool status = false;
 
-    status = mb_port_ser_bus_sema_take(inst, pdMS_TO_TICKS(mb_port_tmr_get_response_time_ms(inst)));
+    status = mb_port_ser_bus_sema_take(inst, pdMS_TO_TICKS(mb_port_timer_get_response_time_ms(inst)));
     if (status && counter && *pp_ser_frame && atomic_load(&(port_obj->enabled))) {
         // Read frame data from the ringbuffer of receiver
         counter = uart_read_bytes(port_obj->ser_opts.port, (uint8_t *)*pp_ser_frame,
                                     counter, MB_SERIAL_RX_TOUT_TICKS);
         // Stop timer because the new data is received
-        mb_port_tmr_disable(inst);
+        mb_port_timer_disable(inst);
         // Store the timestamp of received frame
         port_obj->recv_time_stamp = esp_timer_get_time();
-        ESP_LOGW(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
-        ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":PORT_RECV"), (void *)*pp_ser_frame, counter, ESP_LOG_WARN);
+        ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
+        ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":PORT_RECV"), (void *)*pp_ser_frame, counter, ESP_LOG_DEBUG);
         int64_t time_delta = (port_obj->recv_time_stamp > port_obj->send_time_stamp) ? 
                                 (port_obj->recv_time_stamp - port_obj->send_time_stamp) :
                                 (port_obj->send_time_stamp - port_obj->recv_time_stamp);
-        ESP_LOGW(TAG, "%s, serial processing time[us] = %" PRId64, inst->descr.parent_name, time_delta);
+        ESP_LOGD(TAG, "%s, serial processing time[us] = %" PRId64, inst->descr.parent_name, time_delta);
         status = true;
         *p_ser_length = counter;
     } else {
@@ -324,19 +324,19 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
     int count = 0;
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
 
-    res = mb_port_ser_bus_sema_take(inst, pdMS_TO_TICKS(mb_port_tmr_get_response_time_ms(inst)));
+    res = mb_port_ser_bus_sema_take(inst, pdMS_TO_TICKS(mb_port_timer_get_response_time_ms(inst)));
     if (res && p_ser_frame && ser_length && atomic_load(&(port_obj->enabled))) {
         // Flush buffer received from previous transaction
         mb_port_ser_rx_flush(inst);
         count = uart_write_bytes(port_obj->ser_opts.port, p_ser_frame, ser_length);
         // Waits while UART sending the packet
         esp_err_t status = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
-        (void)mb_port_evt_post(inst, EVENT(EV_FRAME_SENT));
+        (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));
         ESP_LOGD(TAG, "%s, tx buffer sent: (%d) bytes.", inst->descr.parent_name, (int)count);
         MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
                                 inst->descr.parent_name);
         ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":PORT_SEND"),
-                                    (void *)p_ser_frame, ser_length, ESP_LOG_WARN);
+                                    (void *)p_ser_frame, ser_length, ESP_LOG_DEBUG);
         port_obj->send_time_stamp = esp_timer_get_time();
     } else {
         ESP_LOGE(TAG, "%s, send fail state:%d, %p, %u. ", inst->descr.parent_name, (int)port_obj->tx_state_en, p_ser_frame, (unsigned)ser_length);

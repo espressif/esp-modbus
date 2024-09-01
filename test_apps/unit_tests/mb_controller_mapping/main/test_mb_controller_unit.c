@@ -26,7 +26,7 @@
 #define TAG "MB_CONTROLLER_TEST"
 
 // The workaround to statically link whole test library
-__attribute__((unused)) bool mb_test_include_impl = 1;
+__attribute__((unused)) bool mb_test_include_impl = true;
 
 enum
 {
@@ -106,7 +106,7 @@ static void test_slave_check_descriptor(int par_index)
     void *mbs_handle = NULL;
     mb_base_t *pmb_base = NULL; // fake mb_base handle
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&slave_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&pmb_base));
     pmb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbs_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
@@ -173,15 +173,15 @@ static esp_err_t test_master_read_req(int par_index, mb_err_enum_t mb_err)
     mb_base_t *pmb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&master_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
     pmb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
-    mb_port_evt_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
+    mb_port_event_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
     TEST_ESP_OK(mbc_master_start(mbm_handle));
-    mb_port_evt_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
+    mb_port_event_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
     TEST_ESP_OK(mbc_master_get_cid_info(mbm_handle, par_index, &param_descriptor));
@@ -189,10 +189,10 @@ static esp_err_t test_master_read_req(int par_index, mb_err_enum_t mb_err)
     uint8_t type = 0; // type of parameter from dictionary
     uint8_t pdata[100] = {0};
     ESP_LOGI(TAG, "Test CID #%d, %s, %s", param_descriptor->cid, param_descriptor->param_key, param_descriptor->param_units);
-    mb_port_evt_res_take_ExpectAnyArgsAndReturn(true);
-    mb_port_evt_res_release_ExpectAnyArgs();
-    mb_port_evt_res_take_ExpectAnyArgsAndReturn(true);
-    mb_port_evt_res_release_ExpectAnyArgs();
+    mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
+    mb_port_event_res_release_ExpectAnyArgs();
+    mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
+    mb_port_event_res_release_ExpectAnyArgs();
 
     // Call the read method of modbus controller
     esp_err_t err = mbc_master_get_parameter(mbm_handle, par_index, pdata, &type);
@@ -264,14 +264,14 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
     mb_base_t *pmb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&master_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
     pmb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
-    mb_port_evt_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
-    mb_port_evt_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
+    mb_port_event_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
+    mb_port_event_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
     TEST_ESP_OK(mbc_master_start(mbm_handle));
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
@@ -280,10 +280,10 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
     uint8_t type = 0; // type of parameter from dictionary
     uint8_t reg_data[] = {0x11, 0x22, 0x33, 0x44};
     ESP_LOGI(TAG, "Test CID #%d, %s, %s", param_descriptor->cid, param_descriptor->param_key, param_descriptor->param_units);
-    mb_port_evt_res_take_ExpectAnyArgsAndReturn(true);
-    mb_port_evt_res_release_ExpectAnyArgs();
-    mb_port_evt_res_take_ExpectAnyArgsAndReturn(true);
-    mb_port_evt_res_release_ExpectAnyArgs();
+    mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
+    mb_port_event_res_release_ExpectAnyArgs();
+    mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
+    mb_port_event_res_release_ExpectAnyArgs();
 
     // Call the read method of modbus controller
     esp_err_t err = mbc_master_set_parameter(mbm_handle, par_index, reg_data, &type);
@@ -350,7 +350,7 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
     mb_base_t *pmb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_create(&master_config.ser_opts, (void *)&pmb_base));
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
     pmb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);

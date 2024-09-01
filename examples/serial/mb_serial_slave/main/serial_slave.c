@@ -35,7 +35,7 @@
 
 #define MB_PAR_INFO_GET_TOUT                (10) // Timeout for get parameter info
 #define MB_CHAN_DATA_MAX_VAL                (6)
-#define MB_CHAN_DATA_OFFSET                 (0.2f)
+#define MB_CHAN_DATA_OFFSET                 (1.2f)
 #define MB_READ_MASK                        (MB_EVENT_INPUT_REG_RD \
                                                 | MB_EVENT_HOLDING_REG_RD \
                                                 | MB_EVENT_DISCRETE_RD \
@@ -124,7 +124,7 @@ static void setup_reg_data(void)
     input_reg_params.input_data7 = 4.78;
 }
 
-// An example application of Modbus slave. It is based on freemodbus stack.
+// An example application of Modbus slave. It is based on esp-modbus stack.
 // See deviceparams.h file for more information about assigned Modbus parameters.
 // These parameters can be accessed from main application and also can be changed
 // by external Modbus master host.

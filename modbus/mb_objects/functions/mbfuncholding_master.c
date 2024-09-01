@@ -94,7 +94,7 @@ mb_err_enum_t mbm_rq_write_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16
     {
         return MB_EINVAL;
     }
-    if (!mb_port_evt_res_take(inst->port_obj, tout))
+    if (!mb_port_event_res_take(inst->port_obj, tout))
     {
         return MB_EBUSY;
     }
@@ -111,8 +111,8 @@ mb_err_enum_t mbm_rq_write_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16
 
     inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE);
 
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
-    return mb_port_evt_wait_req_finish(inst->port_obj);
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
+    return mb_port_event_wait_req_finish(inst->port_obj);
 }
 
 mb_exception_t mbm_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
@@ -170,7 +170,7 @@ mb_err_enum_t mbm_rq_write_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, 
     {
         return MB_EINVAL;
     }
-    if (!mb_port_evt_res_take(inst->port_obj, tout))
+    if (!mb_port_event_res_take(inst->port_obj, tout))
     {
         return MB_EBUSY;
     }
@@ -198,8 +198,8 @@ mb_err_enum_t mbm_rq_write_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, 
 
     inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_MUL_SIZE_MIN + 2 * reg_num));
 
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
-    return mb_port_evt_wait_req_finish(inst->port_obj);
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
+    return mb_port_event_wait_req_finish(inst->port_obj);
 }
 
 mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
@@ -272,7 +272,7 @@ mb_err_enum_t mbm_rq_read_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_
     {
         return MB_EINVAL;
     }
-    if (!mb_port_evt_res_take(inst->port_obj, tout))
+    if (!mb_port_event_res_take(inst->port_obj, tout))
     {
         return MB_EBUSY;
     }
@@ -289,8 +289,8 @@ mb_err_enum_t mbm_rq_read_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_
 
     inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
 
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
-    return mb_port_evt_wait_req_finish(inst->port_obj);
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
+    return mb_port_event_wait_req_finish(inst->port_obj);
 }
 
 mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
@@ -376,7 +376,7 @@ mb_err_enum_t mbm_rq_rw_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, uin
     {
         return MB_EINVAL;
     }
-    if (!mb_port_evt_res_take(inst->port_obj, tout))
+    if (!mb_port_event_res_take(inst->port_obj, tout))
     {
         return MB_EBUSY;
     }
@@ -408,8 +408,8 @@ mb_err_enum_t mbm_rq_rw_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, uin
 
     inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_READWRITE_SIZE_MIN + 2 * wr_reg_num));
 
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
-    return mb_port_evt_wait_req_finish(inst->port_obj);
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
+    return mb_port_event_wait_req_finish(inst->port_obj);
 }
 
 mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)

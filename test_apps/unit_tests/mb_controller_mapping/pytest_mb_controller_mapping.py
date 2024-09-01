@@ -10,7 +10,7 @@ CONFIGS = [
 ]
 
 
-@pytest.mark.generic_multi_device
+@pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize('config', CONFIGS, indirect=True)
 def test_modbus_controller_mapping(dut: Dut) -> None:
     dut.expect_unity_test_output()

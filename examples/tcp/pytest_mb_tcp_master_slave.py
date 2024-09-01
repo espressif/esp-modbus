@@ -12,8 +12,8 @@ import pytest
 
 from conftest import ModbusTestDut, Stages
 
-pattern_dict_slave = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_connect: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
-                      Stages.STACK_IPV6: (r'I \([0-9]+\) example_connect: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'),
+pattern_dict_slave = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_[a-z]+: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
+                      Stages.STACK_IPV6: (r'I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'),
                       Stages.STACK_INIT: (r'I \(([0-9]+)\) MB_TCP_SLAVE_PORT: (Protocol stack initialized).'),
                       Stages.STACK_CONNECT: (r'I\s\(([0-9]+)\) MB_TCP_SLAVE_PORT: Socket \(#[0-9]+\), accept client connection from address: '
                                              r'([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
@@ -23,8 +23,8 @@ pattern_dict_slave = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_connect: - IPv4
                       Stages.STACK_PAR_FAIL: (r'E \(([0-9]+)\) SLAVE_TEST: Response time exceeds configured [0-9]+ [ms], ignore packet'),
                       Stages.STACK_DESTROY: (r'I\s\(([0-9]+)\) SLAVE_TEST: (Modbus controller destroyed).')}
 
-pattern_dict_master = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_connect: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
-                       Stages.STACK_IPV6: (r'I \([0-9]+\) example_connect: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'),
+pattern_dict_master = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_[a-z]+: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
+                       Stages.STACK_IPV6: (r'I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'),
                        Stages.STACK_INIT: (r'I \(([0-9]+)\) MASTER_TEST: (Modbus master stack initialized)'),
                        Stages.STACK_CONNECT: (r'I\s\(([0-9]+)\) MB_TCP_MASTER_PORT: (Connected [0-9]+ slaves), start polling'),
                        Stages.STACK_START: (r'I \(([0-9]+)\) MASTER_TEST: (Start modbus test)'),
@@ -67,3 +67,8 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
     
     dut_slave.dut_check_errors()
     dut_master.dut_check_errors()
+
+@pytest.mark.multi_dut_modbus_generic
+@pytest.mark.parametrize('config', ['dummy_config'])
+def test_modbus_tcp_generic() -> None:
+    print('The generic tcp example tests are not provided yet.')

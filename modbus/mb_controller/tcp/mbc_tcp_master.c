@@ -24,7 +24,7 @@
 #include "port_tcp_common.h"
 #include "port_tcp_master.h"
 
-#include "mb_common.h"               // for mb types definition
+#include "mb_common.h"              // for mb types definition
 #include "mb_config.h"
 #include "mb_proto.h"
 #include "mb_port_types.h"
@@ -63,8 +63,7 @@ static void mbc_tcp_master_conn_done_cb(void *ctx)
 {
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
 
-    ESP_LOGI(TAG, "Modbus controller interface callback.");
-
+    ESP_LOGI(TAG, "mb controller connection done.");
     EventBits_t flag = xEventGroupSetBits(mbm_opts->event_group_handle,
                                             (EventBits_t)MB_EVENT_STACK_CONNECTED);
     MB_RETURN_ON_FALSE((flag & MB_EVENT_STACK_CONNECTED),
@@ -171,7 +170,7 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
     mb_err_enum_t mb_error = MB_EBUSY;
     esp_err_t error = ESP_FAIL;
 
-    if (mb_port_evt_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS))) {
+    if (mb_port_event_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS))) {
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
@@ -181,7 +180,7 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
         mbm_opts->reg_buffer_size = mb_size;
 
-        mb_port_evt_res_release(mbm_controller_iface->mb_base->port_obj);
+        mb_port_event_res_release(mbm_controller_iface->mb_base->port_obj);
 
         // Calls appropriate request function to send request and waits response
         switch(mb_command) {
@@ -561,7 +560,7 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
                             "mb can not send request for cid #%d with uid=%d.",
                             (unsigned)reg_info.cid, (int)uid);
         if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER) {
-            ESP_LOGW(TAG, "%s: override uid %d = %d for cid(%u)",
+            ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
                             __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);
         }
         request.slave_addr = uid; // override the UID
@@ -613,10 +612,12 @@ static esp_err_t mbc_tcp_master_delete(void *ctx)
                                         pdFALSE,
                                         pdMS_TO_TICKS(mbm_opts->comm_opts.tcp_opts.response_tout_ms));
     if (mbm_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
-        ESP_LOGW(TAG, "mb stack is active, try to disable.");
+        ESP_LOGD(TAG, "mb stack is active, try to disable.");
         MB_RETURN_ON_FALSE((mbc_tcp_master_stop(ctx) == ESP_OK), 
                                 ESP_ERR_INVALID_STATE, TAG, "mb stack stop failure.");
     }
+
+    mbm_iface->is_active = false;
     vTaskDelete(mbm_opts->task_handle);
     mbm_opts->task_handle = NULL;
     vEventGroupDelete(mbm_opts->event_group_handle);
@@ -704,7 +705,7 @@ esp_err_t mbc_tcp_master_create(mb_communication_info_t *config, void **ctx)
     // Check communication options
     mb_tcp_opts_t tcp_opts = (mb_tcp_opts_t)config->tcp_opts;
     MB_RETURN_ON_FALSE((tcp_opts.ip_addr_table), ESP_ERR_INVALID_ARG, TAG, "mb ip table address is incorrect.");
-    MB_RETURN_ON_FALSE(((tcp_opts.mode == MB_TCP) || (tcp_opts.mode == MB_UDP)),
+    MB_RETURN_ON_FALSE((tcp_opts.mode == MB_TCP),
                         ESP_ERR_INVALID_ARG, TAG, "mb transport protocol is incorrect.");
     MB_RETURN_ON_FALSE(((tcp_opts.addr_type == MB_IPV6) || (tcp_opts.addr_type == MB_IPV4)),
                         ESP_ERR_INVALID_ARG, TAG, "mb ip address type is incorrect.");

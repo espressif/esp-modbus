@@ -17,8 +17,8 @@ extern "C" {
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
 #define MB_TCP_PORT_MAX_CONN            (CONFIG_FMB_TCP_PORT_MAX_CONN)
-#define MB_TCP_DEFAULT_PORT             (502)
-#define MB_FRAME_QUEUE_SZ               (10)
+#define MB_TCP_DEFAULT_PORT             (CONFIG_FMB_TCP_PORT_DEFAULT)
+#define MB_FRAME_QUEUE_SZ               (20)
 #define MB_TCP_CONNECTION_TIMEOUT_MS    (20)        // connection timeout in mS
 #define MB_TCP_RECONNECT_TIMEOUT        (5000000)   // reconnection timeout in uS
 
@@ -30,7 +30,7 @@ extern "C" {
     buffer[(field) + 1] = (uint8_t)((val) & 0xFF);  \
 }
 
-#define MB_SLAVE_FMT(fmt) "slave #%d, socket(#%d)(%s)" fmt
+#define MB_NODE_FMT(fmt) "node #%d, socket(#%d)(%s)" fmt
 
 mb_err_enum_t mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port_obj);
 void mbm_port_tcp_delete(mb_port_base_t *inst);

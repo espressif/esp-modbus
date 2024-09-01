@@ -22,11 +22,11 @@ extern "C" {
 typedef struct mb_base_t mb_base_t;             /*!< Type of modbus object */
 typedef struct mb_port_base_t mb_port_base_t;
 
-bool mb_port_evt_get(mb_port_base_t *inst, mb_event_t *pevent);
-bool mb_port_evt_post(mb_port_base_t *inst, mb_event_t event);
-bool mb_port_evt_res_take(mb_port_base_t *inst, uint32_t timeout);
-void mb_port_evt_res_release(mb_port_base_t *inst);
-mb_err_enum_t mb_port_evt_wait_req_finish(mb_port_base_t *inst);
+bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent);
+bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
+bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
+void mb_port_event_res_release(mb_port_base_t *inst);
+mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
@@ -91,6 +91,10 @@ mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr,u
 
 #endif
 
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+
+typedef struct _port_tcp_opts mb_tcp_opts_t;
+
 mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
 
 mb_err_enum_t mbs_delete(mb_base_t *inst);
@@ -99,11 +103,8 @@ mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
 mb_err_enum_t mbs_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
 
-#if (CONFIG_FMB_COMM_MODE_TCP_EN)
-
-typedef struct _port_tcp_opts mb_tcp_opts_t;
-
 mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
+mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t slave_addr, mb_sock_state_t exp_state);
 
 #endif
 

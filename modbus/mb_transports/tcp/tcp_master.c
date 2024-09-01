@@ -34,7 +34,6 @@ static void mbm_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_pt
 static void mbm_tcp_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 bool mbm_tcp_transp_delete(mb_trans_base_t *inst);
 static bool mbm_tcp_transp_rq_is_bcast(mb_trans_base_t *inst);
-//static bool mbm_tcp_transp_tmr_expired(void *inst);
 
 mb_err_enum_t mbm_tcp_transp_create(mb_tcp_opts_t *tcp_opts, void **in_out_inst)
 {
@@ -58,16 +57,16 @@ mb_err_enum_t mbm_tcp_transp_create(mb_tcp_opts_t *tcp_opts, void **in_out_inst)
     mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
     ret = mbm_port_tcp_create(tcp_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "port creation, err: %d", ret);
-    ret = mb_port_tmr_create(port_obj, MB_TCP_TIMEOUT_MS * MB_TIMER_TICS_PER_MS);
+    ret = mb_port_timer_create(port_obj, MB_TCP_TIMEOUT_MS * MB_TIMER_TICS_PER_MS);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "timer port creation, err: %d", ret);
     // Override default response time if defined
     if (tcp_opts->response_tout_ms) {
-        mb_port_tmr_set_response_time(port_obj, tcp_opts->response_tout_ms);
+        mb_port_timer_set_response_time(port_obj, tcp_opts->response_tout_ms);
     }
-    ret = mb_port_evt_create(port_obj);
+    ret = mb_port_event_create(port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "event port creation, err: %d", ret);
     // Set callback function pointer for the timer
-    // port_obj->cb.tmr_expired = mbm_tcp_transp_tmr_expired;
+    // port_obj->cb.tmr_expired = mbm_tcp_transp_timer_expired;
     // port_obj->cb.tx_empty = NULL;
     // port_obj->cb.byte_rcvd = NULL;
     // port_obj->arg = (void *)transp;
@@ -83,6 +82,7 @@ error:
         free(port_obj->timer_obj);
     }
     free(port_obj);
+    CRITICAL_SECTION_UNLOCK(transp->base.lock);
     CRITICAL_SECTION_CLOSE(transp->base.lock);
     free(transp);
     return ret;
@@ -94,8 +94,8 @@ bool mbm_tcp_transp_delete(mb_trans_base_t *inst)
     // destroy method of port tcp master is here
     CRITICAL_SECTION(inst->lock) {
         mbm_port_tcp_delete(inst->port_obj);
-        mb_port_tmr_delete(inst->port_obj);
-        mb_port_evt_delete(inst->port_obj);
+        mb_port_timer_delete(inst->port_obj);
+        mb_port_event_delete(inst->port_obj);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);
@@ -108,10 +108,10 @@ static void mbm_tcp_transp_start(mb_trans_base_t *inst)
     transp->state = MB_TCP_STATE_INIT;
     CRITICAL_SECTION(inst->lock) {
         mbm_port_tcp_enable(inst->port_obj);
-        mb_port_tmr_enable(inst->port_obj);
+        mb_port_timer_enable(inst->port_obj);
     };
     /* No special startup required for TCP. */
-    (void)mb_port_evt_post(inst->port_obj, EVENT(EV_READY));
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_READY));
 }
 
 static void mbm_tcp_transp_stop(mb_trans_base_t *inst)
@@ -119,7 +119,7 @@ static void mbm_tcp_transp_stop(mb_trans_base_t *inst)
     /* Make sure that no more clients are connected. */
     CRITICAL_SECTION(inst->lock) {
         mbm_port_tcp_disable(inst->port_obj);
-        mb_port_tmr_disable(inst->port_obj);
+        mb_port_timer_disable(inst->port_obj);
     };
 }
 
@@ -181,17 +181,9 @@ static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address,
     if (mbm_port_tcp_send_data(inst->port_obj, address, frame_ptr, tcp_len) == false) {
         status = MB_EIO;
     }
-    mb_port_tmr_respond_timeout_enable(inst->port_obj);
+    mb_port_timer_respond_timeout_enable(inst->port_obj);
     return status;
 }
-
-// IRAM_ATTR
-// static bool mbm_tcp_transp_tmr_expired(void *inst)
-// {
-//     mbm_tcp_transp_t *transp = __containerof(inst, mbm_tcp_transp_t, base);
-    
-//     return mbm_port_timer_expired(transp->base.port_obj);
-// }
 
 static void mbm_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
 {

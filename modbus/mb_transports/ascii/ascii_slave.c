@@ -25,7 +25,7 @@ typedef struct
     uint8_t *snd_buf_cur;
     uint16_t snd_buf_cnt;
     uint16_t rcv_buf_pos;
-    volatile mb_tmr_mode_enum_t cur_tmr_mode;
+    volatile mb_timer_mode_enum_t cur_timer_mode;
 } mbs_ascii_trasp_t;
 
 mb_err_enum_t mbs_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_inst);
@@ -35,7 +35,7 @@ static mb_err_enum_t mbs_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *rc
 static mb_err_enum_t mbs_ascii_transp_send(mb_trans_base_t *inst, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
 static bool mbs_ascii_transp_rcv_fsm(mb_trans_base_t *inst);
 static bool mbs_ascii_transp_snd_fsm(mb_trans_base_t *inst);
-static bool mbs_ascii_transp_tmr_expired(void *inst);
+static bool mbs_ascii_transp_timer_expired(void *inst);
 void mbs_ascii_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 static void mbs_ascii_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 
@@ -62,14 +62,14 @@ mb_err_enum_t mbs_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_
     mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
     ret = mb_port_ser_create(ser_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "serial port creation, err: %d", ret);
-    ret = mb_port_tmr_create(port_obj, (MB_ASCII_TIMEOUT_MS * MB_TIMER_TICS_PER_MS));
+    ret = mb_port_timer_create(port_obj, (MB_ASCII_TIMEOUT_MS * MB_TIMER_TICS_PER_MS));
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "timer port creation, err: %d", ret);
-    ret = mb_port_evt_create(port_obj);
+    ret = mb_port_event_create(port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "event port creation, err: %d", ret);
     transp->base.port_obj = port_obj;
     transp->rcv_buf = (uint8_t *)&transp->pdu_buf[0];
     // Set callback function pointer for the timer
-    port_obj->cb.tmr_expired = mbs_ascii_transp_tmr_expired;
+    port_obj->cb.tmr_expired = mbs_ascii_transp_timer_expired;
     port_obj->cb.tx_empty = NULL;
     port_obj->cb.byte_rcvd = NULL;
     port_obj->arg = (void *)transp;
@@ -94,8 +94,8 @@ error:
 bool mbs_ascii_transp_delete(mb_trans_base_t *inst)
 {
     mbs_ascii_trasp_t *transp = __containerof(inst, mbs_ascii_trasp_t, base);
-    mb_port_tmr_delete(transp->base.port_obj);
-    mb_port_evt_delete(transp->base.port_obj);
+    mb_port_timer_delete(transp->base.port_obj);
+    mb_port_event_delete(transp->base.port_obj);
     mb_port_ser_delete(transp->base.port_obj);
     free(transp->pascii_puf);
     CRITICAL_SECTION_CLOSE(inst->lock);
@@ -108,18 +108,18 @@ static void mbs_ascii_transp_start(mb_trans_base_t *inst)
     mbs_ascii_trasp_t *transp = __containerof(inst, mbs_ascii_trasp_t, base);
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_enable(inst->port_obj);
-        mb_port_tmr_enable(inst->port_obj);
+        mb_port_timer_enable(inst->port_obj);
     };
 
     /* No special startup required for ASCII. */
-    (void)mb_port_evt_post(transp->base.port_obj, EVENT(EV_READY));
+    (void)mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
 }
 
 static void mbs_ascii_transp_stop(mb_trans_base_t *inst)
 {
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_disable(inst->port_obj);
-        mb_port_tmr_disable(inst->port_obj);
+        mb_port_timer_disable(inst->port_obj);
     };
 }
 
@@ -208,11 +208,11 @@ static bool mbs_ascii_transp_snd_fsm(mb_trans_base_t *inst)
     return false;
 }
 
-static bool mbs_ascii_transp_tmr_expired(void *inst)
+static bool mbs_ascii_transp_timer_expired(void *inst)
 {
     mbs_ascii_trasp_t *transp = __containerof(inst, mbs_ascii_trasp_t, base);
     
-    mb_port_tmr_disable(transp->base.port_obj);
+    mb_port_timer_disable(transp->base.port_obj);
     return false;
 }
 

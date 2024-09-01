@@ -65,6 +65,29 @@ void unlock_obj(_lock_t *plock);
         spinlock_initialize(&lock); \
     } while (0)
 
+
+#define CRITICAL_STORE(LOCK, PTR, VAL) \
+__extension__ \
+({  \
+    __auto_type __atomic_ptr = (PTR); \
+    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp = (VAL); \
+    _lock_acquire((_lock_t *)&LOCK); \
+    *__atomic_ptr = __atomic_tmp; \
+    _lock_release((_lock_t *)&LOCK); \
+    (__atomic_tmp); \
+})
+
+#define CRITICAL_LOAD(LOCK, PTR) \
+__extension__ \
+({  \
+    __auto_type __atomic_ptr = (PTR); \
+    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp; \
+    _lock_acquire((_lock_t *)&LOCK); \
+    __atomic_tmp = (*__atomic_ptr); \
+    _lock_release((_lock_t *)&LOCK); \
+    (__atomic_tmp); \
+})
+
 #define SPIN_LOCK_ENTER(lock)                           \
     do                                                  \
     {                                                   \
@@ -160,29 +183,30 @@ struct mb_port_base_t
 };
 
 // Port event functions
-mb_err_enum_t mb_port_evt_create(mb_port_base_t *port_obj);
-bool mb_port_evt_post(mb_port_base_t *inst, mb_event_t event);
-bool mb_port_evt_get(mb_port_base_t *inst, mb_event_t *event);
-bool mb_port_evt_res_take(mb_port_base_t *inst, uint32_t timeout);
-void mb_port_evt_res_release(mb_port_base_t *inst);
-void mb_port_evt_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask);
-void mb_port_evt_set_err_type(mb_port_base_t *inst, mb_err_event_t event);
-mb_err_event_t mb_port_evt_get_err_type(mb_port_base_t *inst);
-void mb_port_evt_delete(mb_port_base_t *inst);
-mb_err_enum_t mb_port_evt_wait_req_finish(mb_port_base_t *inst);
+mb_err_enum_t mb_port_event_create(mb_port_base_t *port_obj);
+bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
+bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event);
+bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
+void mb_port_event_res_release(mb_port_base_t *inst);
+void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask);
+void mb_port_event_set_err_type(mb_port_base_t *inst, mb_err_event_t event);
+mb_err_event_t mb_port_event_get_err_type(mb_port_base_t *inst);
+void mb_port_event_delete(mb_port_base_t *inst);
+mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst);
+uint64_t mb_port_get_trans_id(mb_port_base_t *inst);
 
 // Port timer functions
-mb_err_enum_t mb_port_tmr_create(mb_port_base_t *inst, uint16_t t35_timer_ticks);
-void mb_port_tmr_disable(mb_port_base_t *inst);
-void mb_port_tmr_enable(mb_port_base_t *inst);
-void mb_port_tmr_respond_timeout_enable(mb_port_base_t *inst);
-void mb_port_tmr_convert_delay_enable(mb_port_base_t *inst);
-void mb_port_set_cur_tmr_mode(mb_port_base_t *inst, mb_tmr_mode_enum_t tmr_mode);
-mb_tmr_mode_enum_t mb_port_get_cur_tmr_mode(mb_port_base_t *inst);
-void mb_port_tmr_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms);
-uint32_t mb_port_tmr_get_response_time_ms(mb_port_base_t *inst);
-void mb_port_tmr_delay(mb_port_base_t *inst, uint16_t timeout_ms);
-void mb_port_tmr_delete(mb_port_base_t *inst);
+mb_err_enum_t mb_port_timer_create(mb_port_base_t *inst, uint16_t t35_timer_ticks);
+void mb_port_timer_disable(mb_port_base_t *inst);
+void mb_port_timer_enable(mb_port_base_t *inst);
+void mb_port_timer_respond_timeout_enable(mb_port_base_t *inst);
+void mb_port_timer_convert_delay_enable(mb_port_base_t *inst);
+void mb_port_set_cur_timer_mode(mb_port_base_t *inst, mb_timer_mode_enum_t tmr_mode);
+mb_timer_mode_enum_t mb_port_get_cur_timer_mode(mb_port_base_t *inst);
+void mb_port_timer_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms);
+uint32_t mb_port_timer_get_response_time_ms(mb_port_base_t *inst);
+void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms);
+void mb_port_timer_delete(mb_port_base_t *inst);
 
 // Common functions to track instance descriptors
 void mb_port_set_inst_counter(uint32_t inst_counter);

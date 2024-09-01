@@ -13,7 +13,6 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
-#include "esp_log.h"
 #include "nvs_flash.h"
 #include "mdns.h"
 #include "esp_netif.h"
@@ -28,7 +27,6 @@
 #include "modbus_params.h"      // for modbus parameters structures
 
 #define MB_TCP_PORT_NUMBER      (CONFIG_FMB_TCP_PORT_DEFAULT)
-#define MB_MDNS_PORT            (502)
 
 // Defines below are used to define register start address for each type of Modbus registers
 #define HOLD_OFFSET(field) ((uint16_t)(offsetof(holding_reg_params_t, field) >> 1))
@@ -38,7 +36,11 @@
 #define MB_REG_INPUT_START_AREA0            (INPUT_OFFSET(input_data0)) // register offset input area 0
 #define MB_REG_INPUT_START_AREA1            (INPUT_OFFSET(input_data4)) // register offset input area 1
 #define MB_REG_HOLDING_START_AREA0          (HOLD_OFFSET(holding_data0))
+#define MB_REG_HOLDING_START_AREA0_SIZE     ((size_t)((HOLD_OFFSET(holding_data4) - HOLD_OFFSET(holding_data0)) << 1))
 #define MB_REG_HOLDING_START_AREA1          (HOLD_OFFSET(holding_data4))
+#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1))
+#define MB_REG_HOLDING_START_AREA2          (HOLD_OFFSET(holding_u8_a))
+#define MB_REG_HOLDING_START_AREA2_SIZE     ((size_t)((HOLD_OFFSET(holding_area2_end) - HOLD_OFFSET(holding_u8_a)) << 1))
 
 #define MB_PAR_INFO_GET_TOUT                (10) // Timeout for get parameter info
 #define MB_CHAN_DATA_MAX_VAL                (10)
@@ -51,81 +53,12 @@
 #define MB_WRITE_MASK                       (MB_EVENT_HOLDING_REG_WR \
                                                 | MB_EVENT_COILS_WR)
 #define MB_READ_WRITE_MASK                  (MB_READ_MASK | MB_WRITE_MASK)
-
-#define MB_SLAVE_ADDR (CONFIG_MB_SLAVE_ADDR)
+#define MB_TEST_VALUE                       (12345.0)
+#define MB_SLAVE_ADDR                       (CONFIG_MB_SLAVE_ADDR)
 
 static const char *TAG = "SLAVE_TEST";
 
 static void *slave_handle = NULL;
-
-#if CONFIG_MB_MDNS_IP_RESOLVER
-
-#define MB_ID_BYTE0(id) ((uint8_t)(id))
-#define MB_ID_BYTE1(id) ((uint8_t)(((uint16_t)(id) >> 8) & 0xFF))
-#define MB_ID_BYTE2(id) ((uint8_t)(((uint32_t)(id) >> 16) & 0xFF))
-#define MB_ID_BYTE3(id) ((uint8_t)(((uint32_t)(id) >> 24) & 0xFF))
-
-#define MB_ID2STR(id) MB_ID_BYTE0(id), MB_ID_BYTE1(id), MB_ID_BYTE2(id), MB_ID_BYTE3(id)
-
-#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
-#define MB_DEVICE_ID (uint32_t)CONFIG_FMB_CONTROLLER_SLAVE_ID
-#endif
-
-#define MB_MDNS_INSTANCE(pref) pref"mb_slave_tcp"
-
-// convert mac from binary format to string
-static inline char* gen_mac_str(const uint8_t* mac, char* pref, char* mac_str)
-{
-    sprintf(mac_str, "%s%02X%02X%02X%02X%02X%02X", pref, MAC2STR(mac));
-    return mac_str;
-}
-
-static inline char* gen_id_str(char* service_name, char* slave_id_str)
-{
-    sprintf(slave_id_str, "%s%02X%02X%02X%02X", service_name, MB_ID2STR(MB_DEVICE_ID));
-    return slave_id_str;
-}
-
-static inline char* gen_host_name_str(char* service_name, char* name)
-{
-    sprintf(name, "%s_%02X", service_name, MB_SLAVE_ADDR);
-    return name;
-}
-
-static void start_mdns_service(void)
-{
-    char temp_str[32] = {0};
-    uint8_t sta_mac[6] = {0};
-    ESP_ERROR_CHECK(esp_read_mac(sta_mac, ESP_MAC_WIFI_STA));
-    char* hostname = gen_host_name_str(MB_MDNS_INSTANCE(""), temp_str);
-    //initialize mDNS
-    ESP_ERROR_CHECK(mdns_init());
-    //set mDNS hostname (required if you want to advertise services)
-    ESP_ERROR_CHECK(mdns_hostname_set(hostname));
-    ESP_LOGI(TAG, "mdns hostname set to: [%s]", hostname);
-
-    //set default mDNS instance name
-    ESP_ERROR_CHECK(mdns_instance_name_set(MB_MDNS_INSTANCE("esp32_")));
-
-    //structure with TXT records
-    mdns_txt_item_t serviceTxtData[] = {
-        {"board","esp32"}
-    };
-
-    //initialize service
-    ESP_ERROR_CHECK(mdns_service_add(hostname, "_modbus", "_tcp", MB_MDNS_PORT, serviceTxtData, 1));
-    //add mac key string text item
-    ESP_ERROR_CHECK(mdns_service_txt_item_set("_modbus", "_tcp", "mac", gen_mac_str(sta_mac, "\0", temp_str)));
-    //add slave id key txt item
-    ESP_ERROR_CHECK( mdns_service_txt_item_set("_modbus", "_tcp", "mb_id", gen_id_str("\0", temp_str)));
-}
-
-static void stop_mdns_service(void)
-{
-    mdns_free();
-}
-
-#endif
 
 // Set register values into known state
 static void setup_reg_data(void)
@@ -150,6 +83,44 @@ static void setup_reg_data(void)
     holding_reg_params.holding_data6 = 7.79;
     holding_reg_params.holding_data7 = 8.80;
 
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    mb_set_uint8_a((val_16_arr *)&holding_reg_params.holding_u8_a[0], (uint8_t)0x55);
+    mb_set_uint8_a((val_16_arr *)&holding_reg_params.holding_u8_a[1], (uint8_t)0x55);
+    mb_set_uint8_b((val_16_arr *)&holding_reg_params.holding_u8_b[0], (uint8_t)0x55);
+    mb_set_uint8_b((val_16_arr *)&holding_reg_params.holding_u8_b[1], (uint8_t)0x55);
+    mb_set_uint16_ab((val_16_arr *)&holding_reg_params.holding_u16_ab[1], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ab((val_16_arr *)&holding_reg_params.holding_u16_ab[0], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ba((val_16_arr *)&holding_reg_params.holding_u16_ba[0], (uint16_t)MB_TEST_VALUE);
+    mb_set_uint16_ba((val_16_arr *)&holding_reg_params.holding_u16_ba[1], (uint16_t)MB_TEST_VALUE);
+
+    mb_set_float_abcd((val_32_arr *)&holding_reg_params.holding_float_abcd[0], (float)MB_TEST_VALUE);
+    mb_set_float_abcd((val_32_arr *)&holding_reg_params.holding_float_abcd[1], (float)MB_TEST_VALUE);
+    mb_set_float_cdab((val_32_arr *)&holding_reg_params.holding_float_cdab[0], (float)MB_TEST_VALUE);
+    mb_set_float_cdab((val_32_arr *)&holding_reg_params.holding_float_cdab[1], (float)MB_TEST_VALUE);
+    mb_set_float_badc((val_32_arr *)&holding_reg_params.holding_float_badc[0], (float)MB_TEST_VALUE);
+    mb_set_float_badc((val_32_arr *)&holding_reg_params.holding_float_badc[1], (float)MB_TEST_VALUE);
+    mb_set_float_dcba((val_32_arr *)&holding_reg_params.holding_float_dcba[0], (float)MB_TEST_VALUE);
+    mb_set_float_dcba((val_32_arr *)&holding_reg_params.holding_float_dcba[1], (float)MB_TEST_VALUE);
+
+    mb_set_uint32_abcd((val_32_arr *)&holding_reg_params.holding_uint32_abcd[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_abcd((val_32_arr *)&holding_reg_params.holding_uint32_abcd[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_cdab((val_32_arr *)&holding_reg_params.holding_uint32_cdab[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_cdab((val_32_arr *)&holding_reg_params.holding_uint32_cdab[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_badc((val_32_arr *)&holding_reg_params.holding_uint32_badc[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_badc((val_32_arr *)&holding_reg_params.holding_uint32_badc[1], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_dcba((val_32_arr *)&holding_reg_params.holding_uint32_dcba[0], (uint32_t)MB_TEST_VALUE);
+    mb_set_uint32_dcba((val_32_arr *)&holding_reg_params.holding_uint32_dcba[1], (uint32_t)MB_TEST_VALUE);
+
+    mb_set_double_abcdefgh((val_64_arr *)&holding_reg_params.holding_double_abcdefgh[0], (double)MB_TEST_VALUE);
+    mb_set_double_abcdefgh((val_64_arr *)&holding_reg_params.holding_double_abcdefgh[1], (double)MB_TEST_VALUE);
+    mb_set_double_hgfedcba((val_64_arr *)&holding_reg_params.holding_double_hgfedcba[0], (double)MB_TEST_VALUE);
+    mb_set_double_hgfedcba((val_64_arr *)&holding_reg_params.holding_double_hgfedcba[1], (double)MB_TEST_VALUE);
+    mb_set_double_ghefcdab((val_64_arr *)&holding_reg_params.holding_double_ghefcdab[0], (double)MB_TEST_VALUE);
+    mb_set_double_ghefcdab((val_64_arr *)&holding_reg_params.holding_double_ghefcdab[1], (double)MB_TEST_VALUE);
+    mb_set_double_badcfehg((val_64_arr *)&holding_reg_params.holding_double_badcfehg[0], (double)MB_TEST_VALUE);
+    mb_set_double_badcfehg((val_64_arr *)&holding_reg_params.holding_double_badcfehg[1], (double)MB_TEST_VALUE);
+#endif
+
     coil_reg_params.coils_port0 = 0x55;
     coil_reg_params.coils_port1 = 0xAA;
 
@@ -157,7 +128,6 @@ static void setup_reg_data(void)
     input_reg_params.input_data1 = 2.34;
     input_reg_params.input_data2 = 3.56;
     input_reg_params.input_data3 = 4.78;
-
     input_reg_params.input_data4 = 1.12;
     input_reg_params.input_data5 = 2.34;
     input_reg_params.input_data6 = 3.56;
@@ -175,24 +145,25 @@ static void slave_operation_func(void *arg)
     for(;holding_reg_params.holding_data0 < MB_CHAN_DATA_MAX_VAL;) {
         // Check for read/write events of Modbus master for certain events
         (void)mbc_slave_check_event(slave_handle, MB_READ_WRITE_MASK);
-        // Get parameter information from parameter queue
-        ESP_ERROR_CHECK(mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));
         const char* rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
         // Filter events and process them accordingly
         if(reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
-            ESP_LOGI(TAG, "HOLDING %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                            rw_str,
-                            reg_info.time_stamp,
-                            (unsigned)reg_info.mb_offset,
-                            (unsigned)reg_info.type,
-                            (uint32_t)reg_info.address,
-                            (unsigned)reg_info.size);
+            // Get parameter information from parameter queue
+            ESP_LOGI(TAG, "HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+                    rw_str,
+                    (unsigned)reg_info.time_stamp,
+                    (unsigned)reg_info.mb_offset,
+                    (unsigned)reg_info.type,
+                    (int)reg_info.address,
+                    (unsigned)reg_info.size);
             if (reg_info.address == (uint8_t*)&holding_reg_params.holding_data0)
             {
                 (void)mbc_slave_unlock(slave_handle);
                 holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
                 if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
                     coil_reg_params.coils_port1 = 0xFF;
+                    ESP_LOGI(TAG, "Riched maximum value");
                 }
                 (void)mbc_slave_unlock(slave_handle);
             }
@@ -218,9 +189,10 @@ static void slave_operation_func(void *arg)
                             (unsigned)reg_info.type,
                             (uint32_t)reg_info.address,
                             (unsigned)reg_info.size);
-            if (coil_reg_params.coils_port1 == 0xFF) break;
-
-            
+            if (coil_reg_params.coils_port1 == 0xFF) {
+                ESP_LOGI(TAG, "Stop polling.");
+                break;
+            }
         }
     }
     // Destroy of Modbus controller on alarm
@@ -249,10 +221,6 @@ static esp_err_t init_services(void)
                             TAG,
                             "esp_event_loop_create_default fail, returns(0x%x).",
                             (int)result);
-#if CONFIG_MB_MDNS_IP_RESOLVER
-    // Start mdns service and register device
-    start_mdns_service();
-#endif
     // This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
     // Read "Establishing Wi-Fi or Ethernet Connection" section in
     // examples/protocols/README.md for more information about this function.
@@ -295,9 +263,6 @@ static esp_err_t destroy_services(void)
                                 TAG,
                                 "nvs_flash_deinit fail, returns(0x%x).",
                                 (int)err);
-#if CONFIG_MB_MDNS_IP_RESOLVER
-    stop_mdns_service();
-#endif
     return err;
 }
 
@@ -337,6 +302,19 @@ static esp_err_t slave_init(mb_communication_info_t *pcomm_info)
                                     TAG,
                                     "mbc_slave_set_descriptor fail, returns(0x%x).",
                                     (int)err);
+
+#if CONFIG_FMB_EXT_TYPE_SUPPORT
+    // The extended parameters register area
+    reg_area.type = MB_PARAM_HOLDING;
+    reg_area.start_offset = MB_REG_HOLDING_START_AREA2;
+    reg_area.address = (void*)&holding_reg_params.holding_u8_a;
+    reg_area.size = MB_REG_HOLDING_START_AREA2_SIZE;
+    err = mbc_slave_set_descriptor(slave_handle, reg_area);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
+                                        TAG,
+                                        "mbc_slave_set_descriptor fail, returns(0x%x).",
+                                        (int)err);
+#endif
 
     // Initialization of Input Registers area
     reg_area.type = MB_PARAM_INPUT;
@@ -403,7 +381,7 @@ static esp_err_t slave_destroy(void)
     return err;
 }
 
-// An example application of Modbus slave. It is based on freemodbus stack.
+// An example application of Modbus slave. It is based on esp-modbus stack.
 // See deviceparams.h file for more information about assigned Modbus parameters.
 // These parameters can be accessed from main application and also can be changed
 // by external Modbus master host.
@@ -412,7 +390,6 @@ void app_main(void)
     ESP_ERROR_CHECK(init_services());
 
     // Set UART log level
-
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
     mb_communication_info_t tcp_slave_config = {

@@ -55,36 +55,53 @@ extern "C" {
         (void)log_tag;                                                                                      \
         if (!(a)) {                                                                                         \
             ESP_LOGE(log_tag, "%s(%d): " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);         \
-            ret = (err_code);                                                                                 \
+            ret = (err_code);                                                                               \
             goto goto_tag;                                                                                  \
         }                                                                                                   \
     } while (0) 
 
 #endif
 
+#define MB_CAT_BUF_SIZE (100)
+
+#define MB_STR_CAT(pref, message) (__extension__(                               \
+{                                                                               \
+    char buf##__FUNCTION__##__LINE__[MB_CAT_BUF_SIZE];                          \
+    strncpy(&(buf##__FUNCTION__##__LINE__)[0], pref, (MB_CAT_BUF_SIZE - 1));    \
+    strncat((buf##__FUNCTION__##__LINE__), message, (MB_CAT_BUF_SIZE - 1));     \
+    (&((buf##__FUNCTION__##__LINE__)[0]));                                      \
+}                                                                               \
+))
+
 #define MB_OBJ_FMT "%p"
 
-#define MB_OBJ_PTR(inst) (__extension__( \
-{ \
-    assert(inst); \
-    (((obj_descr_t*)(inst))->parent); \
-} \
+#define MB_GET_OBJ_CTX(pinst, type, base) (__extension__(   \
+{                                                           \
+    assert(pinst);                                          \
+    ((type *)__containerof(pinst, type, base));             \
+}                                                           \
 ))
 
-#define MB_BASE2PORT(inst) (__extension__( \
-{ \
-    assert(inst); \
-    (((mb_base_t *)inst)->port_obj); \
-} \
+#define MB_OBJ(pinst) (__extension__( \
+{                                           \
+    assert(pinst);                          \
+    ((typeof(pinst))(pinst));               \
+}                                           \
 ))
 
-#define CAT_BUF_SIZE (100)
-#define MB_STR_CAT(pref, message) (__extension__( \
-{ \
-    static char string_buf[CAT_BUF_SIZE]; \
-    strncpy(string_buf, pref, (CAT_BUF_SIZE - 1)); \
-    strncat(string_buf, message, (CAT_BUF_SIZE - 1)); \
-} \
+#define MB_OBJ_PARENT(pinst) (__extension__(    \
+{                                               \
+    assert(pinst);                              \
+    (((obj_descr_t*)(pinst))->parent);          \
+}                                               \
+))
+
+#define MB_BASE2PORT(pinst) (__extension__(     \
+{                                               \
+    assert(pinst);                              \
+    assert(((mb_base_t *)pinst)->port_obj);     \
+    (((mb_base_t *)pinst)->port_obj);           \
+}                                               \
 ))
 
 typedef struct mb_base_t mb_base_t;

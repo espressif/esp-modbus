@@ -18,14 +18,14 @@ static const char *TAG = "mb_port.event";
 
 struct mb_port_event_t
 {
-    volatile mb_err_event_t curr_err_type;
+    _Atomic mb_err_event_t curr_err_type;
     SemaphoreHandle_t resource_hdl;
     EventGroupHandle_t event_group_hdl;
     QueueHandle_t event_hdl;
-    uint64_t curr_trans_id;
+    _Atomic uint64_t curr_trans_id;
 };
 
-mb_err_enum_t mb_port_evt_create(mb_port_base_t *inst)
+mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
 {
     mb_port_event_t *pevent = NULL;
     mb_err_enum_t ret = MB_EILLSTATE;
@@ -42,7 +42,7 @@ mb_err_enum_t mb_port_evt_create(mb_port_base_t *inst)
     MB_GOTO_ON_FALSE((pevent->event_hdl), MB_EILLSTATE, error,  TAG, "%s, event queue create error.", inst->descr.parent_name);
     vQueueAddToRegistry(pevent->event_hdl, TAG);
     inst->event_obj = pevent;
-    pevent->curr_err_type = EV_ERROR_INIT;
+    atomic_init(&pevent->curr_err_type, EV_ERROR_INIT);
     ESP_LOGD(TAG, "initialized object @%p", pevent);
     return MB_ENOERR;
 
@@ -64,12 +64,12 @@ error:
     return ret;
 }
  
-inline void mb_port_evt_set_err_type(mb_port_base_t *inst, mb_err_event_t event)
+inline void mb_port_event_set_err_type(mb_port_base_t *inst, mb_err_event_t event)
 {
     atomic_store(&(inst->event_obj->curr_err_type), event);
 }
 
-inline mb_err_event_t mb_port_evt_get_err_type(mb_port_base_t *inst)
+inline mb_err_event_t mb_port_event_get_err_type(mb_port_base_t *inst)
 {
     return atomic_load(&inst->event_obj->curr_err_type);
 }
@@ -79,7 +79,7 @@ uint64_t mb_port_get_trans_id(mb_port_base_t *inst)
     return atomic_load(&(inst->event_obj->curr_trans_id));
 }
 
-bool mb_port_evt_post(mb_port_base_t *inst, mb_event_t event)
+bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 {
     if (!inst || !inst->event_obj || !inst->event_obj->event_hdl) {
         ESP_LOGE(TAG, "Wrong event handle %d %p %s.", (int)(event.event), inst, inst->descr.parent_name);
@@ -116,6 +116,7 @@ bool mb_port_evt_post(mb_port_base_t *inst, mb_event_t event)
     } else {
         result = xQueueSend(inst->event_obj->event_hdl, (const void*)&temp_event, MB_EVENT_QUEUE_TIMEOUT_MAX);
         if (result != pdTRUE) {
+            xQueueReset(inst->event_obj->event_hdl);
             ESP_LOGE(TAG, "%s, post message failure.", inst->descr.parent_name);
             return false;
         }
@@ -123,7 +124,7 @@ bool mb_port_evt_post(mb_port_base_t *inst, mb_event_t event)
     return true;
 }
 
-bool mb_port_evt_get(mb_port_base_t *inst, mb_event_t *pevent)
+bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent)
 {
     assert(inst->event_obj->event_hdl);
     bool event_happened = false;
@@ -138,15 +139,15 @@ bool mb_port_evt_get(mb_port_base_t *inst, mb_event_t *pevent)
     return event_happened;
 }
 
-bool mb_port_evt_res_take(mb_port_base_t *inst, uint32_t timeout)
+bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 {
     BaseType_t status = pdTRUE;
     status = xSemaphoreTake(inst->event_obj->resource_hdl, timeout);
-    ESP_LOGW(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
+    ESP_LOGD(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
     return status;
 }
 
-void mb_port_evt_res_release(mb_port_base_t *inst)
+void mb_port_event_res_release(mb_port_base_t *inst)
 {
     BaseType_t status = pdFALSE;
     status = xSemaphoreGive(inst->event_obj->resource_hdl);
@@ -155,12 +156,12 @@ void mb_port_evt_res_release(mb_port_base_t *inst)
     }
 }
 
-void mb_port_evt_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask)
+void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask)
 {
     (void)xEventGroupSetBits(inst->event_obj->event_group_hdl, event_mask);
 }
 
-mb_err_enum_t mb_port_evt_wait_req_finish(mb_port_base_t *inst)
+mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 {
     mb_err_enum_t err_status = MB_ENOERR;
     mb_event_enum_t rcv_event;
@@ -192,7 +193,7 @@ mb_err_enum_t mb_port_evt_wait_req_finish(mb_port_base_t *inst)
     return err_status;
 }
 
-void mb_port_evt_delete(mb_port_base_t *inst)
+void mb_port_event_delete(mb_port_base_t *inst)
 {
     if (inst->event_obj->resource_hdl) {
         vSemaphoreDelete(inst->event_obj->resource_hdl);

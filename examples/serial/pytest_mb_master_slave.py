@@ -64,3 +64,8 @@ def test_modbus_serial_communication(config: str, dut: Tuple[ModbusTestDut, Modb
 
     dut_slave.dut_check_errors()
     dut_master.dut_check_errors()
+
+@pytest.mark.multi_dut_modbus_generic
+@pytest.mark.parametrize('config', ['dummy_config'])
+def test_modbus_serial_generic() -> None:
+    print('The generic serial example tests are not provided yet.')

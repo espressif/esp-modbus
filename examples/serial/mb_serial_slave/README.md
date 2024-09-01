@@ -3,9 +3,9 @@
 
 # Modbus Slave Example
 
-This example demonstrates using the port of the FreeModbus stack on an ESP32 target where the ESP32 target is operating as a network slave. The example allows an external Modbus host to read/write device parameters on the ESP32 target using the Modbus protocol. The parameters accessible through Modbus are located in `mb_example_common/modbus_params.h\c` source/header files that users can update to add/remove their own custom parameters.
+This example demonstrates using the port of the esp-modbus stack on an ESP32 target where the ESP32 target is operating as a network slave. The example allows an external Modbus host to read/write device parameters on the ESP32 target using the Modbus protocol. The parameters accessible through Modbus are located in `mb_example_common/modbus_params.h\c` source/header files that users can update to add/remove their own custom parameters.
 These are represented in structures `holding_reg_params`, `input_reg_params`, `coil_reg_params`, `discrete_reg_params` for holding registers, input parameters, coils and discrete inputs accordingly. The app_main application demonstrates how to setup Modbus stack and use notifications about parameters change from host system.
-The FreeModbus stack located in `components/freemodbus` folder and contains the `/port` folder where the stack's port to the ESP32 is situated. There are some parameters of the port that can be configured in KConfig file to start stack correctly (See description below for more information).
+The FreeModbus stack located in `modbus` folder and supports the ESP32 targets. There are some parameters of the port that can be configured in KConfig file to start stack correctly (See description below for more information).
 
 The slave example uses shared parameter structures defined in `examples/protocols/modbus/mb_example_common` folder.
 
@@ -59,7 +59,7 @@ Note: Each target chip has different GPIO pins available for UART connection. Pl
 
 Define the ```Modbus communiction mode``` for slave in Kconfig - CONFIG_MB_COMM_MODE (must be the same for master and slave application).
 Set ```Modbus slave address``` for the example application (by default for example script is set to 1).
-The communication parameters of freemodbus stack (Component config->Modbus configuration) allow to configure it appropriately but usually it is enough to use default settings.
+The communication parameters of esp-modbus stack (Component config->Modbus configuration) allow to configure it appropriately but usually it is enough to use default settings.
 See the help strings of parameters for more information.
 
 ### Setup external Modbus master software

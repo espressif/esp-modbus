@@ -21,7 +21,7 @@ typedef struct
     uint8_t *snd_buf_cur;
     uint16_t snd_buf_cnt;
     uint16_t rcv_buf_pos;
-    volatile mb_tmr_mode_enum_t cur_tmr_mode;
+    volatile mb_timer_mode_enum_t cur_timer_mode;
     mb_rtu_state_enum_t state;
 } mbs_rtu_transp_t;
 
@@ -32,7 +32,7 @@ static mb_err_enum_t mbs_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
 static mb_err_enum_t mbs_rtu_transp_send(mb_trans_base_t *inst, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
 static bool mbs_rtu_transp_rcv_fsm(mb_trans_base_t *inst);
 static bool mbs_rtu_transp_snd_fsm(mb_trans_base_t *inst);
-static bool mbs_rtu_transp_tmr_35_expired(void *inst);
+static bool mbs_rtu_transp_timer_expired(void *inst);
 static void mbs_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 void mbs_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
 static uint16_t mbs_rtu_transp_get_snd_len(mb_trans_base_t *inst);
@@ -61,13 +61,13 @@ mb_err_enum_t mbs_rtu_transp_create(mb_serial_opts_t *ser_opts, void **in_out_in
     mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
     ret = mb_port_ser_create(ser_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "serial port creation, err: %d", ret);
-    ret = mb_port_tmr_create(port_obj, MB_RTU_GET_T35_VAL(ser_opts->baudrate));
+    ret = mb_port_timer_create(port_obj, MB_RTU_GET_T35_VAL(ser_opts->baudrate));
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "timer port creation, err: %d", ret);
-    ret = mb_port_evt_create(port_obj);
+    ret = mb_port_event_create(port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "event port creation, err: %d", ret);
     transp->base.port_obj = port_obj;
     // Set callback function pointer for the timer
-    port_obj->cb.tmr_expired = mbs_rtu_transp_tmr_35_expired;
+    port_obj->cb.tmr_expired = mbs_rtu_transp_timer_expired;
     port_obj->cb.tx_empty = NULL;
     port_obj->cb.byte_rcvd = NULL;
     port_obj->arg = (void *)transp;
@@ -94,8 +94,8 @@ bool mbs_rtu_transp_delete(mb_trans_base_t *inst)
     mbs_rtu_transp_t *transp = __containerof(inst, mbs_rtu_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_delete(transp->base.port_obj);
-        mb_port_tmr_delete(transp->base.port_obj);
-        mb_port_evt_delete(transp->base.port_obj);
+        mb_port_timer_delete(transp->base.port_obj);
+        mb_port_event_delete(transp->base.port_obj);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);
@@ -108,16 +108,16 @@ static void mbs_rtu_transp_start(mb_trans_base_t *inst)
     transp->state = MB_RTU_STATE_INIT;
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_enable(inst->port_obj);
-        //mb_port_tmr_enable(inst->port_obj);
+        //mb_port_timer_enable(inst->port_obj);
     };
-    (void)mb_port_evt_post(transp->base.port_obj, EVENT(EV_READY));
+    (void)mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
 }
 
 static void mbs_rtu_transp_stop(mb_trans_base_t *inst)
 {
     CRITICAL_SECTION(inst->lock) {
         mb_port_ser_disable(inst->port_obj);
-        mb_port_tmr_disable(inst->port_obj);
+        mb_port_timer_disable(inst->port_obj);
     };
 }
 
@@ -208,14 +208,13 @@ static bool mbs_rtu_transp_snd_fsm(mb_trans_base_t *inst)
     return false;
 }
 
-IRAM_ATTR
-static bool mbs_rtu_transp_tmr_35_expired(void *inst)
+static bool mbs_rtu_transp_timer_expired(void *inst)
 {
     mbs_rtu_transp_t *transp = __containerof(inst, mbs_rtu_transp_t, base);
     bool need_poll = false;
-    //mb_tmr_mode_enum_t timer_mode = mb_port_get_cur_tmr_mode(transp->base.port_obj);
+    //mb_timer_mode_enum_t timer_mode = mb_port_get_cur_timer_mode(transp->base.port_obj);
 
-    mb_port_tmr_disable(transp->base.port_obj);
+    mb_port_timer_disable(transp->base.port_obj);
     
     return need_poll;
 }

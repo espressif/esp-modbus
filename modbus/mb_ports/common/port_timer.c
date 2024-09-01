@@ -5,6 +5,7 @@
  */
 
 /*----------------------- Platform includes --------------------------------*/
+#include <stdatomic.h>
 #include "esp_idf_version.h"
 #include "esp_attr.h"
 
@@ -25,19 +26,19 @@
 /* ----------------------- Defines ----------------------------------------*/
 struct mb_port_timer_t
 {
-    spinlock_t spin_lock;
+    //spinlock_t spin_lock;
     esp_timer_handle_t timer_handle;
     uint16_t t35_ticks;
-    uint32_t response_time_ms;
-    bool timer_state;
-    uint16_t timer_mode;
+    _Atomic uint32_t response_time_ms;
+    _Atomic bool timer_state;
+    _Atomic uint16_t timer_mode;
 };
 
 /* ----------------------- Static variables ---------------------------------*/
 static const char *TAG = "mb_port.timer";
 
 /* ----------------------- Start implementation -----------------------------*/
-mb_tmr_mode_enum_t mb_port_get_cur_tmr_mode(mb_port_base_t *inst);
+mb_timer_mode_enum_t mb_port_get_cur_timer_mode(mb_port_base_t *inst);
 
 static void IRAM_ATTR timer_alarm_cb(void *param)
 {
@@ -45,11 +46,11 @@ static void IRAM_ATTR timer_alarm_cb(void *param)
     if (inst->cb.tmr_expired && inst->arg) {
         inst->cb.tmr_expired(inst->arg); // Timer expired callback function
     }
-    inst->timer_obj->timer_state = true;
-    ESP_EARLY_LOGD(TAG, "timer mode: (%d) triggered", mb_port_get_cur_tmr_mode(inst));
+    atomic_store(&(inst->timer_obj->timer_state), true);
+    ESP_EARLY_LOGD(TAG, "timer mode: (%d) triggered", mb_port_get_cur_timer_mode(inst));
 }
 
-mb_err_enum_t mb_port_tmr_create(mb_port_base_t *inst, uint16_t t35_timer_ticks)
+mb_err_enum_t mb_port_timer_create(mb_port_base_t *inst, uint16_t t35_timer_ticks)
 {
     MB_RETURN_ON_FALSE((t35_timer_ticks > 0), MB_EILLSTATE, TAG,
                        "modbus timeout discreet is incorrect.");
@@ -58,10 +59,11 @@ mb_err_enum_t mb_port_tmr_create(mb_port_base_t *inst, uint16_t t35_timer_ticks)
     mb_err_enum_t ret = MB_EILLSTATE;
     inst->timer_obj = (mb_port_timer_t *)calloc(1, sizeof(mb_port_timer_t));
     MB_GOTO_ON_FALSE((inst && inst->timer_obj), MB_EILLSTATE, error, TAG, "mb timer allocation error.");
-    SPIN_LOCK_INIT(inst->timer_obj->spin_lock);
     inst->timer_obj->timer_handle = NULL;
+    atomic_init(&(inst->timer_obj->timer_mode), MB_TMODE_T35);
+    atomic_init(&(inst->timer_obj->timer_state), false);
     // Set default response time according to kconfig
-    inst->timer_obj->response_time_ms = MB_MASTER_TIMEOUT_MS_RESPOND;
+    atomic_init(&(inst->timer_obj->response_time_ms), MB_MASTER_TIMEOUT_MS_RESPOND);
     // Save timer reload value for Modbus T35 period
     inst->timer_obj->t35_ticks = t35_timer_ticks;
     esp_timer_create_args_t timer_conf = {
@@ -90,7 +92,7 @@ error:
     return ret;
 }
 
-void mb_port_tmr_delete(mb_port_base_t *inst)
+void mb_port_timer_delete(mb_port_base_t *inst)
 {
     // Delete active timer
     if (inst->timer_obj)
@@ -105,72 +107,66 @@ void mb_port_tmr_delete(mb_port_base_t *inst)
     }
 }
 
-void mb_port_tmr_us(mb_port_base_t *inst, uint64_t timeout_us)
+void mb_port_timer_us(mb_port_base_t *inst, uint64_t timeout_us)
 {
     MB_RETURN_ON_FALSE((inst && inst->timer_obj->timer_handle), ;, TAG, "timer is not initialized.");
     MB_RETURN_ON_FALSE((timeout_us > 0), ;, TAG,
                         "%s, incorrect tick value for timer = (%" PRId64 ").", inst->descr.parent_name, timeout_us);
     esp_timer_stop(inst->timer_obj->timer_handle);
     esp_timer_start_once(inst->timer_obj->timer_handle, timeout_us);
-    SPIN_LOCK_ENTER(inst->timer_obj->spin_lock);
-    inst->timer_obj->timer_state = false;
-    SPIN_LOCK_EXIT(inst->timer_obj->spin_lock);
+    atomic_store(&(inst->timer_obj->timer_state), false);
 }
 
 
-inline void mb_port_set_cur_tmr_mode(mb_port_base_t *inst, mb_tmr_mode_enum_t tmr_mode)
+inline void mb_port_set_cur_timer_mode(mb_port_base_t *inst, mb_timer_mode_enum_t tmr_mode)
 {
-    SPIN_LOCK_ENTER(inst->timer_obj->spin_lock);
-    inst->timer_obj->timer_mode = tmr_mode;
-    SPIN_LOCK_EXIT(inst->timer_obj->spin_lock);
+    atomic_store(&(inst->timer_obj->timer_mode), tmr_mode);
 }
 
-
-inline mb_tmr_mode_enum_t mb_port_get_cur_tmr_mode(mb_port_base_t *inst)
+inline mb_timer_mode_enum_t mb_port_get_cur_timer_mode(mb_port_base_t *inst)
 {
-    return inst->timer_obj->timer_mode;
+    return atomic_load(&(inst->timer_obj->timer_mode));
 }
 
-void mb_port_tmr_enable(mb_port_base_t *inst)
+void mb_port_timer_enable(mb_port_base_t *inst)
 {
     uint64_t tout_us = (inst->timer_obj->t35_ticks * MB_TIMER_TICK_TIME_US);
 
     // Set current timer mode, don't change it.
-    mb_port_set_cur_tmr_mode(inst, MB_TMODE_T35);
+    mb_port_set_cur_timer_mode(inst, MB_TMODE_T35);
     // Set timer alarm
-    mb_port_tmr_us(inst, tout_us);
-    ESP_LOGW(TAG, "%s, start timer (%" PRIu64 ").", inst->descr.parent_name, tout_us);
+    mb_port_timer_us(inst, tout_us);
+    ESP_LOGD(TAG, "%s, start timer (%" PRIu64 ").", inst->descr.parent_name, tout_us);
 }
 
-void mb_port_tmr_convert_delay_enable(mb_port_base_t *inst)
+void mb_port_timer_convert_delay_enable(mb_port_base_t *inst)
 {
     // Covert time in milliseconds into ticks
     uint64_t tout_us = (MB_MASTER_DELAY_MS_CONVERT * 1000);
 
     // Set current timer mode
-    mb_port_set_cur_tmr_mode(inst, MB_TMODE_CONVERT_DELAY);
+    mb_port_set_cur_timer_mode(inst, MB_TMODE_CONVERT_DELAY);
     ESP_LOGD(TAG, "%s, convert delay enable.", inst->descr.parent_name);
-    mb_port_tmr_us(inst, tout_us);
+    mb_port_timer_us(inst, tout_us);
 }
 
-void mb_port_tmr_respond_timeout_enable(mb_port_base_t *inst)
+void mb_port_timer_respond_timeout_enable(mb_port_base_t *inst)
 {
     uint64_t tout_us = (inst->timer_obj->response_time_ms * 1000);
 
-    mb_port_set_cur_tmr_mode(inst, MB_TMODE_RESPOND_TIMEOUT);
-    ESP_LOGW(TAG, "%s, respond enable timeout (%d).", 
-                inst->descr.parent_name, (int)inst->timer_obj->response_time_ms);
-    mb_port_tmr_us(inst, tout_us);
+    mb_port_set_cur_timer_mode(inst, MB_TMODE_RESPOND_TIMEOUT);
+    ESP_LOGD(TAG, "%s, respond enable timeout (%u).", 
+                inst->descr.parent_name, (unsigned)mb_port_timer_get_response_time_ms(inst));
+    mb_port_timer_us(inst, tout_us);
 }
 
-void mb_port_tmr_delay(mb_port_base_t *inst, uint16_t timeout_ms)
+void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms)
 {
     uint64_t tout_us = (timeout_ms * 1000);
-    mb_port_tmr_us(inst, tout_us);
+    mb_port_timer_us(inst, tout_us);
 }
 
-
-void mb_port_tmr_disable(mb_port_base_t *inst)
+void mb_port_timer_disable(mb_port_base_t *inst)
 {
     // Disable timer alarm
     esp_err_t err = esp_timer_stop(inst->timer_obj->timer_handle);
@@ -183,14 +179,12 @@ void mb_port_tmr_disable(mb_port_base_t *inst)
     }
 }
 
-void mb_port_tmr_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms)
+void mb_port_timer_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms)
 {
-    SPIN_LOCK_ENTER(inst->timer_obj->spin_lock);
-    inst->timer_obj->response_time_ms = resp_time_ms;
-    SPIN_LOCK_EXIT(inst->timer_obj->spin_lock);
+    atomic_store(&(inst->timer_obj->response_time_ms), resp_time_ms);
 }
 
-uint32_t mb_port_tmr_get_response_time_ms(mb_port_base_t *inst)
+uint32_t mb_port_timer_get_response_time_ms(mb_port_base_t *inst)
 {
-    return inst->timer_obj->response_time_ms;
+    return atomic_load(&(inst->timer_obj->response_time_ms));
 }

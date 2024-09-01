@@ -46,7 +46,7 @@ typedef struct _mb_adapter_port_entry
     uint16_t recv_length;
     uint64_t send_time_stamp;
     uint64_t recv_time_stamp;
-    uint64_t test_timeout_us;
+    _Atomic uint64_t test_timeout_us;
     uint32_t flags;
     mb_uid_info_t addr_info;
     QueueHandle_t rx_queue;
@@ -69,37 +69,37 @@ static QueueSetHandle_t queue_set = NULL;
 static TaskHandle_t adapter_task_handle; /*!< receive task handle */
 
 IRAM_ATTR
-static bool mb_port_adapter_tmr_expired(void *inst)
+static bool mb_port_adapter_timer_expired(void *inst)
 {
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
 
     bool need_poll = false;
-    mb_tmr_mode_enum_t timer_mode = mb_port_get_cur_tmr_mode(&port_obj->base);
+    mb_timer_mode_enum_t timer_mode = mb_port_get_cur_timer_mode(&port_obj->base);
 
-    mb_port_tmr_disable(&port_obj->base);
+    mb_port_timer_disable(&port_obj->base);
 
     switch (timer_mode)
     {
     case MB_TMODE_T35:
-        need_poll = mb_port_evt_post(&port_obj->base, EVENT(EV_READY));
+        need_poll = mb_port_event_post(&port_obj->base, EVENT(EV_READY));
         ESP_EARLY_LOGD(TAG, "%p:EV_READY", port_obj->base.descr.parent);
         break;
 
     case MB_TMODE_RESPOND_TIMEOUT:
-        mb_port_evt_set_err_type(&port_obj->base, EV_ERROR_RESPOND_TIMEOUT);
-        need_poll = mb_port_evt_post(&port_obj->base, EVENT(EV_ERROR_PROCESS));
+        mb_port_event_set_err_type(&port_obj->base, EV_ERROR_RESPOND_TIMEOUT);
+        need_poll = mb_port_event_post(&port_obj->base, EVENT(EV_ERROR_PROCESS));
 
         ESP_EARLY_LOGW(TAG, "%p:EV_ERROR_RESPOND_TIMEOUT", port_obj->base.descr.parent);
         break;
 
     case MB_TMODE_CONVERT_DELAY:
         /* If timer mode is convert delay, the master event then turns EV_MASTER_EXECUTE status. */
-        need_poll = mb_port_evt_post(&port_obj->base, EVENT(EV_EXECUTE));
+        need_poll = mb_port_event_post(&port_obj->base, EVENT(EV_EXECUTE));
         ESP_EARLY_LOGD(TAG, "%p:MB_TMODE_CONVERT_DELAY", port_obj->base.descr.parent);
         break;
 
     default:
-        need_poll = mb_port_evt_post(&port_obj->base, EVENT(EV_READY));
+        need_poll = mb_port_event_post(&port_obj->base, EVENT(EV_READY));
         break;
     }
 
@@ -200,7 +200,7 @@ static void mb_port_adapter_timer_cb(void *param)
                 // Send the data to all ports with the same communication port setting except itself
                 queue_push(it->rx_queue, (void *)&temp_buffer[0], sz, NULL);
                 mb_port_adapter_set_flag(&port_obj->base, MB_QUEUE_FLAG_SENT);
-                ESP_LOGW(TAG, "Send (%d bytes) from %s to %s. ", (int)sz, port_obj->base.descr.parent_name, it->base.descr.parent_name);
+                ESP_LOGD(TAG, "Send (%d bytes) from %s to %s. ", (int)sz, port_obj->base.descr.parent_name, it->base.descr.parent_name);
             }
         }
     }
@@ -228,7 +228,7 @@ static void mb_port_adapter_conn_logic(void *inst, mb_uid_info_t *paddr_info)
                     && !slave->base.descr.is_master
                     && (paddr_info->port == slave->addr_info.port)) {
                 // Register each slave object
-                ESP_LOGW(TAG, "Check connection state of object #%d(%s), uid: %d, port: %d, %s",
+                ESP_LOGD(TAG, "Check connection state of object #%d(%s), uid: %d, port: %d, %s",
                             paddr_info->index, paddr_info->node_name_str, 
                             paddr_info->uid, paddr_info->port, 
                             (paddr_info->state == MB_SOCK_STATE_CONNECTED) ? "CONNECTED" : "DISCONNECTED");
@@ -249,7 +249,7 @@ static void mb_port_adapter_conn_logic(void *inst, mb_uid_info_t *paddr_info)
             vTaskDelay(MB_ADAPTER_CONN_TIMEOUT);
         }
     } else { // slave connection logic
-        ESP_LOGW(TAG, "Register connection in adapter object #%d(%s), uid: %d, port: %d, to master %s",
+        ESP_LOGD(TAG, "Register connection in adapter object #%d(%s), uid: %d, port: %d, to master %s",
                     port_obj->addr_info.index, port_obj->addr_info.node_name_str, 
                     port_obj->addr_info.uid, port_obj->addr_info.port, paddr_info->node_name_str);
         // Mimic connection logic for each slave here
@@ -279,8 +279,8 @@ static void mb_port_adapter_task(void *p_args)
                 if (it && active_queue && (it->rx_queue == active_queue)) {
                     if (xQueuePeek(it->rx_queue, &frame_entry, 0) == pdTRUE) {
                         it->recv_length = frame_entry.len;
-                        mb_port_evt_post(&it->base, EVENT(EV_FRAME_RECEIVED, frame_entry.len, NULL, 0));
-                        ESP_LOGW(TAG, "%s, frame %d bytes is ready.", (it->base.descr.parent_name), (int)frame_entry.len);
+                        mb_port_event_post(&it->base, EVENT(EV_FRAME_RECEIVED, frame_entry.len, NULL, 0));
+                        ESP_LOGD(TAG, "%s, frame %d bytes is ready.", (it->base.descr.parent_name), (int)frame_entry.len);
                     }
                 } else if (it && (it->conn_queue == active_queue)) {
                     if (xQueueReceive(it->conn_queue, &addr_info, MB_ADAPTER_QUEUE_TIMEOUT) == pdTRUE) {
@@ -312,7 +312,7 @@ static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *pobj
         int res = port_scan_addr_string((char *)*paddr_table, &uid_info);
         if (res > 0)
         {
-            ESP_LOGW(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
+            ESP_LOGD(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
                         (char *)*paddr_table, uid_info.ip_addr_str, uid_info.port,
                         uid_info.uid, (uid_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
             uid_info.index = count++;
@@ -337,7 +337,7 @@ static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *pobj
         }
         paddr_table++;
     }
-    ESP_LOGW(TAG, "parsed and added %d slave configurations.", count);
+    ESP_LOGD(TAG, "parsed and added %d slave configurations.", count);
     return count ? MB_ENOERR : MB_EINVAL;
 }
 
@@ -357,7 +357,8 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *paddr_info, mb_port_base_t *
         .callback = mb_port_adapter_timer_cb,
         .arg = padapter,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = padapter->base.descr.parent_name};
+        .name = padapter->base.descr.parent_name
+    };
     // Create Modbus timer handlers for streams
     MB_GOTO_ON_ERROR(esp_timer_create(&timer_conf, &padapter->timer_handle),
                         error, TAG, "create input stream timer failed.");
@@ -404,7 +405,7 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *paddr_info, mb_port_base_t *
                         padapter->base.descr.parent_name, (unsigned)paddr_info->port);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                         TAG, "object adress info alloc fail, err: %d", (int)res);
-    padapter->base.cb.tmr_expired = mb_port_adapter_tmr_expired;
+    padapter->base.cb.tmr_expired = mb_port_adapter_timer_expired;
     padapter->base.cb.tx_empty = NULL;
     padapter->base.cb.byte_rcvd = NULL;
     padapter->base.arg = (void *)padapter;
@@ -414,7 +415,7 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *paddr_info, mb_port_base_t *
     padapter->addr_info.node_name_str = pstr;
     padapter->addr_info.ip_addr_str = pstr;
     *in_out_obj = &(padapter->base);
-    ESP_LOGW(TAG, "created object @%p, from parent %p", padapter, padapter->base.descr.parent);
+    ESP_LOGD(TAG, "created object @%p, from parent %p", padapter, padapter->base.descr.parent);
     return MB_ENOERR;
 
 error:
@@ -447,7 +448,7 @@ mb_err_enum_t mb_port_adapter_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t
             MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG, 
                                 "%s, could not parse config, err=%x.", pobj->descr.parent_name, (int)ret);
         }
-        ESP_LOGW(TAG, "%s, set test time to %" PRIu64, pobj->descr.parent_name, tcp_opts->test_tout_us);
+        ESP_LOGD(TAG, "%s, set test time to %" PRIu64, pobj->descr.parent_name, tcp_opts->test_tout_us);
         mb_port_adapter_set_response_time(pobj, (tcp_opts->test_tout_us));
     }
     *in_out_obj = pobj;
@@ -478,7 +479,7 @@ mb_err_enum_t mb_port_adapter_ser_create(mb_serial_opts_t *ser_opts, mb_port_bas
     mb_port_base_t *pobj = *in_out_obj;
     mb_err_enum_t ret = mb_port_adapter_create(&addr_info, &pobj);
     if ((ret == MB_ENOERR) && pobj) {
-        ESP_LOGW(TAG, "%s, set test time to %d", pobj->descr.parent_name, (int)(ser_opts->test_tout_us));
+        ESP_LOGD(TAG, "%s, set test time to %d", pobj->descr.parent_name, (int)(ser_opts->test_tout_us));
         mb_port_adapter_set_response_time(pobj, (ser_opts->test_tout_us));
         *in_out_obj = pobj;
     }
@@ -576,14 +577,14 @@ bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t
         int length = queue_pop(port_obj->rx_queue, &port_obj->rx_buffer[0], CONFIG_FMB_BUFFER_SIZE, NULL);
         if (length)
         {
-            mb_port_tmr_disable(inst);
-            ESP_LOGW(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, length);
+            mb_port_timer_disable(inst);
+            ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, length);
             // Stop timer because the new data is received
             // Store the timestamp of received frame
             port_obj->recv_time_stamp = esp_timer_get_time();
             *ppframe = &port_obj->rx_buffer[0];
             ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":PORT_RECV"), 
-                                        (void *)&port_obj->rx_buffer[0], (uint16_t)length, ESP_LOG_WARN);
+                                        (void *)&port_obj->rx_buffer[0], (uint16_t)length, ESP_LOG_DEBUG);
         }
         CRITICAL_SECTION_UNLOCK(inst->lock);
     }
@@ -615,9 +616,9 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *p
         port_obj->send_time_stamp = esp_timer_get_time();
         // Print sent packet, the tag used is more clear to see
         ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":PORT_SEND"),
-                                    (void *)pframe, length, ESP_LOG_WARN);
-        (void)mb_port_evt_post(inst, EVENT(EV_FRAME_SENT));
-        ESP_LOGW(TAG, "%s, tx completed, flags = 0x%04x.", inst->descr.parent_name, (int)flags);
+                                    (void *)pframe, length, ESP_LOG_DEBUG);
+        (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));
+        ESP_LOGD(TAG, "%s, tx completed, flags = 0x%04x.", inst->descr.parent_name, (int)flags);
         res = true;
         
     }

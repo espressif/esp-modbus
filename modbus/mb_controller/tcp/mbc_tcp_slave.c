@@ -127,6 +127,7 @@ static esp_err_t mbc_tcp_slave_delete(void *ctx)
                                 ESP_ERR_INVALID_STATE, TAG, "mb stack stop failure.");
     }
 
+    mbs_iface->is_active = false;
     vTaskDelete(mbs_opts->task_handle);
     vEventGroupDelete(mbs_opts->event_group_handle);
     vQueueDelete(mbs_opts->notification_queue_handle);

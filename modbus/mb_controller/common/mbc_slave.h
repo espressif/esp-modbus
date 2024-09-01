@@ -71,7 +71,6 @@ typedef struct
     iface_check_event_fp check_event;           /*!< Interface method check_event */
     iface_get_param_info_fp get_param_info;     /*!< Interface method get_param_info */
     iface_mbs_set_descriptor_fp set_descriptor;     /*!< Interface method set_descriptor */
-
 } mbs_controller_iface_t;
 
 #ifdef __cplusplus

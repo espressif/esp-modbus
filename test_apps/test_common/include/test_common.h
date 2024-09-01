@@ -5,6 +5,8 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <sys/queue.h>
+
 #include "unity.h"
 #include "unity_test_runner.h"
 
@@ -43,26 +45,57 @@ enum {
     TEST_REG_VAL4 = 0x4444
 };
 
+typedef struct task_entry_s {
+    TaskHandle_t task_handle;
+    SemaphoreHandle_t task_sema_handle;
+    void *inst_handle;
+    LIST_ENTRY(task_entry_s) entries;
+} task_entry_t;
+
+/**
+ * @brief Start, stop helpers for common test module
+ *
+ */
+void test_common_start();
+void test_common_stop();
+
 /**
  * @brief Helper test functions for multi instance modbus master - slave test
  *
  */
-TaskHandle_t test_slave_serial_create(mb_communication_info_t *pconfig);
-TaskHandle_t test_master_serial_create(mb_communication_info_t *pconfig, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
-TaskHandle_t test_slave_tcp_create(mb_communication_info_t *pconfig);
-TaskHandle_t test_master_tcp_create(mb_communication_info_t *pconfig, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
-TaskHandle_t test_slave_start_busy_task();
-// slave setup register area helper
-void test_slave_setup_start(void *mbs_handle); 
-// Helper function to read characteristic from slave
-esp_err_t read_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data);
-// Helper function to write  characteristic into slave
-esp_err_t write_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data);
+// TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig);
 
-// Common test check leak function
+TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, uint32_t priority);
+TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
+TaskHandle_t test_common_slave_tcp_create(mb_communication_info_t *pconfig, uint32_t priority);
+TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
+TaskHandle_t test_common_start_busy_task(uint32_t priority);
+
+/**
+ * @brief The test helper function to check memory leak
+ *
+ */
 void test_common_check_leak(size_t before_free, size_t after_free, const char *type, size_t warn_threshold, size_t critical_threshold);
-void test_slave_stop_busy_task(TaskHandle_t busy_task_handle);
-uint32_t test_common_wait_done(TickType_t timeout_ticks);
-void test_common_start();
-void test_common_stop();
+
+// Slave setup register area helper
+void test_common_slave_setup_start(void *mbs_handle);
+// Helper function to read characteristic from slave
+esp_err_t test_common_read_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data);
+// Helper function to write  characteristic into slave
+esp_err_t test_common_write_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data);
+
+/**
+ * @brief The test helper functions to work with test tasks
+ *
+ */
 void test_common_task_notify_start(TaskHandle_t task_handle, uint32_t value);
+void test_common_task_start(TaskHandle_t task_handle, uint32_t value);
+int test_common_task_start_all(uint32_t value);
+bool test_common_task_wait_done(TaskHandle_t task_handle, TickType_t timeout_ticks);
+bool test_common_task_wait_done_delete(TaskHandle_t task_handle, TickType_t task_timeout_ticks);
+int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick);
+void test_common_task_delete(TaskHandle_t task_handle);
+void test_common_task_delete_all();
+void *test_common_task_get_instance(TaskHandle_t task_handle);
+
+

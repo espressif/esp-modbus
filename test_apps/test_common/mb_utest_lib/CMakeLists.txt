@@ -43,15 +43,14 @@ if(CONFIG_MB_PORT_ADAPTER_EN)
         mbm_port_tcp_enable
         mbm_port_tcp_disable
         mbm_port_tcp_delete
-        # mbm_port_timer_expired
         mbs_port_tcp_create
         mbs_port_tcp_enable
         mbs_port_tcp_disable
         mbs_port_tcp_send_data
         mbs_port_tcp_recv_data
         mbs_port_tcp_delete
-        mb_port_evt_post
-        mb_port_evt_get
+        mb_port_event_post
+        mb_port_event_get
         mb_port_ser_create
         mb_port_ser_recv_data
         mb_port_ser_send_data
@@ -70,3 +69,7 @@ endif()
 
 # allow multiple symbol definitions
 target_link_libraries(mb_ut_lib PUBLIC "-Wl,--allow-multiple-definition")
+
+if(CONFIG_MB_PORT_ADAPTER_EN)
+    set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u mb_test_include_stub_impl")
+endif()
