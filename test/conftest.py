@@ -265,7 +265,8 @@ def monkeypatch_module(request: FixtureRequest) -> MonkeyPatch:
 
 @pytest.fixture(scope='module', autouse=True)
 def replace_dut_class(monkeypatch_module: MonkeyPatch) -> None:
-    monkeypatch_module.setattr('pytest_embedded_idf.IdfDut', ModbusTestDut)
+    # instead of exchange of class, just return the ModbusTestDut object
+    monkeypatch_module.setattr('pytest_embedded_idf.dut.IdfDut', ModbusTestDut, raising=False)
 
 
 @pytest.fixture

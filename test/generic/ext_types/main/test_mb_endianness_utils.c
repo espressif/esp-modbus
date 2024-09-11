@@ -141,6 +141,7 @@ TEST_CASE("Test endianness conversion for all extended Modbus types.", "[MB_ENDI
     TEST_ASSERT(mb_get_uint64_badcfehg(&arr_64) == (uint64_t)0x1122334455667788);
     TEST_ASSERT(mb_set_int64_badcfehg(&arr_64, (int64_t)-12345) == TEST_INT64_BADCFEHG);
     TEST_ASSERT(mb_get_int64_badcfehg(&arr_64) == (int64_t)-12345);
+    printf("Test endianness conversion is done.");
 }
 
 void app_main(void)
