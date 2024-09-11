@@ -5,7 +5,7 @@ stages:
 
 variables:
   # System environment
-  ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.0:2-2"
+  ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1"
   ESP_DOCS_PATH: "$CI_PROJECT_DIR"
   TEST_DIR: "$CI_PROJECT_DIR/test"
 
@@ -13,6 +13,16 @@ variables:
   GET_SOURCES_ATTEMPTS: "10"
   ARTIFACT_DOWNLOAD_ATTEMPTS: "10"
   GIT_SUBMODULE_STRATEGY: none
+
+# Define a matrix for IDF versions and their corresponding targets
+.options_list:
+  markers:
+    TEST_PORT:
+    - "tcp"
+    - "serial"
+    - "generic"
+#    - "tcp_p4"
+#    - "serial_p4"
 
 .setup_idf_tools: &setup_idf_tools |
   tools/idf_tools.py --non-interactive install && eval "$(tools/idf_tools.py --non-interactive export)" || exit 1
@@ -57,7 +67,7 @@ after_script:
     cd ${IDF_PATH}
     export IDF_DESCRIBE=$(git describe)
     export IDF_VERSION=${IDF_DESCRIBE%-*}
-    echo "ESP-IDF: $IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
+    echo "$IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
     echo "ESP-IDF: $IDF_VERSION"
   fi
 
@@ -73,6 +83,7 @@ after_script:
     - .build_template
     - .before_script_build_jobs
   artifacts:
+    name: artifacts_${CI_JOB_NAME}
     paths:
       - "**/build*/size.json"
       - "**/build*/build.log"
@@ -94,7 +105,7 @@ after_script:
     # The script below will build all test applications defined in environment variable $TEST_TARGETS
     - *check_idf_ver
     - cd ${TEST_DIR}
-    - python -m idf_build_apps build -v -p ${SUBDIR}
+    - python -m idf_build_apps build -v -p ${TEST_PORT}
       --recursive
       --target all
       --default-build-targets ${TEST_TARGETS}
@@ -110,32 +121,51 @@ after_script:
   variables:
     TEST_TARGETS: "esp32"
 
-build_idf_master:
+build_idf_latest:
   extends: .build_pytest_template
   image: espressif/idf:latest
   parallel:
     matrix:
-      - SUBDIR: ["serial", "tcp", "generic"]
+      - !reference [.options_list, markers]
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2 esp32p4"
 
-build_idf_v5.0:
+# Check the support policy for esp-idf v5.3
+build_idf_v5.3:
   extends: .build_pytest_template
-  image: espressif/idf:release-v5.0
+  image: espressif/idf:release-v5.3
   parallel:
     matrix:
-      - SUBDIR: ["serial", "tcp", "generic"]
+      - !reference [.options_list, markers]
   variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
 
 build_idf_v5.2:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.2
   parallel:
     matrix:
-      - SUBDIR: ["serial", "tcp", "generic"]
+      - !reference [.options_list, markers]
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
+
+build_idf_v5.1:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.1
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+
+build_idf_v5.0:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.0
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
 .target_test_template:
   stage: target_test
@@ -152,40 +182,89 @@ build_idf_v5.2:
 
 .before_script_pytest_jobs:
   before_script:
-    # Install pytest-embedded to perform test cases
-    - pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf
+    # Install pytest-embedded to perform test cases (workaround to upgrade the version )
+    - pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf --upgrade
 
 .test_template:
   extends:
     - .before_script_pytest_jobs
   tags:
     - multi_dut_modbus_${TEST_PORT}
+  variables:
+      IDF_TARGET: "esp32" # the only esp32 runners are available for now
   artifacts:
+    name: artifacts_${CI_JOB_NAME}
     paths:
       - "${TEST_DIR}/*/*.log"
       - "${TEST_DIR}/*.txt"
       - "${TEST_DIR}/*/results_*.xml"
       - "${TEST_DIR}/pytest_embedded_log/"
     reports:
-      junit: ${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_BRANCH}.xml
+      junit: ${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VER%-*}.xml
     when: always
     expire_in: 1 week
-  script:
-    - cd ${TEST_DIR}/${TEST_PORT}
-    - echo "Start target test for [esp-idf_${IDF_BRANCH}_${IDF_TARGET}_${TEST_PORT}]"
-    - python -m pytest --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_BRANCH}.xml --target=${IDF_TARGET}
-    - ls -lh > ${TEST_DIR}/test_dir.txt
+  script: |
+    export IDF_VER=$(cat ${TEST_DIR}/idf_version_info.txt)
+    cd ${TEST_DIR}/${TEST_PORT}
+    echo "Start test job: ${CI_JOB_NAME}, version: ${IDF_VER%-*}, folder: ${PWD##*/}"
+    python -m pytest --embedded-services serial,esp,idf --junit-xml=${TEST_DIR}/${TEST_PORT}/results_${IDF_TARGET}_${IDF_VER%-*}.xml --target=${IDF_TARGET}
+    ls -lh > ${TEST_DIR}/test_dir.txt
 
-target_test:
+target_test_latest:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+  extends: .test_template
+  needs:
+    -  build_idf_latest
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  after_script: []
+
+# Test the support policy for esp-idf v5.3
+target_test_v5.3:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+  extends: .test_template
+  needs:
+    -  build_idf_v5.3
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  after_script: []
+
+target_test_v5.2:
   stage: target_test
   image: "$CI_DOCKER_REGISTRY/target-test-env-v5.2:2"
   extends: .test_template
-  needs: [build_idf_master, build_idf_v5.2, build_idf_v5.0]
+  needs:
+    -  build_idf_v5.2
   parallel:
     matrix:
-      - IDF_BRANCH: ["master", "v5.2", "v5.0"]
-        IDF_TARGET: ["esp32"]
-        TEST_PORT: ["serial", "tcp", "generic"]
+      - !reference [.options_list, markers]
+  after_script: []
+
+target_test_v5.1:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.1:1"
+  extends: .test_template
+  needs:
+    -  build_idf_v5.1
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  after_script: []
+
+target_test_v5.0:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:3"
+  extends: .test_template
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  needs:
+    job: build_idf_v5.0
+    artifacts: true
   after_script: []
 
 build_docs:
@@ -264,5 +343,5 @@ upload_to_component_manager:
   script:
     - pip install idf-component-manager
     - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
-    - compote component upload --namespace=espressif --name=esp-modbus --allow-existing
-
+    - export COMP_VERSION=$(grep 'version:' idf_component.yml | head -n 1 | awk '{print $2}' | tr -d '"')
+    - compote component upload --namespace=espressif --name=esp-modbus --allow-existing --version=${COMP_VERSION}

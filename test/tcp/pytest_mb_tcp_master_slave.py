@@ -53,6 +53,10 @@ test_configs = [
     indirect=True
 )
 def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> None:
+    # Check the dut instance type ModbusTestDut
+    assert isinstance(dut[0], ModbusTestDut)
+    assert isinstance(dut[1], ModbusTestDut)
+
     dut_slave = dut[1]
     dut_master = dut[0]
 
@@ -67,3 +71,4 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
     
     dut_slave.dut_check_errors()
     dut_master.dut_check_errors()
+
