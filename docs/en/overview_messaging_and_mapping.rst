@@ -260,7 +260,7 @@ The extended data types are used to define all possible combinations of groupped
     - Double BADCFEHG floating point, little endian, reversed register order
     - Little endian
     
-.. note:: The support for the extended data types should be enabled using the option ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` in kconfig menu.
+.. note:: The support for the extended data types should be enabled using the option ``CONFIG_FMB_EXT_TYPE_SUPPORT`` in kconfig menu.
 
 The below diagrams show how the extended data types appear on network layer.
 
