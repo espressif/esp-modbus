@@ -100,12 +100,12 @@ typedef union {
         int opt1;                         /*!< Parameter option1 */
         int opt2;                         /*!< Parameter option2 */
         int opt3;                         /*!< Parameter option3 */
-    };
+    }; /*!< Parameter options version 1 */
     struct {
         int min;                          /*!< Parameter minimum value */
         int max;                          /*!< Parameter maximum value */
         int step;                         /*!< Step of parameter change tracking */
-    };
+    }; /*!< Parameter options version 2 */
 } mb_parameter_opt_t;
 
 /**

@@ -130,7 +130,7 @@ typedef union {
         uint32_t baudrate;                      /*!< Modbus baudrate */
         uart_parity_t parity;                   /*!< Modbus UART parity settings */
         uint16_t dummy_port;                    /*!< Dummy field, unused */
-    };
+    }; /*!< Modbus options version 1 */
     // TCP/UDP communication structure
     struct {
         mb_mode_type_t ip_mode;                /*!< Modbus communication mode */
@@ -139,7 +139,7 @@ typedef union {
         mb_tcp_addr_type_t ip_addr_type;       /*!< Modbus address type */
         void* ip_addr;                         /*!< Modbus address table for connection */
         void* ip_netif_ptr;                    /*!< Modbus network interface */
-    };
+    }; /*!< Modbus options version 2 */
 } mb_communication_info_t;
 
 /**
