@@ -1,7 +1,17 @@
 #!/bin/bash
 
-rm -rf docs
-build-docs --target esp32 --language en
+exit_if_error() {
+  local exit_code=$1
+  shift
+  [[ $exit_code ]] &&               # do nothing if no error code passed
+    ((exit_code != 0)) && {         # do nothing if error code is 0
+      printf 'ERROR: %s\n' "$@" >&2
+      exit "$exit_code"
+    }
+}
+
+rm -rf _build
+build-docs --target esp32 --language en || exit_if_error $? "Documentation build fail."
 
 # Modifes target field of html files
 ELEMENT="<script type='text/javascript'>
@@ -24,4 +34,6 @@ for FILE in ${FILES}
         echo ${ELEMENT} >> "${FILE}"
     done
 
+exit_if_error $? "Documentation build fail."
 
+echo "Documentation build ok."
