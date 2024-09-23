@@ -235,8 +235,6 @@ static BOOL xMBTCPPortMasterCloseConnection(MbSlaveInfo_t *pxInfo)
 
 static void xMBTCPPortMasterShutdown(void)
 {
-    xSemaphoreGive(xShutdownSema);
-
     for (USHORT ucCnt = 0; ucCnt < MB_TCP_PORT_MAX_CONN; ucCnt++) {
         MbSlaveInfo_t* pxInfo = xMbPortConfig.pxMbSlaveInfo[ucCnt];
         if (pxInfo) {
@@ -245,12 +243,15 @@ static void xMBTCPPortMasterShutdown(void)
                 free(pxInfo->pucRcvBuf);
             }
             free(pxInfo);
+            ESP_LOGD(TAG,"Close slave instance: %p", xMbPortConfig.pxMbSlaveInfo[ucCnt]);
             xMbPortConfig.pxMbSlaveInfo[ucCnt] = NULL;
         }
     }
     free(xMbPortConfig.pxMbSlaveInfo);
-    vTaskDelete(NULL);
-    xMbPortConfig.xMbTcpTaskHandle = NULL;
+    xMbPortConfig.pxMbSlaveInfo = NULL;
+    xSemaphoreGive(xShutdownSema);
+    ESP_LOGD(TAG,"Shutdown the port task.");
+    vTaskSuspend(NULL);
 }
 
 void vMBTCPPortMasterSetNetOpt(void *pvNetIf, eMBPortIpVer xIpVersion, eMBPortProto xProto)
@@ -918,14 +919,16 @@ void vMBMasterTCPPortDisable(void)
     // that were allocated on the stack of the task we're going to delete
     xShutdownSema = xSemaphoreCreateBinary();
     // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
-    if (xShutdownSema == NULL || xSemaphoreTake(xShutdownSema, pdMS_TO_TICKS(MB_SHDN_WAIT_TOUT_MS)) != pdTRUE) {
+    if (!xShutdownSema || xSemaphoreTake(xShutdownSema, pdMS_TO_TICKS(MB_SHDN_WAIT_TOUT_MS)) != pdTRUE) {
         ESP_LOGW(TAG, "Modbus port task couldn't exit gracefully within timeout -> abruptly deleting the task.");
-        vTaskDelete(xMbPortConfig.xMbTcpTaskHandle);
     }
+    vTaskDelete(xMbPortConfig.xMbTcpTaskHandle);
+    xMbPortConfig.xMbTcpTaskHandle = NULL;
     if (xShutdownSema) {
         vSemaphoreDelete(xShutdownSema);
         xShutdownSema = NULL;
     }
+    ESP_LOGD(TAG,"Master port is closed.");
 }
 
 void vMBMasterTCPPortClose(void)

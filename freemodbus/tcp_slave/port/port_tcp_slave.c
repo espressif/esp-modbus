@@ -261,19 +261,21 @@ static void vMBTCPPortFreeClientInfo(MbClientInfo_t *pxClientInfo)
 
 static void vMBTCPPortShutdown(void)
 {
-    xSemaphoreGive(xShutdownSema);
-    vTaskDelete(NULL);
-    xConfig.xMbTcpTaskHandle = NULL;
-
     for (int i = 0; i < MB_TCP_PORT_MAX_CONN; i++) {
         MbClientInfo_t *pxClientInfo = xConfig.pxMbClientInfo[i];
-        if ((pxClientInfo != NULL) && (pxClientInfo->xSockId > 0)) {
-            xMBTCPPortCloseConnection(pxClientInfo);
+        if (pxClientInfo != NULL) {
+            if (pxClientInfo->xSockId > 0) {
+                xMBTCPPortCloseConnection(pxClientInfo);
+            }
+            ESP_LOGD(TAG,"Close port instance: %p.", pxClientInfo);
             vMBTCPPortFreeClientInfo(pxClientInfo);
             xConfig.pxMbClientInfo[i] = NULL;
         }
     }
+    ESP_LOGD(TAG,"Shutdown port task.");
     free(xConfig.pxMbClientInfo);
+    xSemaphoreGive(xShutdownSema);
+    vTaskSuspend(NULL);
 }
 
 static int xMBTCPPortRxPoll(MbClientInfo_t *pxClientInfo, ULONG xTimeoutMs)
@@ -669,19 +671,19 @@ vMBTCPPortClose( )
     if (xShutdownSema == NULL || // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
         xSemaphoreTake(xShutdownSema, 2 * pdMS_TO_TICKS(CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND)) != pdTRUE) {
         ESP_LOGE(TAG, "Task couldn't exit gracefully within timeout -> abruptly deleting the task");
-        vTaskDelete(xConfig.xMbTcpTaskHandle);
     }
-
+    vTaskDelete(xConfig.xMbTcpTaskHandle);
+    xConfig.xMbTcpTaskHandle = NULL;
     close(xListenSock);
     xListenSock = -1;
 
     vMBTCPPortRespQueueDelete(xConfig.xRespQueueHandle);
-
     if (xShutdownSema) {
         vSemaphoreDelete(xShutdownSema);
         xShutdownSema = NULL;
     }
     vMBPortEventClose();
+    ESP_LOGD(TAG,"Port is closed.");
 }
 
 void vMBTCPPortEnable( void )
