@@ -2,10 +2,10 @@
 
 blockdiag mb_float_frame {
     # global properties
-    span_width = 2;
+    span_width = 5;
     span_height = 5;
-    node_height = 25;
-    default_fontsize = 16;
+    node_height = 30;
+    default_fontsize = 15;
     default_group_color = lightgrey;
     class spacer [shape=none, width=10];
     # tuning node properties and connections

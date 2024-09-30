@@ -5,8 +5,7 @@ stages:
 
 variables:
   # System environment
-  TARGET_TEST_ENV_IMAGE: "$CI_DOCKER_REGISTRY/target-test-env-v5.2:2"
-  ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.0:2-2"
+  ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1"
   ESP_DOCS_PATH: "$CI_PROJECT_DIR"
   TEST_DIR: "$CI_PROJECT_DIR"
 
@@ -57,6 +56,7 @@ after_script:
 
 .before_script_build_jobs:
   before_script:
+    - pip install idf-component-manager --upgrade
     - pip install "idf_build_apps~=1.0.1"
 
 .check_idf_ver: &check_idf_ver |
@@ -69,8 +69,8 @@ after_script:
     cd ${IDF_PATH}
     export IDF_DESCRIBE=$(git describe)
     export IDF_VERSION=${IDF_DESCRIBE%-*}
-    echo "${IDF_VERSION}" >> ${TEST_DIR}/idf_version_info.txt
-    echo "${IDF_VERSION}"
+    echo "$IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
+    echo "ESP-IDF: $IDF_VERSION"
   fi
 
 # Note: this script builds the folder against all targets and then deletes
@@ -160,7 +160,6 @@ build_idf_v5.0:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
 .target_test_template:
-  image: $TARGET_TEST_ENV_IMAGE
   stage: target_test
   timeout: 1 hour
   variables:

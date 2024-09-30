@@ -29,8 +29,9 @@ mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
 {
     mb_port_event_t *pevent = NULL;
     mb_err_enum_t ret = MB_EILLSTATE;
+    MB_RETURN_ON_FALSE((inst), MB_EILLSTATE, TAG, "mb event creation error.");
     pevent = (mb_port_event_t *)calloc(1, sizeof(mb_port_event_t));
-    MB_RETURN_ON_FALSE((pevent && inst), MB_EILLSTATE, TAG, "mb event creation error.");
+    MB_RETURN_ON_FALSE((pevent), MB_EILLSTATE, TAG, "mb event creation error.");
     // Create modbus semaphore (mb resource).
     pevent->resource_hdl = xSemaphoreCreateBinary();
     MB_GOTO_ON_FALSE((pevent->resource_hdl), MB_EILLSTATE, error, TAG,
@@ -66,24 +67,28 @@ error:
  
 inline void mb_port_event_set_err_type(mb_port_base_t *inst, mb_err_event_t event)
 {
+    MB_RETURN_ON_FALSE((inst && inst->event_obj), ;, TAG, "incorrect object handle.");
     atomic_store(&(inst->event_obj->curr_err_type), event);
 }
 
 inline mb_err_event_t mb_port_event_get_err_type(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE((inst && inst->event_obj), EV_ERROR_INIT, TAG, "incorrect object handle.");
     return atomic_load(&inst->event_obj->curr_err_type);
 }
 
 uint64_t mb_port_get_trans_id(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE((inst && inst->event_obj), 0, TAG, "incorrect object handle.");
     return atomic_load(&(inst->event_obj->curr_trans_id));
 }
 
 bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 {
-    if (!inst || !inst->event_obj || !inst->event_obj->event_hdl) {
-        ESP_LOGE(TAG, "Wrong event handle %d %p %s.", (int)(event.event), inst, inst->descr.parent_name);
-    }
+    MB_RETURN_ON_FALSE((inst), false, TAG, "incorrect object handle for transaction %" PRIu64, event.trans_id);
+    MB_RETURN_ON_FALSE((inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
+                            "Wrong event handle for transaction: %" PRIu64" %d, %p, %s.", 
+                            event.trans_id, (int)(event.event), inst, inst->descr.parent_name);
     BaseType_t result = pdFALSE;
     mb_event_t temp_event;
     temp_event = event;
@@ -126,7 +131,8 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent)
 {
-    assert(inst->event_obj->event_hdl);
+    MB_RETURN_ON_FALSE((inst && pevent && inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
+                            "incorrect object handle.");
     bool event_happened = false;
 
     if (xQueueReceive(inst->event_obj->event_hdl, pevent, MB_EVENT_QUEUE_TIMEOUT_MAX) == pdTRUE) {
@@ -141,6 +147,8 @@ bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent)
 
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 {
+    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), false, TAG, 
+                            "incorrect object handle.");
     BaseType_t status = pdTRUE;
     status = xSemaphoreTake(inst->event_obj->resource_hdl, timeout);
     ESP_LOGD(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
@@ -149,6 +157,8 @@ bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 
 void mb_port_event_res_release(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), ;, TAG, 
+                            "incorrect object handle.");
     BaseType_t status = pdFALSE;
     status = xSemaphoreGive(inst->event_obj->resource_hdl);
     if (status != pdTRUE) {
@@ -158,11 +168,14 @@ void mb_port_event_res_release(mb_port_base_t *inst)
 
 void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask)
 {
+    MB_RETURN_ON_FALSE((inst), ;, TAG, "incorrect object handle.");
     (void)xEventGroupSetBits(inst->event_obj->event_group_hdl, event_mask);
 }
 
 mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE((inst), MB_EINVAL, TAG, 
+                            "incorrect object handle.");
     mb_err_enum_t err_status = MB_ENOERR;
     mb_event_enum_t rcv_event;
     EventBits_t bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl, // The event group being tested.
@@ -195,6 +208,8 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 
 void mb_port_event_delete(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE((inst), ;, TAG, 
+                            "incorrect event object handle.");
     if (inst->event_obj->resource_hdl) {
         vSemaphoreDelete(inst->event_obj->resource_hdl);
     }

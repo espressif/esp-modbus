@@ -101,7 +101,7 @@ Example initialization of mapped values:
 Slave Communication
 ^^^^^^^^^^^^^^^^^^^
 
-The function below is used to start Modbus controller interface and allows communication.  
+The function below is used to start Modbus controller interface and allows communication.
 
 :cpp:func:`mbc_slave_start`
 
