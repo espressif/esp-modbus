@@ -192,6 +192,9 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
         // Calls appropriate request function to send request and waits response
         switch(mb_command)
         {
+            case MB_FUNC_OTHER_REPORT_SLAVEID:
+                mb_error = eMBMasterReqReportSlaveID((UCHAR)mb_slave_addr, (LONG)MB_SERIAL_API_RESP_TICS );
+                break;
             case MB_FUNC_READ_COILS:
                 mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                 (USHORT)mb_size , (LONG)MB_SERIAL_API_RESP_TICS );
@@ -216,7 +219,6 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
                 mb_error = eMBMasterReqWriteHoldingRegister( (UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                                 *(USHORT*)data_ptr, (LONG)MB_SERIAL_API_RESP_TICS );
                 break;
-
             case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
                 mb_error = eMBMasterReqWriteMultipleHoldingRegister( (UCHAR)mb_slave_addr,
                                                                         (USHORT)mb_offset, (USHORT)mb_size,

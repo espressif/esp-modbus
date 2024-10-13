@@ -44,6 +44,7 @@
 
 /* ----------------------- Modbus includes ----------------------------------*/
 #include "mb.h"
+#include "mb_m.h"
 #include "mbframe.h"
 #include "mbproto.h"
 #include "mbconfig.h"
@@ -52,11 +53,61 @@
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
 
+#define MB_PDU_FUNC_READ_BYTECNT_OFF            ( MB_PDU_DATA_OFF + 0 )
+#define MB_PDU_FUNC_READ_VALUES_OFF             ( MB_PDU_DATA_OFF + 1 )
+
 /* ----------------------- Static variables ---------------------------------*/
 static UCHAR    ucMBSlaveID[MB_FUNC_OTHER_REP_SLAVEID_BUF];
 static USHORT   usMBSlaveIDLen;
 
 /* ----------------------- Start implementation -----------------------------*/
+eMBException    prveMBError2Exception( eMBErrorCode eErrorCode );
+
+eMBMasterReqErrCode
+eMBMasterReqReportSlaveID( UCHAR ucSndAddr, LONG lTimeOut )
+{
+    UCHAR                 *ucMBFrame;
+    eMBMasterReqErrCode    eErrStatus = MB_MRE_NO_ERR;
+
+    if ( ucSndAddr > MB_MASTER_TOTAL_SLAVE_NUM ) eErrStatus = MB_MRE_ILL_ARG;
+    else if ( xMBMasterRunResTake( lTimeOut ) == FALSE ) eErrStatus = MB_MRE_MASTER_BUSY;
+    else
+    {
+        vMBMasterGetPDUSndBuf(&ucMBFrame);
+        vMBMasterSetDestAddress(ucSndAddr);
+        ucMBFrame[MB_PDU_FUNC_OFF]                = MB_FUNC_OTHER_REPORT_SLAVEID;
+        vMBMasterSetPDUSndLength( 1 );
+        ( void ) xMBMasterPortEventPost( EV_MASTER_FRAME_TRANSMIT | EV_MASTER_TRANS_START );
+        eErrStatus = eMBMasterWaitRequestFinish( );
+    }
+    return eErrStatus;
+}
+
+eMBException
+eMBMasterFuncReportSlaveID( UCHAR * pucFrame, USHORT * usLen )
+{
+    UCHAR           ucByteCount = 0;
+    eMBException    eStatus = MB_EX_NONE;
+    eMBErrorCode    eRegStatus;
+
+    if( *usLen <= ( MB_FUNC_OTHER_REP_SLAVEID_BUF - 2 ) )
+    {
+        ucByteCount = ( UCHAR )( pucFrame[MB_PDU_FUNC_READ_BYTECNT_OFF] );
+        ESP_LOGW("TEST", "Handle slave info command.");
+        eRegStatus = eMBMasterRegInputCB( &pucFrame[MB_PDU_FUNC_READ_VALUES_OFF], 0, (ucByteCount >> 1) );
+        /* If an error occured convert it into a Modbus exception. */
+        if( eRegStatus != MB_ENOERR )
+        {
+            eStatus = prveMBError2Exception( eRegStatus );
+        }
+    }
+    else
+    {
+        /* Can't be a valid request because the length is incorrect. */
+        eStatus = MB_EX_ILLEGAL_DATA_VALUE;
+    }
+    return eStatus;
+}
 
 eMBErrorCode
 eMBSetSlaveID( UCHAR ucSlaveID, BOOL xIsRunning,
