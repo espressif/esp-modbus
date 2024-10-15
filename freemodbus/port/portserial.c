@@ -161,10 +161,14 @@ static void vUartTask(void *pvParameters)
                 //Event of UART parity check error
                 case UART_PARITY_ERR:
                     ESP_LOGD(TAG, "uart parity error");
+                    xQueueReset(xMbUartQueue);
+                    uart_flush_input(ucUartNumber);
                     break;
                 //Event of UART frame error
                 case UART_FRAME_ERR:
                     ESP_LOGD(TAG, "uart frame error");
+                    xQueueReset(xMbUartQueue);
+                    uart_flush_input(ucUartNumber);
                     break;
                 default:
                     ESP_LOGD(TAG, "uart event type: %u", (unsigned)xEvent.type);
