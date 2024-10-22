@@ -494,7 +494,7 @@ static esp_err_t mbc_serial_master_set_parameter(uint16_t cid, char* name, uint8
  */
 // Callback function for reading of MB Input Registers
 eMBErrorCode eMBRegInputCBSerialMaster(UCHAR * pucRegBuffer, USHORT usAddress,
-                                USHORT usNRegs)
+                                        USHORT usNRegs)
 {
     MB_MASTER_CHECK((mbm_interface_ptr != NULL),
                     MB_EILLSTATE,
@@ -510,7 +510,7 @@ eMBErrorCode eMBRegInputCBSerialMaster(UCHAR * pucRegBuffer, USHORT usAddress,
     // If input or configuration parameters are incorrect then return an error to stack layer
     if ((pucInputBuffer != NULL)
             && (usNRegs >= 1)
-            && (usRegInputNregs == usRegs)) {
+            && ((usRegInputNregs == usRegs) || !usAddress)) {
         while (usRegs > 0) {
             _XFER_2_RD(pucInputBuffer, pucRegBuffer);
             usRegs -= 1;

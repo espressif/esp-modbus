@@ -126,6 +126,10 @@ static void setup_reg_data(void)
     input_reg_params.input_data7 = 4.78;
 }
 
+extern int
+eMBSetSlaveID(uint8_t slave_id, bool is_running,
+               uint8_t const *pdata, uint16_t data_len);
+
 // An example application of Modbus slave. It is based on freemodbus stack.
 // See deviceparams.h file for more information about assigned Modbus parameters.
 // These parameters can be accessed from main application and also can be changed
@@ -225,6 +229,17 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Modbus slave stack initialized.");
     ESP_LOGI(TAG, "Start modbus test...");
+
+    //const uint32_t ext_data = 0x11223344;
+    uint8_t ext_data[] = {0x11, 0x22, 0x33, 0x44, 0x55};
+
+    int err = eMBSetSlaveID(comm_info.slave_addr, true, (uint8_t *)&ext_data, sizeof(ext_data));
+    if (!err) {
+        //ESP_LOGI("SET_SLAVE_ID", "Set slave ID = %d, ext_data=0x%" PRIx32, comm_info.slave_addr, ext_data);
+        ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)ext_data, sizeof(ext_data), ESP_LOG_WARN);
+    } else {
+        ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
+    }
 
     // The cycle below will be terminated when parameter holdingRegParams.dataChan0
     // incremented each access cycle reaches the CHAN_DATA_MAX_VAL value.
