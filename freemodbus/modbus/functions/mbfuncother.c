@@ -53,8 +53,8 @@
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
 
-#define MB_PDU_BYTECNT_OFF            ( MB_PDU_DATA_OFF + 0 )
-#define MB_PDU_FUNC_DATA_OFF             ( MB_PDU_DATA_OFF + 1 )
+#define MB_PDU_BYTECNT_OFF          ( MB_PDU_DATA_OFF + 0 )
+#define MB_PDU_FUNC_DATA_OFF        ( MB_PDU_DATA_OFF + 1 )
 
 /* ----------------------- Static variables ---------------------------------*/
 static UCHAR    ucMBSlaveID[MB_FUNC_OTHER_REP_SLAVEID_BUF] = {0};
@@ -93,7 +93,7 @@ eMBMasterFuncReportSlaveID( UCHAR * pucFrame, USHORT * usLen )
     if( *usLen <= ( MB_FUNC_OTHER_REP_SLAVEID_BUF - 2 ) )
     {
         ucByteCount = ( UCHAR )( pucFrame[MB_PDU_BYTECNT_OFF] );
-        ESP_LOGD("FHANDLER_SET_SLAVE_ID", "Master handler of slave info command %u bytes.", ucByteCount);
+        ESP_LOGD("MB_FHANDLER", "Master handler of slave info data, %u bytes.", ucByteCount);
         eRegStatus = eMBMasterRegInputCB( &pucFrame[MB_PDU_FUNC_DATA_OFF], 0, (ucByteCount >> 1) );
         /* If an error occured convert it into a Modbus exception. */
         if( eRegStatus != MB_ENOERR )
@@ -129,7 +129,7 @@ eMBSetSlaveID( UCHAR ucSlaveID, BOOL xIsRunning,
                     ( size_t )usAdditionalLen );
             usMBSlaveIDLen += usAdditionalLen;
         }
-        ESP_LOG_BUFFER_HEX_LEVEL("FHANDLER_SET_SLAVE_ID", (void*)ucMBSlaveID, usMBSlaveIDLen, ESP_LOG_DEBUG);
+        ESP_LOG_BUFFER_HEX_LEVEL("MB_FHANDLER", (void*)ucMBSlaveID, usMBSlaveIDLen, ESP_LOG_DEBUG);
     }
     else
     {
@@ -145,7 +145,7 @@ eMBFuncReportSlaveID( UCHAR * pucFrame, USHORT * usLen )
     memcpy( &pucFrame[MB_PDU_FUNC_DATA_OFF], &ucMBSlaveID[0], ( size_t )usMBSlaveIDLen );
     *usLen = ( USHORT )( MB_PDU_FUNC_DATA_OFF + usMBSlaveIDLen );
     pucFrame[MB_PDU_BYTECNT_OFF] = usMBSlaveIDLen;
-    ESP_LOG_BUFFER_HEX_LEVEL("REPORT_SLAVE_ID_FRAME", (void*)pucFrame, *usLen, ESP_LOG_DEBUG);
+    ESP_LOG_BUFFER_HEX_LEVEL("MB_FHANDLER", (void*)pucFrame, *usLen, ESP_LOG_DEBUG);
     return MB_EX_NONE;
 }
 

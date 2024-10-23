@@ -235,7 +235,6 @@ void app_main(void)
 
     int err = eMBSetSlaveID(comm_info.slave_addr, true, (uint8_t *)&ext_data, sizeof(ext_data));
     if (!err) {
-        //ESP_LOGI("SET_SLAVE_ID", "Set slave ID = %d, ext_data=0x%" PRIx32, comm_info.slave_addr, ext_data);
         ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)ext_data, sizeof(ext_data), ESP_LOG_WARN);
     } else {
         ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
