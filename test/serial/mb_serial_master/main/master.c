@@ -305,6 +305,24 @@ static void master_operation_func(void *arg)
 
     ESP_LOGI(TAG, "Start modbus test...");
 
+    // Command - 17 (0x11) Report Slave ID (Serial Line only)
+    // The command contains vendor specific data.
+    // This version of command handler needs to define expected number of registers 
+    // that will be returned from concrete slave. 
+    // The returned slave info data will be stored in the `info_buf`.
+    // This example will request the slave info from slave UID = 1.
+    // It can be modified accordingly for other slaves.
+    mb_param_request_t req = {.slave_addr = 1, .command = 0x11, .reg_start = 1, .reg_size = 16};
+
+    uint8_t info_buf[32] = {0};
+
+    err = mbc_master_send_request(&req, &info_buf[0]);
+    if (err != ESP_OK) {
+        ESP_LOGE("SLAVE_INFO", "Read slave info fail.");
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
+    }
+
     for(uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
         // Read all found characteristics from slave(s)
         for (uint16_t cid = 0; (err != ESP_ERR_NOT_FOUND) && cid < MASTER_MAX_CIDS; cid++) {

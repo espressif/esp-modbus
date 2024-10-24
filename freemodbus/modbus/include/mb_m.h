@@ -365,6 +365,8 @@ eMBErrorCode eMBMasterRegDiscreteCB( UCHAR * pucRegBuffer, USHORT usAddress,
  *\brief These Modbus functions are called for user when Modbus run in Master Mode.
  */
 eMBMasterReqErrCode
+eMBMasterReqReportSlaveID( UCHAR ucSndAddr, LONG lTimeOut );
+eMBMasterReqErrCode
 eMBMasterReqReadInputRegister( UCHAR ucSndAddr, USHORT usRegAddr, USHORT usNRegs, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqWriteHoldingRegister( UCHAR ucSndAddr, USHORT usRegAddr, USHORT usRegData, LONG lTimeOut );

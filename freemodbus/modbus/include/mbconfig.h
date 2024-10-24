@@ -144,7 +144,7 @@ PR_BEGIN_EXTERN_C
  * how to set this value. It is only used if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
  * is set to <code>1</code>.
  */
-#define MB_FUNC_OTHER_REP_SLAVEID_BUF           ( 32 )
+#define MB_FUNC_OTHER_REP_SLAVEID_BUF           ( CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE )
 
 /*! \brief If the <em>Report Slave ID</em> function should be enabled. */
 #define MB_FUNC_OTHER_REP_SLAVEID_ENABLED       (  CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT )
