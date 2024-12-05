@@ -53,11 +53,11 @@
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
 
-#define MB_PDU_FUNC_READ_BYTECNT_OFF            ( MB_PDU_DATA_OFF + 0 )
-#define MB_PDU_FUNC_READ_VALUES_OFF             ( MB_PDU_DATA_OFF + 1 )
+#define MB_PDU_BYTECNT_OFF          ( MB_PDU_DATA_OFF + 0 )
+#define MB_PDU_FUNC_DATA_OFF        ( MB_PDU_DATA_OFF + 1 )
 
 /* ----------------------- Static variables ---------------------------------*/
-static UCHAR    ucMBSlaveID[MB_FUNC_OTHER_REP_SLAVEID_BUF];
+static UCHAR    ucMBSlaveID[MB_FUNC_OTHER_REP_SLAVEID_BUF] = {0};
 static USHORT   usMBSlaveIDLen;
 
 /* ----------------------- Start implementation -----------------------------*/
@@ -92,9 +92,9 @@ eMBMasterFuncReportSlaveID( UCHAR * pucFrame, USHORT * usLen )
 
     if( *usLen <= ( MB_FUNC_OTHER_REP_SLAVEID_BUF - 2 ) )
     {
-        ucByteCount = ( UCHAR )( pucFrame[MB_PDU_FUNC_READ_BYTECNT_OFF] );
-        ESP_LOGW("TEST", "Handle slave info command.");
-        eRegStatus = eMBMasterRegInputCB( &pucFrame[MB_PDU_FUNC_READ_VALUES_OFF], 0, (ucByteCount >> 1) );
+        ucByteCount = ( UCHAR )( pucFrame[MB_PDU_BYTECNT_OFF] );
+        // Transfer data from command buffer.
+        eRegStatus = eMBMasterRegCommonCB( &pucFrame[MB_PDU_FUNC_DATA_OFF], 0, ucByteCount);
         /* If an error occured convert it into a Modbus exception. */
         if( eRegStatus != MB_ENOERR )
         {
@@ -137,11 +137,13 @@ eMBSetSlaveID( UCHAR ucSlaveID, BOOL xIsRunning,
     return eStatus;
 }
 
+// pucFrame points to Modbus PDU
 eMBException
 eMBFuncReportSlaveID( UCHAR * pucFrame, USHORT * usLen )
 {
-    memcpy( &pucFrame[MB_PDU_DATA_OFF], &ucMBSlaveID[0], ( size_t )usMBSlaveIDLen );
-    *usLen = ( USHORT )( MB_PDU_DATA_OFF + usMBSlaveIDLen );
+    memcpy( &pucFrame[MB_PDU_FUNC_DATA_OFF], &ucMBSlaveID[0], ( size_t )usMBSlaveIDLen );
+    *usLen = ( USHORT )( MB_PDU_FUNC_DATA_OFF + usMBSlaveIDLen );
+    pucFrame[MB_PDU_BYTECNT_OFF] = usMBSlaveIDLen;
     return MB_EX_NONE;
 }
 
