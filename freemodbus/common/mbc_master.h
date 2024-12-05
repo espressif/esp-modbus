@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"      // for task creation and queue access
 #include "freertos/task.h"          // for task api access
 #include "freertos/event_groups.h"  // for event groups
+#include "freertos/semphr.h"        // for semaphore
 #include "driver/uart.h"            // for UART types
 #include "errno.h"                  // for errno
 #include "esp_log.h"                // for log write
@@ -64,6 +65,7 @@ typedef struct {
     uint16_t mbm_reg_buffer_size;                       /*!< Modbus data buffer size */
     TaskHandle_t mbm_task_handle;                       /*!< Modbus task handle */
     EventGroupHandle_t mbm_event_group;                 /*!< Modbus controller event group */
+    SemaphoreHandle_t mbm_sema;                         /*!< Modbus controller semaphore */
     const mb_parameter_descriptor_t* mbm_param_descriptor_table; /*!< Modbus controller parameter description table */
     size_t mbm_param_descriptor_size;                   /*!< Modbus controller parameter description table size*/
 #if MB_MASTER_TCP_ENABLED
