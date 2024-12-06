@@ -1,0 +1,7 @@
+pytest
+pytest-embedded
+pytest-embedded-idf
+pytest-embedded-serial
+pytest-embedded-serial-esp
+robotframework
+scapy>=2.6.0

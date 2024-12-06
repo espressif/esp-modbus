@@ -175,6 +175,8 @@ build_idf_v5.0:
 .before_script_pytest_jobs:
   before_script:
     # Install or upgrade pytest-embedded to perform test cases
+    - pip install -r ${TEST_DIR}/tools/test_requirements.txt
+    # Upgrade the packages (workaround for esp-idf v5.0)
     - pip install --only-binary cryptography pytest-embedded pytest-embedded-serial-esp pytest-embedded-idf --upgrade
 
 .test_cur_folder: &test_cur_folder |
@@ -206,6 +208,9 @@ build_idf_v5.0:
       - "${TEST_DIR}/**/pytest_embedded_log/"
       - "${TEST_DIR}/**/test_dir*.txt"  
       - "${TEST_DIR}/**/idf_version_info.txt"
+      - "${TEST_DIR}/**/log.html"
+      - "${TEST_DIR}/**/report.html"
+      - "${TEST_DIR}/**/*.pcap"
     reports:
       junit: ${TEST_DIR}/results_${IDF_VER%-*}.xml
     when: always
