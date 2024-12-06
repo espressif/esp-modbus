@@ -19,9 +19,8 @@ static const char *TAG = "mb_object.master";
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED || MB_MASTER_TCP_ENABLED)
 
 static const mb_fn_handler_t master_handlers[MB_FUNC_HANDLERS_MAX] =
-    {
+{
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-
         {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mb_fn_report_slv_id},
 #endif
 #if MB_FUNC_READ_INPUT_ENABLED

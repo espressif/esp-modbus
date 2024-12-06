@@ -36,6 +36,7 @@ pattern_dict_master = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_[a-z]+: - IPv4
 
 LOG_LEVEL = logging.DEBUG
 LOGGER_NAME = 'modbus_test'
+CONFORMANCE_TEST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../tools/robot'))
 logger = logging.getLogger(LOGGER_NAME)
 
 test_configs = [
@@ -70,5 +71,7 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
 
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize('config', ['dummy_config'])
-def test_modbus_tcp_generic() -> None:
-    print('The generic tcp example tests are not provided yet.')
+def test_modbus_tcp_generic(config) -> None:
+    logger.info('The generic tcp example tests are not provided yet.')
+
+
