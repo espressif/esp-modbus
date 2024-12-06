@@ -58,7 +58,7 @@ menu "Modbus configuration"
     config FMB_MASTER_TIMEOUT_MS_RESPOND
         int "Slave respond timeout (Milliseconds)"
         default 3000
-        range 150 15000
+        range 300 15000
         help
                 If master sends a frame which is not broadcast, it has to wait sometime for slave response.
                 if slave is not respond in this time, the master will process timeout error.
@@ -170,6 +170,15 @@ menu "Modbus configuration"
                 in the network using <Report Slave ID> command.
                 Most significant byte of ID is used as short device ID and
                 other three bytes used as long ID.
+
+    config FMB_CONTROLLER_SLAVE_ID_MAX_SIZE
+        int "Modbus Slave ID maximum buffer size (bytes)"
+        range 4 255
+        default 32
+        depends on FMB_CONTROLLER_SLAVE_ID_SUPPORT
+        help
+                Modbus slave ID buffer size used to store vendor specific ID information
+                for the <Report Slave ID> command.
 
     config FMB_CONTROLLER_NOTIFY_TIMEOUT
         int "Modbus controller notification timeout (ms)"

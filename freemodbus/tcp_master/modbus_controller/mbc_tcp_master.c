@@ -15,6 +15,7 @@
 #include "freertos/task.h"          // for task api access
 #include "freertos/event_groups.h"  // for event groups
 #include "freertos/queue.h"         // for queue api access
+#include "freertos/semphr.h"        // for semaphore
 #include "mb_m.h"                   // for modbus stack master types definition
 #include "port.h"                   // for port callback functions and defines
 #include "mbutils.h"                // for mbutils functions definition for stack callback
@@ -28,7 +29,6 @@
 #if MB_MASTER_TCP_ENABLED
 
 /*-----------------------Master mode use these variables----------------------*/
-
 #define MB_TCP_CONNECTION_TOUT  (pdMS_TO_TICKS(CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000))
 
 // Actual wait time depends on the response timer
@@ -197,7 +197,9 @@ static esp_err_t mbc_tcp_master_destroy(void)
     MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
 
     (void)vTaskDelete(mbm_opts->mbm_task_handle);
-    mbm_opts->mbm_task_handle = NULL; 
+    mbm_opts->mbm_task_handle = NULL;
+    vSemaphoreDelete(mbm_opts->mbm_sema);
+    mbm_opts->mbm_sema = NULL;
 
     mb_error = eMBMasterClose();
     MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
@@ -261,18 +263,15 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
     eMBMasterReqErrCode mb_error = MB_MRE_MASTER_BUSY;
     esp_err_t error = ESP_FAIL;
 
-    if (xMBMasterRunResTake(MB_TCP_API_RESP_TICS)) {
-        
+    if (xSemaphoreTake(mbm_opts->mbm_sema, MB_TCP_API_RESP_TICS) == pdTRUE) {
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
         uint16_t mb_size = request->reg_size;
-        
+
         // Set the buffer for callback function processing of received data
         mbm_opts->mbm_reg_buffer_ptr = (uint8_t*)data_ptr;
         mbm_opts->mbm_reg_buffer_size = mb_size;
-
-        vMBMasterRunResRelease();
 
         // Calls appropriate request function to send request and waits response
         switch(mb_command)
@@ -323,7 +322,9 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
                 mb_error = MB_MRE_NO_REG;
                 break;
         }
-    } 
+    } else {
+        ESP_LOGD(TAG, "%s:MBC semaphore take fail.", __func__);
+    }
 
     // Propagate the Modbus errors to higher level
     switch(mb_error)
@@ -350,10 +351,11 @@ static esp_err_t mbc_tcp_master_send_request(mb_param_request_t* request, void* 
             break;
 
         default:
-            ESP_LOGE(TAG, "%s: Incorrect return code (0x%x) ", __FUNCTION__, (unsigned)mb_error);
+            ESP_LOGE(TAG, "%s: Incorrect return code (0x%x) ", __FUNCTION__, (int)mb_error);
             error = ESP_FAIL;
             break;
     }
+    xSemaphoreGive( mbm_opts->mbm_sema );
 
     return error;
 }
@@ -744,6 +746,10 @@ esp_err_t mbc_tcp_master_create(void** handler)
     // Parameter change notification queue
     mbm_opts->mbm_event_group = xEventGroupCreate();
     MB_MASTER_CHECK((mbm_opts->mbm_event_group != NULL), ESP_ERR_NO_MEM, "mb event group error.");
+    mbm_opts->mbm_sema = xSemaphoreCreateBinary();
+    MB_MASTER_CHECK((mbm_opts->mbm_sema), ESP_ERR_NO_MEM, "%s: mbm resource create error.", __func__);
+    (void)xSemaphoreGive( mbm_opts->mbm_sema );
+    
     // Create modbus controller task
     status = xTaskCreate((void*)&modbus_tcp_master_task,
                             "modbus_tcp_master_task",

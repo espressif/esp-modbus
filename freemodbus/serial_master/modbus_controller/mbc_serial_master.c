@@ -14,6 +14,7 @@
 #include "freertos/task.h"          // for task api access
 #include "freertos/event_groups.h"  // for event groups
 #include "freertos/queue.h"         // for queue api access
+#include "freertos/semphr.h"        // for semaphore
 #include "mb_m.h"                   // for modbus stack master types definition
 #include "port.h"                   // for port callback functions
 #include "mbutils.h"                // for mbutils functions definition for stack callback
@@ -28,7 +29,7 @@ extern BOOL xMBMasterPortSerialTxPoll(void);
 
 /*-----------------------Master mode use these variables----------------------*/
 // Actual wait time depends on the response timer
-#define MB_SERIAL_API_RESP_TICS    (pdMS_TO_TICKS(MB_MAX_RESPONSE_TIME_MS))
+#define MB_SERIAL_API_RESP_TICS     (pdMS_TO_TICKS(MB_MAX_RESPONSE_TIME_MS))
 
 static mb_master_interface_t* mbm_interface_ptr = NULL;
 static const char *TAG = "MB_CONTROLLER_MASTER";
@@ -127,6 +128,8 @@ static esp_err_t mbc_serial_master_destroy(void)
     MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, "mb stack disable failure.");
     (void)vTaskDelete(mbm_opts->mbm_task_handle);
     (void)vEventGroupDelete(mbm_opts->mbm_event_group);
+    vSemaphoreDelete(mbm_opts->mbm_sema);
+    mbm_opts->mbm_sema = NULL;
     mb_error = eMBMasterClose();
     MB_MASTER_CHECK((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE,
                     "mb stack close failure returned (0x%x).", (int)mb_error);
@@ -176,22 +179,22 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
     eMBMasterReqErrCode mb_error = MB_MRE_MASTER_BUSY;
     esp_err_t error = ESP_FAIL;
 
-    if (xMBMasterRunResTake(MB_SERIAL_API_RESP_TICS)) {
-        
+    if (xSemaphoreTake(mbm_opts->mbm_sema, MB_SERIAL_API_RESP_TICS) == pdTRUE) {
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
         uint16_t mb_size = request->reg_size;
-    
+
         // Set the buffer for callback function processing of received data
         mbm_opts->mbm_reg_buffer_ptr = (uint8_t*)data_ptr;
         mbm_opts->mbm_reg_buffer_size = mb_size;
 
-        vMBMasterRunResRelease();
-
         // Calls appropriate request function to send request and waits response
         switch(mb_command)
         {
+            case MB_FUNC_OTHER_REPORT_SLAVEID:
+                mb_error = eMBMasterReqReportSlaveID((UCHAR)mb_slave_addr, (LONG)MB_SERIAL_API_RESP_TICS );
+                break;
             case MB_FUNC_READ_COILS:
                 mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                 (USHORT)mb_size , (LONG)MB_SERIAL_API_RESP_TICS );
@@ -216,7 +219,6 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
                 mb_error = eMBMasterReqWriteHoldingRegister( (UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                                 *(USHORT*)data_ptr, (LONG)MB_SERIAL_API_RESP_TICS );
                 break;
-
             case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
                 mb_error = eMBMasterReqWriteMultipleHoldingRegister( (UCHAR)mb_slave_addr,
                                                                         (USHORT)mb_offset, (USHORT)mb_size,
@@ -237,6 +239,8 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
                 mb_error = MB_MRE_NO_REG;
                 break;
         }
+    } else {
+        ESP_LOGD(TAG, "%s:MBC semaphore take fail.", __func__);
     }
 
     // Propagate the Modbus errors to higher level
@@ -264,10 +268,12 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
             break;
 
         default:
-            ESP_LOGE(TAG, "%s: Incorrect return code (%x) ", __FUNCTION__, (int)mb_error);
+            ESP_LOGE(TAG, "%s: Incorrect return code (0x%x) ", __FUNCTION__, (int)mb_error);
             error = ESP_FAIL;
             break;
     }
+
+    (void)xSemaphoreGive( mbm_opts->mbm_sema );
 
     return error;
 }
@@ -508,7 +514,7 @@ eMBErrorCode eMBRegInputCBSerialMaster(UCHAR * pucRegBuffer, USHORT usAddress,
     // If input or configuration parameters are incorrect then return an error to stack layer
     if ((pucInputBuffer != NULL)
             && (usNRegs >= 1)
-            && (usRegInputNregs == usRegs)) {
+            && ((usRegInputNregs == usRegs) || (!usAddress))) {
         while (usRegs > 0) {
             _XFER_2_RD(pucInputBuffer, pucRegBuffer);
             usRegs -= 1;
@@ -698,6 +704,10 @@ esp_err_t mbc_serial_master_create(void** handler)
     mbm_opts->mbm_event_group = xEventGroupCreate();
     MB_MASTER_CHECK((mbm_opts->mbm_event_group != NULL),
                         ESP_ERR_NO_MEM, "mb event group error.");
+    mbm_opts->mbm_sema = xSemaphoreCreateBinary();
+    MB_MASTER_CHECK((mbm_opts->mbm_sema != NULL), ESP_ERR_NO_MEM, "%s: mbm resource create error.", __func__);
+    (void)xSemaphoreGive( mbm_opts->mbm_sema );
+
     // Create modbus controller task
     status = xTaskCreatePinnedToCore((void*)&modbus_master_task,
                             "modbus_matask",

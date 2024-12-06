@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <sys/param.h>
 #include "esp_err.h"                // for esp_err_t
 #include "mbc_master.h"             // for master interface define
 #include "esp_modbus_master.h"      // for public interface defines
@@ -235,6 +236,29 @@ eMBErrorCode eMBMasterRegInputCB(UCHAR * pucRegBuffer, USHORT usAddress,
                     "Master interface is not correctly initialized.");
     error = master_interface_ptr->master_reg_cb_input(pucRegBuffer, usAddress, usNRegs);
     return error;
+}
+
+eMBErrorCode eMBMasterRegCommonCB(UCHAR * pucData, USHORT usAddress,
+                                    USHORT usBytes)
+{
+    MB_MASTER_CHECK((master_interface_ptr != NULL),
+                    MB_EILLSTATE,
+                    "Master interface is not correctly initialized.");
+    MB_MASTER_CHECK((master_interface_ptr != NULL),
+                    MB_EILLSTATE,
+                    "Master interface uninitialized.");
+    MB_MASTER_CHECK(pucData, MB_EINVAL,
+                    "Master stack processing error.");
+    mb_master_options_t* popts = &master_interface_ptr->opts;
+    USHORT usRegLen = (USHORT)popts->mbm_reg_buffer_size;
+    UCHAR* pucParBuffer = (UCHAR*)popts->mbm_reg_buffer_ptr; // Get instance address
+    eMBErrorCode eStatus = MB_ENOERR;
+    if (pucParBuffer && !usAddress && (usBytes >= 1) && (((usRegLen << 1) >= usBytes))){
+            memmove(pucParBuffer, pucData, MIN((usRegLen << 1), usBytes));
+    } else {
+        eStatus = MB_ENOREG;
+    }
+    return eStatus;
 }
 
 /**
