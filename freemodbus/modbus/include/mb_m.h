@@ -259,6 +259,24 @@ eMBErrorCode    eMBMasterRegisterCB( UCHAR ucFunctionCode,
  */
 
 /*! \ingroup modbus_registers
+ * \brief The common callback function used to transfer common data as bytes 
+ *   from command buffer in little endian format.
+ *
+ * \param pucData A pointer to data in command buffer to be transferred.
+ * \param usAddress Unused for this function == 0.
+ * \param usBytes Number of bytes the callback function must supply.
+ *
+ * \return The function must return one of the following error codes:
+ *   - eMBErrorCode::MB_ENOERR If no error occurred. In this case a normal
+ *       Modbus response is sent.
+ *   - eMBErrorCode::MB_ENOREG if can not map the data of the registers
+ *   - eMBErrorCode::MB_EILLSTATE if can not procceed with data transfer due to critical error
+ *   - eMBErrorCode::MB_EINVAL if value data can not be transferred
+ */
+eMBErrorCode eMBMasterRegCommonCB( UCHAR * pucData, USHORT usAddress,
+                                    USHORT usBytes );
+
+/*! \ingroup modbus_registers
  * \brief Callback function used if the value of a <em>Input Register</em>
  *   is required by the protocol stack. The starting register address is given
  *   by \c usAddress and the last register is given by <tt>usAddress +
@@ -273,9 +291,9 @@ eMBErrorCode    eMBMasterRegisterCB( UCHAR ucFunctionCode,
  * \return The function must return one of the following error codes:
  *   - eMBErrorCode::MB_ENOERR If no error occurred. In this case a normal
  *       Modbus response is sent.
- *   - eMBErrorCode::MB_ENOREG If the application does not map an coils
- *       within the requested address range. In this case a
- *       <b>ILLEGAL DATA ADDRESS</b> is sent as a response.
+ *   - eMBErrorCode::MB_ENOREG if can not map the data of the registers
+ *   - eMBErrorCode::MB_EILLSTATE if can not procceed with data transfer due to critical error
+ *   - eMBErrorCode::MB_EINVAL if value data can not be transferred
  */
 eMBErrorCode eMBMasterRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress,
                                         USHORT usNRegs );
@@ -364,6 +382,8 @@ eMBErrorCode eMBMasterRegDiscreteCB( UCHAR * pucRegBuffer, USHORT usAddress,
 /*! \ingroup modbus
  *\brief These Modbus functions are called for user when Modbus run in Master Mode.
  */
+eMBMasterReqErrCode
+eMBMasterReqReportSlaveID( UCHAR ucSndAddr, LONG lTimeOut );
 eMBMasterReqErrCode
 eMBMasterReqReadInputRegister( UCHAR ucSndAddr, USHORT usRegAddr, USHORT usNRegs, LONG lTimeOut );
 eMBMasterReqErrCode

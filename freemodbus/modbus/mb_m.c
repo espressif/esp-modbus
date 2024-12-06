@@ -129,7 +129,7 @@ BOOL( *pxMBMasterFrameCBTransmitFSMCur ) ( void );
  */
 static xMBFunctionHandler xMasterFuncHandlers[MB_FUNC_HANDLERS_MAX] = {
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED > 0
-    {MB_FUNC_OTHER_REPORT_SLAVEID, eMBFuncReportSlaveID},
+    {MB_FUNC_OTHER_REPORT_SLAVEID, eMBMasterFuncReportSlaveID},
 #endif
 #if MB_FUNC_READ_INPUT_ENABLED > 0
     {MB_FUNC_READ_INPUT_REGISTER, eMBMasterFuncReadInputRegister},
