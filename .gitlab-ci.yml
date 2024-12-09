@@ -297,7 +297,7 @@ build_docs:
     - add_doc_server_ssh_keys $DOCS_DEPLOY_PRIVATEKEY $DOCS_DEPLOY_SERVER $DOCS_DEPLOY_SERVER_USER
     - export GIT_VER=$(git describe --always)
     - pip install -r ${CI_PROJECT_DIR}/docs/requirements.txt
-    - export CI_COMMIT_REF_NAME="v2.0.0-beta" # override the reference name
+    - export CI_COMMIT_REF_NAME="v2.0.0" # override the reference name
     - deploy-docs
 
 deploy_docs_preview:
@@ -305,7 +305,7 @@ deploy_docs_preview:
     - .deploy_docs_template
   except:
     refs:
-      - master
+      - main
   variables:
     TYPE: "preview"
     DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
@@ -320,7 +320,7 @@ deploy_docs_production:
     - .deploy_docs_template
   only:
     refs:
-      - master
+      - main
   variables:
     TYPE: "production"
     DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
@@ -336,7 +336,7 @@ upload_to_component_manager:
   tags:
     - deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH == "release/v2.0"'
+    - if: '$CI_COMMIT_BRANCH == "main"' # the main branch is a component release branch for v2.0.0
     - if: '$FORCE_PUSH_COMPONENT == "1"'
   script:
     - pip install idf-component-manager
