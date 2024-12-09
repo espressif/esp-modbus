@@ -52,7 +52,7 @@ TEST_PACKET_COILS_WRITE = 'ModbusADU_Request(unitId=0x01, protoId=0)/\
                             ModbusPDU0F_Write_Multiple_Coils(funcCode=MB_DEF_FUNC_COILS_WRITE, startAddr=MB_DEF_START_OFFS, quantityOutput=MB_DEF_QUANTITY, outputsValue=[0xFF])'
 
 # The simplified version of custom Modbus Library to check robot framework
-@library(scope='GLOBAL', version='2.0-beta.1')
+@library(scope='GLOBAL', version='2.0.0')
 class ModbusTestLib:
     '''
         ModbusTestLib class is the custom Modbus library for robot framework.
