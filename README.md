@@ -22,7 +22,7 @@ ESP-IDF v5.x and later releases do not include freemodbus component, so no extra
 
 ## Peculiarities Of Current Release
 
-The current release esp-modbus corresponds to the version `v2.0.0` and supports creation of several instances of modbus master and slave objects. The public API interface is changed to allow creation of multiple communication objects with its own communication parameters, and the constructor API returns the handle to the interface structure that must be used as a first parameter for each API call for this particular object. For more information about the interface API and related changes see the official documentation for this release, described below. The goal of this beta release is to introduce new features and changes to the end users and get their feedback. The appropriate information or feature requests can be shared over on discussion page of the project.
+The current release esp-modbus corresponds to the version `v2.x.x` (refer to idf_component.yml file) and supports creation of several instances of modbus master and slave objects. The public API interface is changed to allow creation of multiple communication objects with its own communication parameters, and the constructor API returns the handle to the interface structure that must be used as a first parameter for each API call for this particular object. For more information about the interface API and related changes see the official documentation for this release, described below. The goal of this beta release is to introduce new features and changes to the end users and get their feedback. The appropriate information or feature requests can be shared over on discussion page of the project.
 
 * [Discussions](https://github.com/espressif/esp-modbus/discussions/categories/general)
 * [Issues](https://github.com/espressif/esp-modbus/issues)
@@ -31,7 +31,7 @@ The current release esp-modbus corresponds to the version `v2.0.0` and supports 
 
 The documentation can be found on the link below:
 
-* [ESP-Modbus documentation (English)](https://docs.espressif.com/projects/esp-modbus/en/v2.0.0/esp32/index.html)
+* [ESP-Modbus documentation (English)](https://docs.espressif.com/projects/esp-modbus/en/stable/esp32/index.html)
 
 ## Application Examples
 
