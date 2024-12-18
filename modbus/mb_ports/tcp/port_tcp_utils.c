@@ -750,7 +750,7 @@ int port_resolve_mdns_host(const char *host_name, char **paddr_str)
             err =  mdns_query_aaaa(host_name, MB_MDNS_QUERY_TIME_MS, &addr.u_addr.ip6);
             if (err == ESP_ERR_NOT_FOUND) {
                 ESP_LOGE(TAG, "Host: %s, was not resolved!", host_name);
-                return err;
+                return -1;
             }
             addr.type = ESP_IPADDR_TYPE_V6;
             if (asprintf(&pstr, IPV6STR, IPV62STR(addr.u_addr.ip6) == -1)) {
