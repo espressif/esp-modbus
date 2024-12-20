@@ -1,0 +1,23 @@
+[mapping:esp_modbus]
+archive: libesp-modbus.a
+entries:
+    * (default)
+    port_event: mb_port_event_set_err_type (noflash_text)
+    port_event: mb_port_event_post (noflash_text)
+    port_other: lock_obj (noflash_text)
+    port_other: unlock_obj (noflash_text)
+
+    if FMB_TIMER_USE_ISR_DISPATCH_METHOD = y:
+        # tcp_master: mbm_tcp_transp_timer_expired (noflash_text)
+        tcp_slave: mbs_tcp_transp_timer_expired (noflash_text)
+        # port_tcp_slave: mbs_port_timer_expired (noflash_text)
+        port_tcp_master: mbm_port_timer_expired (noflash_text)
+        port_timer: timer_alarm_cb (noflash_text)
+        port_timer: mb_port_set_cur_timer_mode (noflash_text)
+        port_timer: mb_port_get_cur_timer_mode (noflash_text)
+        port_timer: mb_port_timer_disable (noflash_text)
+        ascii_master: mbm_ascii_transp_timer_expired (noflash_text)
+        ascii_slave: mbs_ascii_transp_timer_expired (noflash_text)
+        rtu_master: mbm_rtu_transp_timer_expired (noflash_text)
+        rtu_slave: mbs_rtu_transp_timer_expired (noflash_text)
+

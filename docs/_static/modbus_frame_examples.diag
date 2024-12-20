@@ -1,0 +1,61 @@
+# Modbus frame packaging examples
+
+blockdiag mb_master_frames {
+        # global properties
+        span_width = 5;
+        span_height = 5;
+        node_height = 30;
+        default_group_color = lightgrey;
+        default_fontsize = 15;
+        # tuning node properties and connections
+        group 16bit_packets {
+            label = "16bit frame";
+            color = red;
+            shape = line;
+            style = dashed;
+            16bit_notes;
+        }
+        group 32bit_packets {
+            label = "32bit frame";
+            color = green;
+            shape = line;
+            style = dashed;
+            group{32bit_notes};
+        }
+        group 64bit_packets {
+            label = "64bit frame";
+            color = blue;
+            shape = line;
+            style = dashed;
+            64bit_notes;
+        }
+        16bit_notes[label="(UINT16, INT16) VALUE = 0x3039 = 12345", width=600, color=orange, shape = roundedbox];
+        req_u16_hd1[label= "TX:| UID | FC | REG_START | REG_LEN | CRC   |", color=lightyellow, width=520, colwidth=2, shape = roundedbox ,group=16bit_packets];
+        req_u16_frm1[label="TX:| 01  | 03 | 00 04 | 00 02 | 85 CA |", color=lightgrey, width=540, colwidth=2,group=16bit_packets];
+        rsp_u16_hd1[label= "RX:| UID | FC | LEN | UINT16_AB1 | UINT16_AB2 | CRC   |", color=lightyellow, width=540, colwidth=2, shape = roundedbox ,group=16bit_packets];
+        rsp_u16_frm1[label="RX:| 01  | 03 | 04 | 30 39 | 30 39 | F1 2C |", color=lightgrey, width=540, colwidth=2,group=16bit_packets];
+        rsp_u16_hd2[label= "RX:| UID | FC | LEN | UINT16_BA1 | UINT16_BA2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=16bit_packets];
+        rsp_u16_frm2[label="RX:| 01  | 03 | 04 | 39 30 | 39 30 | E4 E4 |\n", color=lightgrey, width=540, colwidth=2,group=16bit_packets];
+        32bit_notes[label="(UINT32, INT32, FLOAT32) VALUE = 0x4640e400 = 12345.0", width=600, color=lightgreen, shape = roundedbox];
+        req_fl_hd1[label= "TX:| UID | FC | REG_START | REG_LEN | CRC   |", color=lightyellow, width=540, colwidth=2, shape = roundedbox ,group=32bit_packets];
+        req_fl_frm1[label="TX:| 01  | 03 | 00 XX | 00 04 | C5 CB |", color=lightgrey, width=540, colwidth=2,group=32bit_packets];
+        rsp_fl_hd1[label= "RX:| UID | FC | LEN | FLOAT_ABCD1 | FLOAT_ABCD2 | CRC   |", color=lightyellow, width=540, colwidth=2, shape = roundedbox ,group=32bit_packets];
+        rsp_fl_frm1[label="RX:| 01  | 03 | 08 | E4 00 46 40 | E4 00 46 40 | 90 65 |", color=lightgrey, width=540, colwidth=2,group=32bit_packets];
+        rsp_fl_hd2[label= "RX:| UID | FC | LEN | FLOAT_CDAB1 | FLOAT_CDAB2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=32bit_packets];
+        rsp_fl_frm2[label="RX:| 01  | 03 | 08 | 46 40 E4 00 | 46 40 E4 00 | 18 71 |\n", color=lightgrey, width=540, colwidth=2,group=32bit_packets];
+        rsp_fl_hd3[label= "RX:| UID | FC | LEN | FLOAT_BADC1 | FLOAT_BADC2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=32bit_packets];
+        rsp_fl_frm3[label="RX:| 01  | 03 | 08 | 00 E4 40 46 | 00 E4 40 46 | 46 D3 |\n", color=lightgrey, width=540, colwidth=2,group=32bit_packets];
+        rsp_fl_hd4[label= "RX:| UID | FC | LEN | FLOAT_DCAB1 | FLOAT_DCAB2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=32bit_packets];
+        rsp_fl_frm4[label="RX:| 01  | 03 | 08 | 40 46 00 E4 | 40 46 00 E4 | 32 6B |\n", color=lightgrey, width=540, colwidth=2,group=32bit_packets];
+        64bit_notes[label="(UINT64, INT64, FLOAT64) VALUE = 0x40c81c8000000000 = 12345.0", width=600, color=lightblue, shape = roundedbox];
+        req_dbl_hd1[label= "TX:| UID | FC | REG_START | REG_LEN | CRC   |", color=lightyellow, width=540, colwidth=2, shape = roundedbox ,group=64bit_packets];
+        req_dbl_frm1[label="TX:| 01  | 03 | 00 28 | 00 08 | C4 04 |", color=lightgrey, width=540, colwidth=2,group=64bit_packets];
+        rsp_dbl_hd1[label= "RX:| UID | FC | LEN | DOUBLE_ABCDEFGH1 | DOUBLE_ABCDEFGH2 | CRC   |", color=lightyellow, width=540, colwidth=2, shape = roundedbox ,group=64bit_packets];
+        rsp_dbl_frm1[label="RX:| 01  | 03 | 10 | 00 00 00 00 1C 80 40 C8 | 00 00 00 00 1C 80 40 C8 | 9F 4B |", color=lightgrey, width=540, colwidth=2,group=64bit_packets];
+        rsp_dbl_hd2[label= "RX:| UID | FC | LEN | DOUBLE_HGFEDCBA1 | DOUBLE_HGFEDCBA2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=64bit_packets];
+        rsp_dbl_frm2[label="RX:| 01  | 03 | 10 | C8 40 80 1C 00 00 00 00 | C8 40 80 1C 00 00 00 00 | DF D3 |\n", color=lightgrey, width=540, colwidth=2,group=64bit_packets];
+        rsp_dbl_hd3[label= "RX:| UID | FC | LEN | DOUBLE_GHEFCDAB1 | DOUBLE_GHEFCDAB2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=64bit_packets];
+        rsp_dbl_frm3[label="RX:| 01  | 03 | 10 | 40 C8 1C 80 00 00 00 00 | 40 C8 1C 80 00 00 00 00 | B1 9C |\n", color=lightgrey, width=540, colwidth=2,group=64bit_packets];
+        rsp_dbl_hd4[label= "RX:| UID | FC | LEN | DOUBLE_BADCFEHG1 | DOUBLE_BADCFEHG2 | CRC   |\n ", color=lightyellow, width=540, colwidth=2, shape = roundedbox, group=64bit_packets];
+        rsp_dbl_frm4[label="RX:| 01  | 03 | 10 | 00 00 00 00 80 1C C8 40 | 00 00 00 00 80 1C C8 40 | 86 94 |\n", color=lightgrey, width=540, colwidth=2,group=64bit_packets];
+}

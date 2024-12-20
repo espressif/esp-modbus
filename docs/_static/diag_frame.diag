@@ -1,0 +1,37 @@
+# Modbus float_abcd frame structure diagram
+
+blockdiag mb_float_frame {
+    # global properties
+    span_width = 5;
+    span_height = 5;
+    node_height = 30;
+    default_fontsize = 15;
+    default_group_color = lightgrey;
+    class spacer [shape=none, width=10];
+    # tuning node properties and connections
+    0,1,2 [class=spacer];
+    0; note
+    1; header
+    2; response -- uid -- cmd -- len -- fl_abcd -- crc
+    group float_abcd_packet {
+        label = "PDU";
+        color = gray;
+        shape = line;
+        style = dashed;
+        group{uid,resp_uid};group{cmd,resp_cmd};group{len,resp_len};group{crc,resp_crc};
+        group float_abcd{
+            color = blue;
+            shape = line;
+            style = dashed;
+            fl_abcd;dt_abcd;
+        }
+    }
+    note[label="1: Unit Identificator, 2: Function code, 3: Data length, 4: Float data array, 5: Checksum",colwidth=6,color=lightyellow,shape=roundedbox]
+    header[label="FLOAT_ABCD = 0x4640e400 = 12345.0",colwidth=6,color=lightgreen]
+    response[label="RX:",color=yellow];
+    uid[label="UID",numbered=1];cmd[label="FC",numbered=2];
+    len[label="LENGTH",numbered=3];crc[label="CRC",numbered=5];
+    resp_uid[label="0x01"];resp_cmd[label="0x03"];resp_len[label="0x08"];resp_crc[label="0x9065"];
+    fl_abcd[label="FLOAT_ABCD",color=lightgreen,numbered=4];
+    dt_abcd[label="0xE4004640",shape=note];
+}

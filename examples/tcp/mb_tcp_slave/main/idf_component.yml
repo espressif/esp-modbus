@@ -1,0 +1,11 @@
+dependencies:
+  idf: ">=5.0"
+  espressif/esp-modbus:
+    version: "^2.0.0"
+    override_path: "../../../../"
+  espressif/mdns:
+    version: "^1.0.0"
+  mb_example_common:
+    path: "../../../mb_example_common"
+  protocol_examples_common:
+    path: ${IDF_PATH}/examples/common_components/protocol_examples_common

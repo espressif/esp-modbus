@@ -1,0 +1,27 @@
+tcp/mb_tcp_master:
+  disable_test:
+    - if: IDF_TARGET != "esp32" or CONFIG_NAME == "dummy_config"
+      reason: only manual test is performed
+  disable:
+    - if: CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1
+
+tcp/mb_tcp_slave:
+  disable_test:
+    - if: IDF_TARGET != "esp32" or CONFIG_NAME == "dummy_config"
+      reason: only manual test is performed
+  disable:
+    - if: CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1
+
+serial/mb_serial_master:
+  disable_test:
+    - if: IDF_TARGET != "esp32" or CONFIG_NAME == "dummy_config"
+      reason: only manual test is performed
+  disable:
+    - if: CONFIG_NAME == "default" and SOC_WIFI_SUPPORTED != 1
+
+serial/mb_serial_slave:
+  disable_test:
+    - if: IDF_TARGET != "esp32" or CONFIG_NAME == "dummy_config"
+      reason: only manual test is performed
+
+
