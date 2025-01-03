@@ -693,11 +693,23 @@ esp_err_t mbc_serial_master_create(mb_communication_info_t *config, void **ctx)
 
     if (pcomm_info->mode == MB_RTU)
     {
+#if ( CONFIG_FMB_COMM_MODE_RTU_EN )
         err = mbm_rtu_create(pcomm_info, &pinst);
+#else
+        ESP_LOGE(TAG, "RTU mode is not enabled in the configuration.");
+        ret = ESP_ERR_NOT_SUPPORTED;
+        goto error;
+#endif // CONFIG_FMB_COMM_MODE_RTU_EN
     }
     else if (pcomm_info->mode == MB_ASCII)
     {
+#if ( CONFIG_FMB_COMM_MODE_ASCII_EN )
         err = mbm_ascii_create(pcomm_info, &pinst);
+#else
+        ESP_LOGE(TAG, "ASCII mode is not enabled in the configuration.");
+        ret = ESP_ERR_NOT_SUPPORTED;
+        goto error;
+#endif // CONFIG_FMB_COMM_MODE_ASCII_EN
     }
     MB_GOTO_ON_FALSE((err == MB_ENOERR), ESP_ERR_INVALID_STATE, error, TAG,
                      "mb object create returns (0x%x).", (int)err);
