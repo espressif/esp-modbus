@@ -45,6 +45,36 @@ extern "C" {
 #define MB_EACH_ELEM(psrc, pdest, arr_size, elem_size) \
 (int i = 0; (i < (arr_size / elem_size)); i++, pdest += elem_size, psrc += elem_size)
 
+/**
+ * @brief Request mode for parameter to use in data dictionary
+ */
+typedef enum {
+    MB_PARAM_READ, /*!< Read parameter values. */
+    MB_PARAM_WRITE /*!< Write parameter values. */
+} mb_param_mode_t;
+
+
+/*!
+ * \brief Modbus parameter options for description table
+ */
+typedef union {
+    struct {
+        int opt1;                   /*!< Parameter option1 */
+        int opt2;                   /*!< Parameter option2 */
+        int opt3;                   /*!< Parameter option3 */
+    };
+    struct {
+        int min;                    /*!< Parameter minimum value */
+        int max;                    /*!< Parameter maximum value */
+        int step;                   /*!< Step of parameter change tracking */
+    };
+    struct {
+        int cust_cmd_read;          /*!< Parameter custom read request command */
+        int cust_cmd_write;         /*!< Parameter custom write request command */
+        int cust_cmd_not_used;      /*!< Not used option for custom request */
+    };
+} mb_parameter_opt_t;
+
 /*!
  * \brief Modbus descriptor table parameter type defines.
  */
@@ -109,23 +139,6 @@ typedef enum {
     PARAM_MAX_SIZE
 } mb_descr_size_t;
 
-/*!
- * \brief Modbus parameter options for description table (associated with the characteristic).
- * and can be used in user application to process data.
- */
-typedef union {
-    struct {
-        int opt1;                         /*!< Parameter option1 */
-        int opt2;                         /*!< Parameter option2 */
-        int opt3;                         /*!< Parameter option3 */
-    }; /*!< Parameter options version 1 */
-    struct {
-        int min;                          /*!< Parameter minimum value */
-        int max;                          /*!< Parameter maximum value */
-        int step;                         /*!< Step of parameter change tracking */
-    }; /*!< Parameter options version 2 */
-} mb_parameter_opt_t;
-
 /**
  * @brief Permissions for the characteristics
  */
@@ -133,11 +146,14 @@ typedef enum {
     PAR_PERMS_READ               = 1 << BIT0,                                   /**< the characteristic of the device are readable */
     PAR_PERMS_WRITE              = 1 << BIT1,                                   /**< the characteristic of the device are writable*/
     PAR_PERMS_TRIGGER            = 1 << BIT2,                                   /**< the characteristic of the device are triggerable */
+    PAR_PERMS_CUST_CMD           = 1 << BIT3,                                   /**< the characteristic uses custom commands */
     PAR_PERMS_READ_WRITE         = PAR_PERMS_READ | PAR_PERMS_WRITE,            /**< the characteristic of the device are readable & writable */
     PAR_PERMS_READ_TRIGGER       = PAR_PERMS_READ | PAR_PERMS_TRIGGER,          /**< the characteristic of the device are readable & triggerable */
     PAR_PERMS_WRITE_TRIGGER      = PAR_PERMS_WRITE | PAR_PERMS_TRIGGER,         /**< the characteristic of the device are writable & triggerable */
     PAR_PERMS_READ_WRITE_TRIGGER = PAR_PERMS_READ_WRITE | PAR_PERMS_TRIGGER,    /**< the characteristic of the device are readable & writable & triggerable */
+    PAR_PERMS_READ_WRITE_CUST_CMD = PAR_PERMS_READ_WRITE | PAR_PERMS_CUST_CMD   /**< the characteristic supports custom read/write commands */
 } mb_param_perms_t;
+
 
 /**
  * @brief Characteristics descriptor type is used to describe characteristic and

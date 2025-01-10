@@ -301,40 +301,6 @@ static esp_err_t mbc_serial_master_get_cid_info(void *ctx, uint16_t cid, const m
     return ESP_OK;
 }
 
-// Helper function to get modbus command for each type of Modbus register area
-static uint8_t mbc_serial_master_get_command(mb_param_type_t param_type, mb_param_mode_t mode)
-{
-    uint8_t command = 0;
-    switch (param_type)
-    {
-    case MB_PARAM_HOLDING:
-        command = (mode == MB_PARAM_WRITE) ? MB_FUNC_WRITE_MULTIPLE_REGISTERS : MB_FUNC_READ_HOLDING_REGISTER;
-        break;
-    case MB_PARAM_INPUT:
-        command = MB_FUNC_READ_INPUT_REGISTER;
-        break;
-    case MB_PARAM_COIL:
-        command = (mode == MB_PARAM_WRITE) ? MB_FUNC_WRITE_MULTIPLE_COILS : MB_FUNC_READ_COILS;
-        break;
-    case MB_PARAM_DISCRETE:
-        if (mode != MB_PARAM_WRITE)
-        {
-            command = MB_FUNC_READ_DISCRETE_INPUTS;
-        }
-        else
-        {
-            ESP_LOGE(TAG, "%s: Incorrect mode (%u)",
-                     __FUNCTION__, (unsigned)mode);
-        }
-        break;
-    default:
-        ESP_LOGE(TAG, "%s: Incorrect param type (%u)",
-                 __FUNCTION__, (unsigned)param_type);
-        break;
-    }
-    return command;
-}
-
 // Helper to search parameter by name in the parameter description table
 // and fills Modbus request fields accordingly
 static esp_err_t mbc_serial_master_set_request(void *ctx, uint16_t cid, mb_param_mode_t mode,
@@ -354,7 +320,7 @@ static esp_err_t mbc_serial_master_set_request(void *ctx, uint16_t cid, mb_param
         request->slave_addr = reg_ptr->mb_slave_addr;
         request->reg_start = reg_ptr->mb_reg_start;
         request->reg_size = reg_ptr->mb_size;
-        request->command = mbc_serial_master_get_command(reg_ptr->mb_param_type, mode);
+        request->command = mbc_master_get_command(reg_ptr, mode);
         MB_RETURN_ON_FALSE((request->command > 0), ESP_ERR_INVALID_ARG, TAG, "mb incorrect command or parameter type.");
         if (reg_data)
         {

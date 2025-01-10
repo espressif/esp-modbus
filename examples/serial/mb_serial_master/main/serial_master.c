@@ -75,6 +75,7 @@ enum {
     CID_HOLD_DATA_1,
     CID_INP_DATA_2,
     CID_HOLD_DATA_2,
+    CID_HOLD_CUSTOM1,
     CID_HOLD_TEST_REG,
     CID_RELAY_P1,
     CID_RELAY_P2,
@@ -135,6 +136,10 @@ const mb_parameter_descriptor_t device_parameters[] = {
             TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
             HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, 
             OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_HOLD_CUSTOM1, STR("CustomHoldReg"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
+            TEST_HOLD_REG_START(holding_area1_end), 1,
+            HOLD_OFFSET(holding_area1_end), PARAM_TYPE_U16, 2,
+            OPTS( 0x03, 0x06, 0x5555 ), PAR_PERMS_READ_WRITE_CUST_CMD },
     { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,
             HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, (TEST_ARR_REG_SZ * 2),
@@ -364,8 +369,9 @@ static void master_operation_func(void *arg)
             if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
                 void *temp_data_ptr = master_get_param_data(param_descriptor);
                 assert(temp_data_ptr);
-                if ((param_descriptor->param_type == PARAM_TYPE_ASCII) &&
-                        (param_descriptor->cid == CID_HOLD_TEST_REG)) {
+                if ((param_descriptor->cid >= CID_HOLD_CUSTOM1) 
+                            && (param_descriptor->cid <= CID_HOLD_TEST_REG)) {
+                    // Check test parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
                                         (int)param_descriptor->cid,
