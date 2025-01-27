@@ -578,7 +578,7 @@ esp_err_t port_start_mdns_service(char **ppdns_name, bool is_master, int uid, vo
 
     esp_netif_t *pnetif = (esp_netif_t*)pnode_netif;
     // set mDNS hostname (required if need to advertise services)
-    err = mdns_hostname_get(temp_str);
+    err = mdns_hostname_set(temp_str);
     if (err != ESP_OK) {
         uint8_t mac[6];
         MB_RETURN_ON_FALSE((esp_netif_get_mac(pnetif, mac) == ESP_OK), 
