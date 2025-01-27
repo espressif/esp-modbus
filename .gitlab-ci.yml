@@ -341,6 +341,7 @@ upload_to_component_manager:
     - if: '$CI_COMMIT_BRANCH == "main"' # the main branch is a component release branch for v2
     - if: '$FORCE_PUSH_COMPONENT == "1"'
       when: manual
+      allow_failure: true
   script:
     - pip install idf-component-manager
     - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
