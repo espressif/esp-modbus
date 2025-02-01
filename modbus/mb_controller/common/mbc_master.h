@@ -32,14 +32,6 @@ extern "C" {
 #define MB_MAX_RESP_DELAY_MS (3000)
 
 /**
- * @brief Request mode for parameter to use in data dictionary
- */
-typedef enum {
-    MB_PARAM_READ, /*!< Read parameter values. */
-    MB_PARAM_WRITE /*!< Write parameter values. */
-} mb_param_mode_t;
-
-/**
  * @brief Modbus controller handler structure
  */
 typedef struct {
