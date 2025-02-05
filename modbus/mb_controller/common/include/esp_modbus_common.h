@@ -5,6 +5,7 @@
  */
 
 #pragma once
+#include <inttypes.h>
 
 #include "driver/uart.h"                    // for UART types
 #include "sdkconfig.h"
@@ -13,19 +14,11 @@
 #include "mb_endianness_utils.h"
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "port_common.h"
 
 #if __has_include("esp_check.h")
 #include "esp_check.h"
 #include "esp_log.h"
-
-#include <inttypes.h>
-
-#include "mb_port_types.h"
 
 #define MB_RETURN_ON_FALSE(a, err_code, tag, format, ...) ESP_RETURN_ON_FALSE(a, err_code, tag, format __VA_OPT__(,) __VA_ARGS__)
 
@@ -40,6 +33,10 @@ extern "C" {
         }                                                                                              \
 } while(0)
 
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define MB_SLAVE_ADDR_PLACEHOLDER           (0xFF)
