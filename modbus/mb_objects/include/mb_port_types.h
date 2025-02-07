@@ -5,15 +5,29 @@
  */
 #pragma once
 
-#include "stdatomic.h"
 #include "mb_config.h"
 #include "mb_types.h"
 
-#define MB_ATTR_WEAK __attribute__ ((weak))
+#if __has_include("esp_idf_version.h")
+#include "esp_idf_version.h"
+#define IS_OLD_IDF_VER (IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 0, 0))
+#endif
 
-#ifdef __cplusplus
+// Workaround for atomics incompatibility issue under CPP.
+#if defined(__cplusplus) && IS_OLD_IDF_VER
+#include <atomic>
+#define _Atomic(T) std::atomic<T>
+#else
+#include <stdatomic.h>
+#endif
+
+
+
+#if defined(__cplusplus)
 extern "C" {
 #endif
+
+#define MB_ATTR_WEAK __attribute__ ((weak))
 
 typedef enum _mb_comm_mode mb_mode_type_t;
 
@@ -98,7 +112,7 @@ typedef struct _uid_info {
     uint16_t uid;                   /*!< node unit ID (UID) field for MBAP frame  */
     uint16_t port;                  /*!< node port number */
     mb_comm_mode_t proto;           /*!< protocol type */
-    atomic_int state;               /*!< node state */
+    _Atomic(int) state;             /*!< node state */
     void *inst;                     /*!< pointer to linked instance */
 } mb_uid_info_t;
 

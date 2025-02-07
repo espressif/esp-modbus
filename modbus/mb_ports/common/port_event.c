@@ -18,11 +18,11 @@ static const char *TAG = "mb_port.event";
 
 struct mb_port_event_t
 {
-    _Atomic mb_err_event_t curr_err_type;
+    _Atomic(int) curr_err_type;
     SemaphoreHandle_t resource_hdl;
     EventGroupHandle_t event_group_hdl;
     QueueHandle_t event_hdl;
-    _Atomic uint64_t curr_trans_id;
+    _Atomic(uint64_t) curr_trans_id;
 };
 
 mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
