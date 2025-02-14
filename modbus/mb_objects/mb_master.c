@@ -82,9 +82,9 @@ static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr);
 static uint8_t mbm_get_dest_addr(mb_base_t *inst);
 static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf);
 
-#if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED) 
-
 typedef struct _port_serial_opts mb_serial_opts_t;
+
+#if (MB_MASTER_RTU_ENABLED)
 
 mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 {
@@ -139,6 +139,10 @@ error:
     return ret;
 }
 
+#endif /* MB_MASTER_RTU_ENABLED */
+
+#if (MB_MASTER_ASCII_ENABLED)
+
 mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 {
     MB_RETURN_ON_FALSE((ser_opts && in_out_obj), MB_EINVAL, TAG, "invalid options for the instance.");
@@ -192,7 +196,7 @@ error:
     return ret;
 }
 
-#endif
+#endif /* MB_MASTER_ASCII_ENABLED */
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 

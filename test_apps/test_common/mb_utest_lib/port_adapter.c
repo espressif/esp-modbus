@@ -46,7 +46,7 @@ typedef struct _mb_adapter_port_entry
     uint16_t recv_length;
     uint64_t send_time_stamp;
     uint64_t recv_time_stamp;
-    _Atomic uint64_t test_timeout_us;
+    _Atomic(uint64_t) test_timeout_us;
     uint32_t flags;
     mb_uid_info_t addr_info;
     QueueHandle_t rx_queue;

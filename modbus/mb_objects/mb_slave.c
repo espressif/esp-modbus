@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include "mb_config.h"
 #include "mb_common.h"
 #include "mb_proto.h"
 #include "mb_func.h"
@@ -14,6 +15,8 @@
 #include "tcp_transport.h"
 
 static const char *TAG = "mb_object.slave";
+
+#if (MB_SLAVE_ASCII_ENABLED || MB_SLAVE_RTU_ENABLED || MB_TCP_ENABLED)
 
 static mb_fn_handler_t slave_handlers[MB_FUNC_HANDLERS_MAX] =
     {
@@ -73,9 +76,9 @@ mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
 mb_err_enum_t mbs_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
 
-#if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
-
 typedef struct _port_serial_opts mb_serial_opts_t;
+
+#if (MB_SLAVE_RTU_ENABLED)
 
 mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 {
@@ -124,6 +127,10 @@ error:
     return ret;
 }
 
+#endif /* MB_SLAVE_RTU_ENABLED */
+
+#if (MB_SLAVE_ASCII_ENABLED)
+
 mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 {
     mb_err_enum_t ret = MB_ENOERR;
@@ -170,9 +177,9 @@ error:
     return ret;
 }
 
-#endif
+#endif /* MB_SLAVE_ASCII_ENABLED */
 
-#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+#if (MB_TCP_ENABLED)
 
 mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
 {
@@ -381,3 +388,5 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
     }
     return status;
 }
+
+#endif /* (MB_SLAVE_ASCII_ENABLED || MB_SLAVE_RTU_ENABLED || MB_TCP_ENABLED) */
