@@ -153,31 +153,40 @@ static esp_err_t mb_drv_event_loop_deinit(void *ctx)
     return err;
 }
 
-esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_t event, mb_event_handler_fp fp)
+esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_num_t event_num, mb_event_handler_fp fp)
 {
     port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
     esp_err_t ret = ESP_ERR_INVALID_STATE;
+    mb_driver_event_t event = MB_EVENT_FROM_NUM(event_num);
 
-    ESP_LOGD(TAG, "%p, event 0x%x, register.", pdrv_ctx, (int)event);
+    ESP_LOGD(TAG, "%p, event #%d, 0x%x, register.", pdrv_ctx, (int)event_num, (int)event);
+    MB_RETURN_ON_FALSE((pdrv_ctx->event_handler[event_num] == NULL), ESP_ERR_INVALID_ARG,
+                        TAG, "%p, event handler %p, for event %x, is not empty.", pdrv_ctx, pdrv_ctx->event_handler[event_num], (int)event);
 
     ret = esp_event_handler_instance_register_with(mb_drv_loop_handle, MB_EVENT_BASE(ctx), event,
-                                                                fp, ctx, &pdrv_ctx->event_handler);
-    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE , 
-                            TAG, "%p, event handler %p, registration error.", pdrv_ctx, pdrv_ctx->event_handler);
+                                                                fp, ctx, &pdrv_ctx->event_handler[event_num]);
+    ESP_LOGD(TAG, "%p, registered event handler %p, event 0x%x", pdrv_ctx, pdrv_ctx->event_handler[event_num], (int)event);
+    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE,
+                            TAG, "%p, event handler %p, registration error.", pdrv_ctx, pdrv_ctx->event_handler[event_num]);
     
     return ESP_OK;
 }
 
-esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_t event)
+esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_num_t event_num)
 {
     port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
     esp_err_t ret = ESP_ERR_INVALID_STATE;
-    ESP_LOGD(TAG, "%p, event handler %p, event 0x%x, unregister.", pdrv_ctx, pdrv_ctx->event_handler, (int)event);
+    mb_driver_event_t event = MB_EVENT_FROM_NUM(event_num);
+
+    ESP_LOGD(TAG, "%p, event handler %p, event 0x%x, unregister.", pdrv_ctx, pdrv_ctx->event_handler[event_num], (int)event);
+    MB_RETURN_ON_FALSE((pdrv_ctx->event_handler[event_num]), ESP_ERR_INVALID_ARG,
+                        TAG, "%p, event handler %p, for event %x, is incorrect.", pdrv_ctx, pdrv_ctx->event_handler[event_num], (int)event);
 
     ret = esp_event_handler_instance_unregister_with(mb_drv_loop_handle,
-                                                      MB_EVENT_BASE(ctx), (int32_t)event, pdrv_ctx->event_handler);
-    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE , 
-                        TAG, "%p, event handler %p, unregister error.", pdrv_ctx, pdrv_ctx->event_handler);
+                                                      MB_EVENT_BASE(ctx), (int32_t)event, pdrv_ctx->event_handler[event_num]);
+    pdrv_ctx->event_handler[event_num] = NULL;
+    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE ,
+                        TAG, "%p, event handler %p, instance unregister with, error = %d", pdrv_ctx, pdrv_ctx->event_handler[event_num], (int)ret);
 
     return ESP_OK;
 }
@@ -666,6 +675,7 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
 {
     port_driver_t driver_config = MB_DRIVER_CONFIG_DEFAULT;
     esp_err_t ret = ESP_ERR_INVALID_STATE;
+    int i = 0;
     
     port_driver_t *pctx = (port_driver_t *)calloc(1, sizeof(port_driver_t));
     MB_GOTO_ON_FALSE((pctx), ESP_ERR_NO_MEM, error, TAG, "%p, driver allocation fail.", pctx);
@@ -673,12 +683,16 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
 
     CRITICAL_SECTION_INIT(pctx->lock);
 
-    // create and initialize modbus driver conetext structure
+    // create and initialize modbus driver context structure
     pctx->mb_nodes = calloc(MB_MAX_FDS, sizeof(mb_node_info_t *));
     MB_GOTO_ON_FALSE((pctx->mb_nodes), ESP_ERR_NO_MEM, error, TAG, "%p, node allocation fail.", pctx);
 
-    for (int i = 0; i < MB_MAX_FDS; i++) {
+    for (i = 0; i < MB_MAX_FDS; i++) {
         pctx->mb_nodes[i] = NULL;
+    }
+    // initialization of event handlers
+    for (i = 0; i < MB_EVENT_COUNT; i++) {
+        pctx->event_handler[i] = NULL;
     }
 
     ret = init_event_fd((void *)pctx);

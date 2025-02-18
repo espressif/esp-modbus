@@ -33,31 +33,31 @@ static esp_err_t mbm_port_tcp_register_handlers(void *ctx)
     port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
     esp_err_t ret = ESP_ERR_INVALID_STATE;
 
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_READY, mbm_on_ready);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_READY_NUM, mbm_on_ready);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_READY);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_OPEN, mbm_on_open);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_OPEN_NUM, mbm_on_open);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_OPEN);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_RESOLVE, mbm_on_resolve);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_RESOLVE_NUM, mbm_on_resolve);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_RESOLVE);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_CONNECT, mbm_on_connect);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_CONNECT_NUM, mbm_on_connect);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_CONNECT);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_ERROR, mbm_on_error);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_ERROR_NUM, mbm_on_error);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_ERROR);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_SEND_DATA, mbm_on_send_data);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_SEND_DATA_NUM, mbm_on_send_data);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_SEND_DATA);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_RECV_DATA, mbm_on_recv_data);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_RECV_DATA_NUM, mbm_on_recv_data);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_RECV_DATA);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_CLOSE, mbm_on_close);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_CLOSE_NUM, mbm_on_close);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_CLOSE);
-    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_TIMEOUT, mbm_on_timeout);
+    ret = mb_drv_register_handler(pdrv_ctx, MB_EVENT_TIMEOUT_NUM, mbm_on_timeout);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_TIMEOUT);
     return ESP_OK;
@@ -69,31 +69,31 @@ static esp_err_t mbm_port_tcp_unregister_handlers(void *ctx)
     esp_err_t ret = ESP_ERR_INVALID_STATE;
     ESP_LOGD(TAG, "%p, event handler %p, unregister.", pdrv_ctx, pdrv_ctx->event_handler);
 
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_READY);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_READY_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_READY);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_OPEN);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_OPEN_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_OPEN);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_RESOLVE);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_RESOLVE_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_RESOLVE);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_CONNECT);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_CONNECT_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_CONNECT);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_ERROR);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_ERROR_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_ERROR);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_SEND_DATA);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_SEND_DATA_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_SEND_DATA);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_RECV_DATA);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_RECV_DATA_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_RECV_DATA);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_CLOSE);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_CLOSE_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_CLOSE);
-    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_TIMEOUT);
+    ret = mb_drv_unregister_handler(pdrv_ctx, MB_EVENT_TIMEOUT_NUM);
     MB_RETURN_ON_FALSE((ret == ESP_OK), MB_EINVAL, TAG,
                         "%x, mb tcp port event registration failed.", (int)MB_EVENT_TIMEOUT);
     return ESP_OK;
@@ -189,7 +189,7 @@ void mbm_port_tcp_delete(mb_port_base_t *inst)
     mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
     esp_err_t err = MB_EILLSTATE;
     err = mbm_port_tcp_unregister_handlers(port_obj->pdriver);
-    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG, "mb tcp port invalid arguments.");
+    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG, "mb tcp port can not unregister handlers.");
 #ifdef MB_MDNS_IS_INCLUDED
     port_stop_mdns_service(&port_obj->pdriver->dns_name);
 #endif

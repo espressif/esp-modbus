@@ -139,16 +139,31 @@ typedef struct _port_driver port_driver_t;
     atomic_store(&(((mb_node_info_t *)pnode)->addr_info.state), node_state);    \
 } while(0)
 
+#define MB_EVENT_FROM_NUM(event_num) ((mb_driver_event_t)(1 << (event_num)))
+
+typedef enum _mb_event_num {
+    MB_EVENT_READY_NUM = 0,
+    MB_EVENT_OPEN_NUM = 1,
+    MB_EVENT_RESOLVE_NUM = 2,
+    MB_EVENT_CONNECT_NUM = 3,
+    MB_EVENT_SEND_DATA_NUM = 4,
+    MB_EVENT_RECV_DATA_NUM = 5,
+    MB_EVENT_ERROR_NUM = 6,
+    MB_EVENT_CLOSE_NUM = 7,
+    MB_EVENT_TIMEOUT_NUM = 8,
+    MB_EVENT_COUNT = 9
+} mb_driver_event_num_t;
+
 typedef enum _mb_driver_event {
-    MB_EVENT_READY = 0x0001,
-    MB_EVENT_OPEN = 0x0002,
-    MB_EVENT_RESOLVE = 0x0004,
-    MB_EVENT_CONNECT = 0x0008,
-    MB_EVENT_SEND_DATA = 0x0010,
-    MB_EVENT_RECV_DATA = 0x0020,
-    MB_EVENT_ERROR = 0x0040,
-    MB_EVENT_CLOSE = 0x0080,
-    MB_EVENT_TIMEOUT = 0x0100
+    MB_EVENT_READY = (1 << MB_EVENT_READY_NUM),
+    MB_EVENT_OPEN = (1 << MB_EVENT_OPEN_NUM),
+    MB_EVENT_RESOLVE = (1 << MB_EVENT_RESOLVE_NUM),
+    MB_EVENT_CONNECT = (1 << MB_EVENT_CONNECT_NUM),
+    MB_EVENT_SEND_DATA = (1 << MB_EVENT_SEND_DATA_NUM),
+    MB_EVENT_RECV_DATA = (1 << MB_EVENT_RECV_DATA_NUM),
+    MB_EVENT_ERROR = (1 << MB_EVENT_ERROR_NUM),
+    MB_EVENT_CLOSE = (1 << MB_EVENT_CLOSE_NUM),
+    MB_EVENT_TIMEOUT =(1 << MB_EVENT_TIMEOUT_NUM)
 } mb_driver_event_t;
 
 typedef struct {
@@ -234,7 +249,7 @@ typedef struct _port_driver {
     EventGroupHandle_t status_flags_hdl;        /*!< status bits to control nodes states */
     TaskHandle_t mb_tcp_task_handle;            /*!< TCP/UDP handling task handle */
     esp_event_loop_handle_t event_loop_hdl;     /*!< event loop handle */
-    esp_event_handler_instance_t event_handler; /*!< event handler instance */
+    esp_event_handler_instance_t event_handler[MB_EVENT_COUNT]; /*!< event handler instance */
     char *loop_name;                            /*!< name for event loop used as base */
     mb_driver_event_cb_t event_cbs;
     //LIST_HEAD(mb_uid_info_, mb_uid_entry_s) node_list; /*!< node address information list */
@@ -313,9 +328,9 @@ void mb_drv_set_cb(void *ctx, void *conn_cb, void *arg);
 
 mb_status_flags_t mb_drv_wait_status_flag(void *ctx, mb_status_flags_t mask, TickType_t ticks);
 
-esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_t event, mb_event_handler_fp fp);
+esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_num_t event, mb_event_handler_fp fp);
 
-esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_t event);
+esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_num_t event);
 
 void mb_drv_check_suspend_shutdown(void *ctx);
 

@@ -10,7 +10,7 @@ from pytest_embedded_idf import CaseTester
 def test_modbus_comm_multi_dev_serial(case_tester) -> None:                # type: ignore
     for case in case_tester.test_menu:
         if case.attributes.get('test_env', 'multi_dut_modbus_serial') == 'multi_dut_modbus_serial':
-            print(case.name)
+            print(f'Test case: {case.name}')
             case_tester.run_multi_dev_case(case=case, reset=True)
 
 @pytest.mark.esp32
@@ -19,5 +19,5 @@ def test_modbus_comm_multi_dev_serial(case_tester) -> None:                # typ
 def test_modbus_comm_multi_dev_tcp(case_tester) -> None:                # type: ignore
     for case in case_tester.test_menu:
         if case.attributes.get('test_env', 'multi_dut_modbus_tcp') == 'multi_dut_modbus_tcp':
-            print(case.name)
+            print(f'Test case: {case.name}')
             case_tester.run_multi_dev_case(case=case, reset=True)

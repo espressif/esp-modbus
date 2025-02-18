@@ -201,10 +201,12 @@ static void test_modbus_tcp_master(void)
     void *pnetif = NULL;
     TEST_ASSERT_TRUE(test_tcp_services_init(&pnetif) == ESP_OK);
     TEST_ASSERT_NOT_NULL(pnetif);
+
     test_common_start();
 
     ESP_LOGI(TAG, "Master TCP is started (%s).", __func__);
     unity_wait_for_signal("Slave_ready");
+
 
     // Initialize and start Modbus controller
     mb_communication_info_t tcp_master_cfg_1 = {
@@ -235,7 +237,7 @@ static void test_modbus_tcp_master(void)
 /* 
  * Modbus TCP multi device test case
  */
-TEST_CASE_MULTIPLE_DEVICES("Modbus TCP multi device master - slave case.", "[modbus][test_env=multi_dut_modbus_tcp]", 
+TEST_CASE_MULTIPLE_DEVICES("Modbus TCP multi device master - slave case.", "[modbus][test_env=multi_dut_modbus_tcp]",
                             test_modbus_tcp_slave, test_modbus_tcp_master);
 
 #endif
