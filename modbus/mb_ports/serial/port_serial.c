@@ -37,7 +37,7 @@ typedef struct
     uint64_t send_time_stamp;
     uint64_t recv_time_stamp;
     uint32_t flags;
-    bool enabled;
+    _Atomic(bool) enabled;
     QueueHandle_t uart_queue;           // A queue to handle UART event.
     TaskHandle_t  task_handle;          // UART task to handle UART event.
     SemaphoreHandle_t bus_sema_handle;   // Rx blocking semaphore handle

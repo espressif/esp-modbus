@@ -4,18 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #pragma once
-
+#include <inttypes.h>
 #include "sdkconfig.h" // for KConfig options
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #if __has_include("esp_idf_version.h")
 #include "esp_idf_version.h"
 #endif
 
-#include <inttypes.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* ----------------------- Defines ------------------------------------------*/
 /*! \defgroup modbus_cfg Modbus Configuration
@@ -48,8 +46,8 @@ extern "C" {
 
 #ifdef ESP_IDF_VERSION
 
-#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0))
-// Features supported from 4.4
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+// Features supported from v5.0
 #define MB_TIMER_SUPPORTS_ISR_DISPATCH_METHOD 1
 #endif
 
