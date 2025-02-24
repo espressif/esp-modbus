@@ -182,10 +182,11 @@ esp_err_t mbc_tcp_slave_controller_create(void ** ctx)
     // Initialization of interface pointers
     mbs_controller_iface->create = mbc_tcp_slave_create;
     mbs_controller_iface->delete = mbc_tcp_slave_delete;
-    mbs_controller_iface->start = mbc_tcp_slave_start;
     mbs_controller_iface->check_event = mbc_tcp_slave_check_event;
     mbs_controller_iface->get_param_info = mbc_tcp_slave_get_param_info;
     mbs_controller_iface->set_descriptor = NULL; // Use common descriptor setter
+    mbs_controller_iface->start = mbc_tcp_slave_start;
+    mbs_controller_iface->stop = mbc_tcp_slave_stop;
     *ctx = mbs_controller_iface;
     return ESP_OK;
 
