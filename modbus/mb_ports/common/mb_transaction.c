@@ -19,7 +19,7 @@ typedef struct transaction_item {
     int msg_id;
     void *pnode;
     transaction_tick_t tick;
-    _Atomic pending_state_t state;
+    _Atomic(int) state;
     STAILQ_ENTRY(transaction_item) next;
 } transaction_item_t;
 

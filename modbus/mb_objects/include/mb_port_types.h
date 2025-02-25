@@ -5,12 +5,30 @@
  */
 #pragma once
 
-#include "stdatomic.h"
 #include "mb_config.h"
 #include "mb_types.h"
 
-#ifdef __cplusplus
+#if __has_include("esp_idf_version.h")
+#include "esp_idf_version.h"
+#endif
+
+// Workaround for atomics incompatibility issue under CPP.
+#if defined(__cplusplus) && (IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 0, 0))
+#include <atomic>
+#define _Atomic(T) std::atomic<T>
+#define atomic_int int
+#else
+#include <stdatomic.h>
+#endif
+
+#if defined(__cplusplus)
 extern "C" {
+#else
+// This is to verify the atomic int types for C compilation unit have the same layout as int type.
+static_assert(
+    (sizeof(_Atomic(int)) == sizeof(int) && sizeof(_Atomic int) == sizeof(int)),
+    "the _Atomic int types are not layout compatible with int type"
+);
 #endif
 
 #define MB_ATTR_WEAK __attribute__ ((weak))
@@ -21,7 +39,6 @@ typedef enum _mb_comm_mode mb_mode_type_t;
 
 #include "driver/uart.h"
 
-__attribute__((__packed__))
 struct _port_serial_opts {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uart_port_t port;               /*!< Modbus communication port (UART) number */
@@ -32,7 +49,7 @@ struct _port_serial_opts {
     uart_word_length_t data_bits;   /*!< Modbus number of data bits */
     uart_stop_bits_t stop_bits;     /*!< Modbus number of stop bits */
     uart_parity_t parity;           /*!< Modbus UART parity settings */
-};
+} __attribute__((__packed__));
 
 typedef struct _port_serial_opts mb_serial_opts_t;
 
@@ -44,16 +61,15 @@ typedef enum _addr_type_enum {
     MB_IPV6 = 2                     /*!< TCP IPV6 addressing */
 } mb_addr_type_t;
 
-__attribute__((__packed__))
+
 struct _port_common_opts {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uint16_t port;                  /*!< Modbus communication port (UART) number */
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
     uint32_t response_tout_ms;      /*!< Modbus slave response timeout */
     uint64_t test_tout_us;          /*!< Modbus test timeout (reserved) */
-};
+} __attribute__((__packed__));
 
-__attribute__((__packed__))
 struct _port_tcp_opts {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uint16_t port;                  /*!< Modbus communication port (UART) number */
@@ -65,7 +81,7 @@ struct _port_tcp_opts {
     void *ip_netif_ptr;             /*!< Modbus network interface */
     char *dns_name;                 /*!< Modbus node DNS name */
     bool start_disconnected;        /*!< (Master only option) do not wait for connection to all nodes before polling */
-};
+} __attribute__((__packed__));
 
 typedef struct _port_tcp_opts mb_tcp_opts_t;
 
@@ -100,7 +116,7 @@ typedef struct _uid_info {
     uint16_t uid;                   /*!< node unit ID (UID) field for MBAP frame  */
     uint16_t port;                  /*!< node port number */
     mb_comm_mode_t proto;           /*!< protocol type */
-    _Atomic mb_sock_state_t state;  /*!< node state */
+    _Atomic(int) state;             /*!< node state */
     void *inst;                     /*!< pointer to linked instance */
 } mb_uid_info_t;
 

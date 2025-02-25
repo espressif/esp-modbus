@@ -11,7 +11,7 @@
 #include "port_common.h"
 
 /* ----------------------- Variables ----------------------------------------*/
-static _Atomic uint32_t inst_counter = 0;
+static _Atomic(uint32_t) inst_counter = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
 int lock_obj(_lock_t *plock)
