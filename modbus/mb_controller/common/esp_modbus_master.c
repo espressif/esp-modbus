@@ -61,6 +61,7 @@ esp_err_t mbc_master_unlock(void *ctx)
 
 esp_err_t mbc_master_get_cid_info(void *ctx, uint16_t cid, const mb_parameter_descriptor_t **param_info)
 {
+
     esp_err_t error = ESP_OK;
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");

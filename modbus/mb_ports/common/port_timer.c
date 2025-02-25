@@ -29,9 +29,9 @@ struct mb_port_timer_t
     //spinlock_t spin_lock;
     esp_timer_handle_t timer_handle;
     uint16_t t35_ticks;
-    _Atomic uint32_t response_time_ms;
-    _Atomic bool timer_state;
-    _Atomic uint16_t timer_mode;
+    _Atomic(uint32_t) response_time_ms;
+    _Atomic(bool) timer_state;
+    _Atomic(uint16_t) timer_mode;
 };
 
 /* ----------------------- Static variables ---------------------------------*/
