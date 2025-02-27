@@ -119,6 +119,9 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
     mbm_opts->task_handle = NULL;
     vEventGroupDelete(mbm_opts->event_group_handle);
     mbm_opts->event_group_handle = NULL;
+    vSemaphoreDelete(mbm_opts->mbm_sema);
+    mbm_opts->mbm_sema = NULL;
+    // delete mb_base instance and all its allocations
     mb_error = mbm_iface->mb_base->delete(mbm_iface->mb_base);
     MB_RETURN_ON_FALSE((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack delete failure, returned (0x%x).", (int)mb_error);
@@ -159,10 +162,8 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
     MB_RETURN_ON_FALSE((data_ptr), ESP_ERR_INVALID_ARG, TAG, "mb incorrect data pointer.");
 
     mb_err_enum_t mb_error = MB_EBUSY;
-    esp_err_t error = ESP_FAIL;
 
-    if (mb_port_event_res_take(mbm_controller_iface->mb_base->port_obj, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS)))
-    {
+    if (xSemaphoreTake(mbm_opts->mbm_sema, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS)) == pdTRUE) {
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
@@ -172,11 +173,14 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
         mbm_opts->reg_buffer_size = mb_size;
 
-        mb_port_event_res_release(mbm_controller_iface->mb_base->port_obj);
-
         // Calls appropriate request function to send request and waits response
         switch (mb_command)
         {
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+        case MB_FUNC_OTHER_REPORT_SLAVEID:
+            mb_error = mbm_rq_report_slave_id(mbm_controller_iface->mb_base, mb_slave_addr, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+            break;
+#endif
 
 #if MB_FUNC_READ_COILS_ENABLED
         case MB_FUNC_READ_COILS:
@@ -257,39 +261,13 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
             mb_error = MB_ENOREG;
             break;
         }
+    } else {
+        ESP_LOGD(TAG, "%s:MBC semaphore take fail.", __func__);
     }
+    (void)xSemaphoreGive(mbm_opts->mbm_sema);
 
     // Propagate the Modbus errors to higher level
-    switch (mb_error)
-    {
-    case MB_ENOERR:
-        error = ESP_OK;
-        break;
-
-    case MB_ENOREG:
-        error = ESP_ERR_NOT_SUPPORTED; // Invalid register request
-        break;
-
-    case MB_ETIMEDOUT:
-        error = ESP_ERR_TIMEOUT; // Slave did not send response
-        break;
-
-    case MB_EILLFUNC:
-    case MB_ERECVDATA:
-        error = ESP_ERR_INVALID_RESPONSE; // Invalid response from slave
-        break;
-
-    case MB_EBUSY:
-        error = ESP_ERR_INVALID_STATE; // Master is busy (previous request is pending)
-        break;
-
-    default:
-        ESP_LOGE(TAG, "%s: Incorrect return code (%x) ", __FUNCTION__, (uint16_t)mb_error);
-        error = ESP_FAIL;
-        break;
-    }
-
-    return error;
+    return MB_ERR_TO_ESP_ERR(mb_error);
 }
 
 static esp_err_t mbc_serial_master_get_cid_info(void *ctx, uint16_t cid, const mb_parameter_descriptor_t **param_buffer)
@@ -623,6 +601,10 @@ static esp_err_t mbc_serial_master_controller_create(void **ctx)
     // Initialization of active context of the modbus controller
     mbm_opts->event_group_handle = xEventGroupCreate();
     MB_GOTO_ON_FALSE((mbm_opts->event_group_handle), ESP_ERR_INVALID_STATE, error, TAG, "mb event group error.");
+    mbm_opts->mbm_sema = xSemaphoreCreateBinary();
+    MB_GOTO_ON_FALSE((mbm_opts->mbm_sema != NULL), ESP_ERR_NO_MEM, error, TAG, "%s: mbm resource create error.", __func__);
+    (void)xSemaphoreGive(mbm_opts->mbm_sema);
+
     // Create modbus controller task
     status = xTaskCreatePinnedToCore((void *)&mbc_ser_master_task,
                                      "mbc_ser_master",

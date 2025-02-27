@@ -10,6 +10,8 @@
 #include "freertos/FreeRTOS.h"      // for task creation and queue access
 #include "freertos/task.h"          // for task api access
 #include "freertos/event_groups.h"  // for event groups
+#include "freertos/semphr.h"        // for semaphore
+#include "freertos/queue.h"         // for queue api access
 #include "driver/uart.h"            // for UART types
 #include "errno.h"                  // for errno
 #include "esp_log.h"                // for log write
@@ -49,6 +51,7 @@ typedef struct {
     uint16_t reg_buffer_size;                           /*!< Modbus data buffer size */
     TaskHandle_t task_handle;                           /*!< Modbus task handle */
     EventGroupHandle_t event_group_handle;              /*!< Modbus controller event group */
+    SemaphoreHandle_t mbm_sema;                         /*!< Modbus controller semaphore */
     const mb_parameter_descriptor_t *param_descriptor_table; /*!< Modbus controller parameter description table */
     size_t mbm_param_descriptor_size;                   /*!< Modbus controller parameter description table size */
 } mb_master_options_t;
@@ -57,7 +60,7 @@ typedef esp_err_t (*iface_get_cid_info_fp)(void *, uint16_t, const mb_parameter_
 typedef esp_err_t (*iface_get_parameter_fp)(void *, uint16_t, uint8_t *, uint8_t *);                        /*!< Interface get_parameter method */
 typedef esp_err_t (*iface_get_parameter_with_fp)(void *, uint16_t, uint8_t, uint8_t *, uint8_t *);          /*!< Interface get_parameter_with method */
 typedef esp_err_t (*iface_send_request_fp)(void *, mb_param_request_t*, void *);                            /*!< Interface send_request method */
-typedef esp_err_t (*iface_mbm_set_descriptor_fp)(void *, const mb_parameter_descriptor_t*, const uint16_t);     /*!< Interface set_descriptor method */
+typedef esp_err_t (*iface_mbm_set_descriptor_fp)(void *, const mb_parameter_descriptor_t*, const uint16_t); /*!< Interface set_descriptor method */
 typedef esp_err_t (*iface_set_parameter_fp)(void *, uint16_t, uint8_t *, uint8_t *);                        /*!< Interface set_parameter method */
 typedef esp_err_t (*iface_set_parameter_with_fp)(void *, uint16_t, uint8_t, uint8_t *, uint8_t *);          /*!< Interface set_parameter_with method */
 
@@ -65,7 +68,7 @@ typedef esp_err_t (*iface_set_parameter_with_fp)(void *, uint16_t, uint8_t, uint
  * @brief Modbus controller interface structure
  */
 typedef struct {
-    mb_base_t *mb_base; 
+    mb_base_t *mb_base;
     // Master object interface options
     mb_master_options_t opts;
     bool is_active;                                 /*!< Interface is active */

@@ -386,17 +386,43 @@ The function is similar to previous function but allows to set the data of a cha
 
 .. code:: c
 
-        static void *master_handle = NULL;
-        ....
-        uint8_t type = 0;                   // Type of parameter
-        uint8_t temp_data[4] = {0};         // temporary buffer
-        // Read the characteristic from slave and save the data to temp_data instance
-        esp_err_t err = mbc_master_set_parameter(master_handle, CID_TEMP_DATA_2, (uint8_t*)temp_data, &type);
-        if (err == ESP_OK) {
-            ESP_LOGI(TAG, "Set parameter data successfully.");
-        } else {
-            ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
-        }
+    static void *master_handle = NULL;
+    ....
+    uint8_t type = 0;                   // Type of parameter
+    uint8_t temp_data[4] = {0};         // temporary buffer
+    // Read the characteristic from slave and save the data to temp_data instance
+    esp_err_t err = mbc_master_set_parameter(master_handle, CID_TEMP_DATA_2, (uint8_t*)temp_data, &type);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Set parameter data successfully.");
+    } else {
+        ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
+    }
+
+The master supports the <0x11 - Report Slave ID> Modbus command to read vendor specific information from the slave. It uses the :cpp:func:`mbc_master_send_request` function to send request.
+
+The example to retrieve the slave identificator from slave:
+
+.. code:: c
+
+    #define MB_DEVICE_ADDR1 1 // the slave UID to retrieve information
+    ...
+    static void *master_handle = NULL; // the master handler is initialized previously
+    ...
+    // Set the request stucture for the master to send the <Report Slave ID> command
+    mb_param_request_t req = {
+        .slave_addr = MB_DEVICE_ADDR1,  // the UID of the device to get the information,
+        .command = 0x11,                // the <Report Slave ID> command,
+        .reg_start = 0,                 // is obsolete, need to be zero for this request,
+        .reg_size = (CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE >> 1) // size of the buffer in registers to save ID
+    };
+    uint8_t info_buf[CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE] = {0};
+    // Send the request to slave
+    err = mbc_master_send_request(master_handle, &req, &info_buf[0]);
+    if (err != ESP_OK) {
+        ESP_LOGE("SLAVE_INFO", "Read slave info fail.");
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
+    }
 
 .. _modbus_api_master_destroy:
 

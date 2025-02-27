@@ -11,6 +11,13 @@ Suite Teardown    Disconnect
 ${suiteConnection}    None
 
 *** Test Cases ***
+Test Report Slave Id
+    [Documentation]    Test reading slave UID, running status, identificator structure (use custom frame template)
+    [Template]    Report Slave Id
+    0x01    [0x11]    0                     # Try o send correct request to get Slave ID
+    0x01    [0x11, 0x02, 0x01, 0xff]    3   # Try to mimic incorrect request for Report Slave ID
+    0x01    [0x11, 0x00]    3
+
 Test Read Holding Registers With Different Addresses And Quantities
     [Documentation]    Test reading holding registers from different addresses with different quantities
     [Template]    Read Holding Registers

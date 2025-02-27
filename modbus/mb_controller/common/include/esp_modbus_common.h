@@ -120,6 +120,45 @@ typedef enum {
     MB_PARAM_UNKNOWN = 0xFF
 } mb_param_type_t;
 
+#define mb_err_var esp_err##__func__##__line__
+#define esp_err_var mb_error##__func__##__line__
+#define MB_ERR_TO_ESP_ERR(error_code) (__extension__(           \
+{                                                               \
+    mb_err_enum_t mb_err_var = (mb_err_enum_t)error_code;       \
+    esp_err_t esp_err_var = ESP_FAIL;                           \
+    switch(mb_err_var) {                                        \
+        case MB_ENOERR:                                         \
+            esp_err_var = ESP_OK;                               \
+            break;                                              \
+        case MB_ENOREG:                                         \
+            esp_err_var = ESP_ERR_NOT_SUPPORTED;                \
+            break;                                              \
+        case MB_ETIMEDOUT:                                      \
+            esp_err_var = ESP_ERR_TIMEOUT;                      \
+            break;                                              \
+        case MB_EILLFUNC:                                       \
+        case MB_EINVAL:                                         \
+            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
+            break;                                              \
+        case MB_ERECVDATA:                                      \
+            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
+            break;                                              \
+        case MB_EBUSY:                                          \
+        case MB_EILLSTATE:                                      \
+        case MB_EPORTERR:                                       \
+        case MB_ENORES:                                         \
+        case MB_ENOCONN:                                        \
+            esp_err_var = ESP_ERR_INVALID_STATE;                \
+            break;                                              \
+        default:                                                \
+            ESP_LOGE(TAG, "%s: Incorrect return code (%x) ", __FUNCTION__, (int)mb_err_var); \
+            esp_err_var = ESP_FAIL;                             \
+            break;                                              \
+    }                                                           \
+    (esp_err_var);                                              \
+}                                                               \
+))
+
 typedef enum _mb_comm_mode mb_mode_type_t;
 
 typedef struct mb_base_t mb_base_t;

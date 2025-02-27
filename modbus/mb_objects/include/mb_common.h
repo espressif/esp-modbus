@@ -133,8 +133,11 @@ struct mb_base_t
     mb_trans_base_t *transp_obj;
     mb_port_base_t  *port_obj;
 
-    uint8_t slave_id[MB_FUNC_OTHER_REP_SLAVEID_BUF];
-    uint16_t slave_id_len;
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    uint8_t *pobj_id;
+    uint16_t obj_id_len;
+    uint8_t obj_id_chunks;
+#endif
 
     mb_delete_fp delete;
     mb_enable_fp enable;
@@ -166,7 +169,6 @@ mb_err_enum_t mbs_delete(mb_base_t *inst);
 mb_err_enum_t mbs_enable(mb_base_t *inst);
 mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
-mb_err_enum_t mbs_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
 
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
 

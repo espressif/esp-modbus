@@ -248,7 +248,7 @@ static bool mbm_rtu_transp_timer_expired(void *inst)
         case MB_TMODE_RESPOND_TIMEOUT:
             mb_port_event_set_err_type(transp->base.port_obj, EV_ERROR_RESPOND_TIMEOUT);
             need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_ERROR_PROCESS));
-            ESP_EARLY_LOGW(TAG, "%p:EV_ERROR_RESPOND_TIMEOUT", transp->base.descr.parent);
+            ESP_EARLY_LOGD(TAG, "%p:EV_ERROR_RESPOND_TIMEOUT", transp->base.descr.parent);
             break;
 
         case MB_TMODE_CONVERT_DELAY:

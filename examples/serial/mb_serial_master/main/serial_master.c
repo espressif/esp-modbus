@@ -310,6 +310,32 @@ static void master_operation_func(void *arg)
 
     ESP_LOGI(TAG, "Start modbus test...");
 
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    // Command - 17 (0x11) Report Slave ID
+    // The command contains vendor specific data and should be interpreted accordingly.
+    // This version of command handler needs to define the maximum number
+    // of registers that can be returned from concrete slave (buffer size).
+    // The returned slave info data will be stored into the `info_buf`.
+    // Request fields: slave_addr - the UID of slave, reg_start - not used, 
+    // reg_size = max size of buffer (registers).
+    mb_param_request_t req = {
+        .slave_addr = MB_DEVICE_ADDR1,  // slave UID to retrieve ID
+        .command = 0x11,                // the <Report Slave ID> command,
+        .reg_start = 0,                 // must be zero,
+        .reg_size = (CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE >> 1) // the expected length of buffer in registers
+    };
+
+    uint8_t info_buf[CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE] = {0}; // The buffer to save slave ID
+
+    // Send the request to retrieve slave ID information from slave (vendor specific command)
+    err = mbc_master_send_request(master_handle, &req, &info_buf[0]);
+    if (err != ESP_OK) {
+        ESP_LOGE("SLAVE_INFO", "Read slave info fail.");
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
+    }
+#endif
+
     for(uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
         // Read all found characteristics from slave(s)
         for (uint16_t cid = 0; (err != ESP_ERR_NOT_FOUND) && cid < MASTER_MAX_CIDS; cid++) {

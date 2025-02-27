@@ -18,10 +18,32 @@ static const char *TAG = "mb_object.slave";
 
 #if (MB_SLAVE_ASCII_ENABLED || MB_SLAVE_RTU_ENABLED || MB_TCP_ENABLED)
 
+#if (MB_SLAVE_ASCII_ENABLED || MB_SLAVE_RTU_ENABLED)
+
+typedef struct _port_serial_opts mb_serial_opts_t;
+
+#endif
+
+typedef struct
+{
+    mb_base_t base;
+    // here are slave object properties and methods
+    uint8_t mb_address;
+    mb_comm_mode_t cur_mode;
+    const mb_fn_handler_t *func_handlers;
+    mb_state_enum_t cur_state;
+    uint8_t *frame;
+    uint16_t length;
+    uint8_t func_code;
+    uint8_t rcv_addr;
+    uint64_t curr_trans_id;
+    volatile uint16_t *pdu_snd_len;
+} mbs_object_t;
+
 static mb_fn_handler_t slave_handlers[MB_FUNC_HANDLERS_MAX] =
     {
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-        {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mb_fn_report_slv_id},
+        {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbs_fn_report_slave_id},
 #endif
 #if MB_FUNC_READ_INPUT_ENABLED
         {MB_FUNC_READ_INPUT_REGISTER, (void *)mbs_fn_read_input_reg},
@@ -52,31 +74,10 @@ static mb_fn_handler_t slave_handlers[MB_FUNC_HANDLERS_MAX] =
 #endif
 };
 
-typedef struct
-{
-    mb_base_t base;
-    // here are slave object properties and methods
-    uint8_t mb_address;
-    mb_comm_mode_t cur_mode;
-    mb_state_enum_t cur_state;
-    mb_fn_handler_t *func_handlers;
-    uint8_t *frame;
-    uint16_t length;
-    uint8_t func_code;
-    uint8_t rcv_addr;
-    uint64_t curr_trans_id;
-    volatile uint16_t *pdu_snd_len;
-} mbs_object_t;
-
-mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
-
 mb_err_enum_t mbs_delete(mb_base_t *inst);
 mb_err_enum_t mbs_enable(mb_base_t *inst);
 mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
-mb_err_enum_t mbs_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
-
-typedef struct _port_serial_opts mb_serial_opts_t;
 
 #if (MB_SLAVE_RTU_ENABLED)
 
@@ -98,6 +99,11 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->base.descr.is_master = false;
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id_len = 0;
+    mbs_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_rtu@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
@@ -148,6 +154,11 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->base.descr.is_master = false;
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id_len = 0;
+    mbs_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_ascii@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
@@ -199,6 +210,11 @@ mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     mbs_obj->base.descr.is_master = false;
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id_len = 0;
+    mbs_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_tcp@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
@@ -239,6 +255,15 @@ mb_err_enum_t mbs_delete(mb_base_t *inst)
             // call destructor of the transport object
             MB_OBJ(mbs_obj->base.transp_obj)->frm_delete(inst->transp_obj);
         }
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+        // delete allocated slave ID
+        if (mbs_obj->base.pobj_id) {
+            free(mbs_obj->base.pobj_id);
+            mbs_obj->base.pobj_id = NULL;
+            mbs_obj->base.obj_id_len = 0;
+            mbs_obj->base.obj_id_chunks = 0;
+        }
+#endif
         // delete the modbus instance
         free(mbs_obj->base.descr.parent_name);
         CRITICAL_SECTION_CLOSE(inst->lock);

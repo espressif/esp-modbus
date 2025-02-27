@@ -100,23 +100,39 @@ void mb_util_set_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num, u
  */
 uint8_t mb_util_get_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num);
 
-
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
 /*! \brief Standard function to set slave ID in the modbus object.
  *
  * This function is used to set the Slave ID array for modbus object.
  * This ID can then be read over Modbus. 
  *
  * \param inst - instance pointer to base modbus object
- * \param slv_id - slave short address.
+ * \param slave_id - slave short address.
  * \param is_running - true, if the slave is running, false otherwise
- * \param slv_idstr - the pointer to slave ID array to set in the modbus object
- * \param slv_idstr_len - slave ID array length
+ * \param pdata - the pointer to slave ID array to set in the modbus object
+ * \param len - slave ID array length
  *
  * returns the modbus error code = MB_ENOERR, if set correctly, MB_ENOREG, otherwise
  * \endcode
  */
-mb_err_enum_t mb_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
+mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t sl_id, bool is_running, uint8_t const *pdata, uint16_t len);
 
+/*! \brief Standard function to get slave ID from the modbus object.
+ *
+ * This function is used to get the Slave ID array for modbus object.
+ * This ID can then be read over Modbus.
+ *
+ * \param inst - instance pointer to base modbus object
+ * \param pdata - the pointer to store object ID array from the modbus object
+ * \param[in/out] pdata_len - input length of the allocated pdata array,
+ *                            returns the actual length of object id.
+ * returns the modbus error code = MB_ENOERR, if set correctly, 
+ *           MB_ENOREG - if the object ID is not set,
+ *           MB_ENORES - no space to store object ID in the pdata buffer,
+ *           MB_EINVAL - the arguments are not correct
+ */
+mb_err_enum_t mbs_get_slave_id(mb_base_t *inst, uint8_t *pdata, uint8_t *pdata_len);
+#endif
 
 #ifdef __cplusplus
 }

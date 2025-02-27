@@ -49,6 +49,26 @@ static const char *TAG = "SLAVE_TEST";
 
 static void *mbc_slave_handle = NULL;
 
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+#define MB_SLAVE_NAME_MAX_LEN 32
+#define INIT_DEV_ID(struct_name, uid, running, serial, name) static struct {    \
+        uint8_t slave_uid;                                                      \
+        uint8_t is_running;                                                     \
+        uint8_t length;                                                         \
+        uint8_t marker;                                                         \
+        uint32_t serial_number;                                                 \
+        char dev_name[MB_SLAVE_NAME_MAX_LEN];                                   \
+    } struct_name = {                                                           \
+        .slave_uid = (uid),                                                     \
+        .is_running = (running),                                                \
+        .marker = 0x55,                                                         \
+        .length = (sizeof(struct_name) - sizeof(struct_name.dev_name)           \
+                            + strlen((name)) - 2),                              \
+        .serial_number =(serial),                                               \
+        .dev_name = name,                                                       \
+    };
+#endif
+
 // Set register values into known state
 static void setup_reg_data(void)
 {
@@ -131,7 +151,7 @@ static void setup_reg_data(void)
 void app_main(void)
 {
     mb_param_info_t reg_info; // keeps the Modbus registers access information
-    mb_register_area_descriptor_t reg_area; // Modbus register area descriptor structure
+    mb_register_area_descriptor_t reg_area = {0}; // Modbus register area descriptor structure
 
     // Set UART log level
     esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -164,6 +184,7 @@ void app_main(void)
     reg_area.address = (void*)&holding_reg_params.holding_data0; // Set pointer to storage instance
     // Set the size of register storage instance in bytes
     reg_area.size = MB_REG_HOLDING_START_AREA0_SIZE;
+    reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
     
     // The second register area
@@ -171,6 +192,7 @@ void app_main(void)
     reg_area.start_offset = MB_REG_HOLDING_START_AREA1;
     reg_area.address = (void*)&holding_reg_params.holding_data4;
     reg_area.size = MB_REG_HOLDING_START_AREA1_SIZE;
+    reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
 
 #if CONFIG_FMB_EXT_TYPE_SUPPORT
@@ -179,6 +201,7 @@ void app_main(void)
     reg_area.start_offset = MB_REG_HOLDING_START_AREA2;
     reg_area.address = (void*)&holding_reg_params.holding_u8_a;
     reg_area.size = MB_REG_HOLDING_START_AREA2_SIZE;
+    reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
 #endif
 
@@ -199,6 +222,7 @@ void app_main(void)
     reg_area.start_offset = MB_REG_COILS_START;
     reg_area.address = (void*)&coil_reg_params;
     reg_area.size = sizeof(coil_reg_params);
+    reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
 
     // Initialization of Discrete Inputs register area
@@ -210,9 +234,6 @@ void app_main(void)
 
     setup_reg_data(); // Set values into known state
 
-    // Starts of modbus controller and stack
-    ESP_ERROR_CHECK(mbc_slave_start(mbc_slave_handle));
-
     // Set UART pin numbers
     ESP_ERROR_CHECK(uart_set_pin(MB_PORT_NUM, CONFIG_MB_UART_TXD,
                             CONFIG_MB_UART_RXD, CONFIG_MB_UART_RTS,
@@ -220,6 +241,24 @@ void app_main(void)
 
     // Set UART driver mode to Half Duplex
     ESP_ERROR_CHECK(uart_set_mode(MB_PORT_NUM, UART_MODE_RS485_HALF_DUPLEX));
+    
+    // Starts of modbus controller and stack
+    esp_err_t err = mbc_slave_start(mbc_slave_handle);
+
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+    // Initialize the new slave identificator structure (example)
+    INIT_DEV_ID(new_id_struct, 0x00, 0x00, 0x11223344, "esp_modbus_serial_slave");
+    uint8_t is_running = (bool)(err == ESP_OK);
+
+    // This is the way to set Slave ID fields to retrieve it by master using report slave ID command.
+    err = mbc_set_slave_id(mbc_slave_handle, comm_config.ser_opts.uid, is_running, (uint8_t *)&new_id_struct.length, new_id_struct.length);
+    if (err == ESP_OK) {
+        ESP_LOGW("SET_SLAVE_ID", "dev_name: %s", (char*)new_id_struct.dev_name);
+        ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)&new_id_struct.length, new_id_struct.length, ESP_LOG_WARN);
+    } else {
+        ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
+    }
+#endif
 
     ESP_LOGI(TAG, "Modbus slave stack initialized.");
     ESP_LOGI(TAG, "Start modbus test...");
