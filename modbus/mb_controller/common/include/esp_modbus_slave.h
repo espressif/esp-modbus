@@ -201,6 +201,39 @@ esp_err_t mbc_slave_get_param_info(void *ctx, mb_param_info_t *reg_info, uint32_
  */
 esp_err_t mbc_slave_set_descriptor(void *ctx, mb_register_area_descriptor_t descr_data);
 
+// The support of <0x11 - Report Slave ID> command is intentionally included for TCP slave as well!
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+/**
+ * @brief Set Modbus slave identificator
+ *
+ * @param[in] ctx context pointer of the initialized modbus interface
+ * @param[in] uid - unit identifier (short slave address) for Modbus slave
+ * @param[in] is_running - Modbus slave running status
+ * @param[in] pdata - pointer to data buffer for extended context (vendor specific)
+ * @param[in] data_len - length of data buffer (the length of the extended context)
+ *
+ * @return
+ *     - ESP_OK: The appropriate identificator is set
+ *     - ESP_ERR_INVALID_ARG: The argument is incorrect
+ */
+esp_err_t mbc_set_slave_id(void *ctx, uint8_t uid, bool is_running, uint8_t const *pdata, uint8_t data_len);
+
+/*! \brief Get slave identificator from the modbus object.
+ *
+ * This function is used to get the Slave ID array for modbus object.
+ *
+ * \param ctx - context pointer of the initialized modbus interface
+ * \param pdata - the pointer to store object ID array from the modbus object
+ * \param[in/out] pdata_len - in: length of the allocated pdata array,
+ *                            out: returns the actual length of object id.
+ * returns the modbus error code = ESP_OK, if set correctly,
+ *           ESP_ERR_INVALID_RESPONSE - if the object ID is not set,
+ *           ESP_ERR_INVALID_STATE - no space to store object ID in the pdata buffer,
+ *           or incorrect arguments are provided
+ */
+esp_err_t mbc_get_slave_id(void *ctx, uint8_t const *pdata, uint8_t *pdata_len);
+#endif
+
 /**
  * @brief Holding register read/write callback function
  *

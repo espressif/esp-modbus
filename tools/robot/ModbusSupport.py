@@ -245,6 +245,13 @@ class ModbusPDU10_Write_Multiple_Registers_Exception(Packet):
     fields_desc = [ XByteField("funcCode", 0x90),
             ByteEnumField("exceptCode", 1, modbus_exceptions)]
 
+# Custom command
+class ModbusPDUXX_Custom_Request(Packet):
+    name = "Custom Request"
+    fields_desc = [ 
+        FieldListField("customBytes", [0x00], XByteField("", 0x00))
+    ]
+
 # 0x11 - Report Slave Id
 class ModbusPDU11_Report_Slave_Id(Packet):
     name = "Report Slave Id"
@@ -252,10 +259,13 @@ class ModbusPDU11_Report_Slave_Id(Packet):
 
 class ModbusPDU11_Report_Slave_Id_Answer(Packet):
     name = "Report Slave Id Answer"
-    fields_desc = [ XByteField("funcCode", 0x11),
-            BitFieldLenField("byteCount", None, 8, length_of="slaveId"),
-            ConditionalField(StrLenField("slaveId", "", length_from = lambda pkt: pkt.byteCount), lambda pkt: pkt.byteCount>0),
-            ConditionalField(XByteField("runIdicatorStatus", 0x00), lambda pkt: pkt.byteCount>0)]
+    fields_desc = [ 
+        XByteField("funcCode", 0x11),
+        BitFieldLenField("byteCount", None, 8, length_of="slaveUId"),
+        ConditionalField(XByteField("slaveUid", 0x00), lambda pkt: pkt.byteCount>0),
+        ConditionalField(XByteField("runIdicatorStatus", 0x00), lambda pkt: pkt.byteCount>0),
+        ConditionalField(FieldListField("slaveIdent", [0x00], XByteField("", 0x00), count_from = lambda pkt: pkt.byteCount), lambda pkt: pkt.byteCount>0)
+    ]
 
 class ModbusPDU11_Report_Slave_Id_Exception(Packet):
     name = "Report Slave Id Exception"
@@ -268,7 +278,7 @@ class ModbusADU_Request(ModbusMBAP):
     fields_desc = [ 
             XShortField("transId", 0x0000), # needs to be unique
             XShortField("protoId", 0x0000), # needs to be zero (Modbus)
-            XShortField("len", None),         # is calculated with payload
+            XShortField("len", None),       # is calculated with payload
             XByteField("unitId", 0x00)]     # 0xFF or 0x00 should be used for Modbus over TCP/IP
 
     def mb_get_last_exception(self):
@@ -433,6 +443,7 @@ class ModbusADU_Response(ModbusMBAP):
             return ModbusPDU10_Write_Multiple_Registers_Exception
 
         elif funcCode == 0x11:
+            print(f'Packet answer: {payload}, func: {funcCode}')
             return ModbusPDU11_Report_Slave_Id_Answer
         elif funcCode == 0x91:
             self._mb_exception = int(payload[1])

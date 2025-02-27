@@ -14,9 +14,9 @@ extern "C" {
 
 typedef struct mb_base_t mb_base_t;
 
-#if MB_FUNC_OTHER_REP_SLAVEID_BUF
-mb_exception_t mb_fn_report_slv_id(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
-mb_exception_t mbm_fn_report_slv_id(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
 #endif
 
 #if MB_FUNC_READ_INPUT_ENABLED

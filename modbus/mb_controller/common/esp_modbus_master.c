@@ -3,7 +3,6 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
 #include "esp_err.h"           // for esp_err_t
 #include "mbc_master.h"        // for master interface define
 #include "esp_modbus_master.h" // for public interface defines
@@ -229,10 +228,28 @@ esp_err_t mbc_master_stop(void *ctx)
 /* ----------------------- Callback functions for Modbus stack ---------------------------------*/
 // These are executed by modbus stack to read appropriate type of registers.
 
+mb_err_enum_t mbc_reg_common_cb(mb_base_t *inst, uint8_t *pdata, uint16_t address, uint16_t bytes)
+{
+    MB_RETURN_ON_FALSE((pdata), MB_EINVAL, TAG, "incorrect parameters provided.");
+
+    mb_master_options_t *popts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
+    uint16_t reg_len = popts->reg_buffer_size;
+    uint8_t *ppar_buffer = (uint8_t *)popts->reg_buffer_ptr; // Get instance address
+    mb_err_enum_t status = MB_ENOERR;
+    if (ppar_buffer && !address && (bytes >= 2) && (((reg_len << 1) >= bytes))){
+        CRITICAL_SECTION(inst->lock) {
+            memmove(ppar_buffer, pdata, bytes);
+        }
+    } else {
+        status = MB_ENORES;
+    }
+    return status;
+}
+
 /**
  * Modbus master input register callback function.
  *
- * @param ctx interface context pointer
+ * @param inst interface context pointer
  * @param reg_buffer input register buffer
  * @param reg_addr input register address
  * @param num_regs input register number
@@ -273,7 +290,7 @@ mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
 /**
  * Modbus master holding register callback function.
  *
- * @param ctx interface context pointer
+ * @param inst interface context pointer
  * @param reg_buffer holding register buffer
  * @param reg_addr holding register address
  * @param num_regs holding register number
@@ -331,7 +348,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
 /**
  * Modbus master coils callback function.
  *
- * @param ctx interface context pointer
+ * @param inst interface context pointer
  * @param reg_buffer coils buffer
  * @param reg_addr coils address
  * @param ncoils coils number
@@ -394,7 +411,7 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
 /**
  * Modbus master discrete callback function.
  *
- * @param ctx - pointer to interface structure
+ * @param inst - pointer to interface structure
  * @param reg_buffer discrete buffer
  * @param reg_addr discrete address
  * @param n_discrete discrete number

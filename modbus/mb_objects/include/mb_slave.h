@@ -11,8 +11,9 @@
 extern "C" {
 #endif
 
-mb_err_enum_t mb_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, uint8_t const *slv_idstr, uint16_t slv_idstr_len);
-
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *plen_buf);
+#endif
 
 #ifdef __cplusplus
 }

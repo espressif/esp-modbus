@@ -21,7 +21,7 @@ static const char *TAG = "mb_object.master";
 static const mb_fn_handler_t master_handlers[MB_FUNC_HANDLERS_MAX] =
 {
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-        {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mb_fn_report_slv_id},
+        {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbm_fn_report_slave_id},
 #endif
 #if MB_FUNC_READ_INPUT_ENABLED
         {MB_FUNC_READ_INPUT_REGISTER, (void *)mbm_fn_read_inp_reg},
@@ -109,6 +109,11 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->base.descr.is_master = true;
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id_len = 0;
+    mbm_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_rtu@%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
@@ -166,6 +171,11 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->base.descr.is_master = true;
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id_len = 0;
+    mbm_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_ascii@%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
@@ -223,6 +233,11 @@ mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     mbm_obj->base.descr.is_master = true;
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id_len = 0;
+    mbm_obj->base.obj_id_chunks = 0;
+#endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_tcp#%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                         TAG, "name alloc fail, err: %d", (int)res);
@@ -263,6 +278,16 @@ mb_err_enum_t mbm_delete(mb_base_t *inst)
             // call destructor of the transport object
             mbm_obj->base.transp_obj->frm_delete(inst->transp_obj);
         }
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+        // check object ID
+        if (mbm_obj->base.pobj_id) {
+            free(mbm_obj->base.pobj_id);
+            mbm_obj->base.pobj_id = NULL;
+            mbm_obj->base.obj_id_len = 0;
+            mbm_obj->base.obj_id_chunks = 0;
+            ESP_LOGW(TAG, "%p, Master object ID is not supported!", mbm_obj);
+        }
+#endif
         // delete the modbus instance
         free(mbm_obj->base.descr.parent_name);
         CRITICAL_SECTION_CLOSE(inst->lock);

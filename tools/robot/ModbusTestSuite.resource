@@ -4,6 +4,7 @@ ${MODBUS_DEF_PORT}         1502
 ${PAR1}     1
 ${PAR2}     2
 
+${FUNC_REPORT_SLAVE_ID}             ${0x11}
 ${FUNC_WRITE_HOLDING_REGISTERS}     ${0x10}
 ${FUNC_WRITE_HOLDING_REGISTER}      ${0x06}
 ${FUNC_READ_HOLDING_REGISTERS}      ${0x03}
@@ -17,6 +18,12 @@ Library    Collections
 Library    ModbusTestLib.py    WITH NAME    ModbusTestLib
 
 *** Keywords ***
+Create Report Slave Id Request
+    [Arguments]    ${uid}    ${customData}
+    #${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDU11_Report_Slave_Id(funcCode=${FUNC_REPORT_SLAVE_ID})
+    ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDUXX_Custom_Request(customBytes=${customData})
+    RETURN    ${packet}
+
 Create Input Read Registers Request
     [Arguments]    ${uid}    ${startAddr}    ${quantity}
     ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0, len=6)/ModbusPDU04_Read_Input_Registers(funcCode=${FUNC_READ_INPUT_REGISTERS}, startAddr=${startAddr}, quantity=${quantity})
@@ -57,11 +64,33 @@ Create Discrete Read Request
     Log    Packet: ${packet}
     RETURN    ${packet}
 
+Report Slave Id
+    [Arguments]    ${uid}    ${customData}   ${exception_expected}
+    ${classId} =    Get Class Id
+    Log    Library ClassId: ${classId}
+    Log    Get Slave Identificator UID:${uid}, Custom bytes: ${customData}
+    ${req} =    Create Report Slave Id Request    ${uid}    ${customData}
+    #Create Connection    ${server}    ${port}
+    ${response_frame} =    Send Packet And Get Response    ${req}
+    Should Not Be Empty    ${response_frame}
+    ${packet} =    Translate Response    ${response_frame}
+    Should Be Equal As Integers    ${req.transId}    ${packet.transId}
+    #${exception}    ${exp_message} =    Check Response    ${packet}    ${req.funcCode}
+    ${exception}    ${exp_message} =    Check Response    ${packet}    ${req.customBytes[0]}
+    Should Be Equal As Integers    ${exception}    ${exception_expected}
+    Log    exception: (${exception}: ${exp_message}), expected: ${exception_expected}
+    IF    ${exception} == ${0}
+        Log    Bytes count is: ${packet.byteCount}
+        Log    SlaveUID:${packet.slaveUid}, runIdicatorStatus:${packet.runIdicatorStatus}, Identificator:${packet.slaveIdent}
+    ELSE
+        Log    "Exception is evaluated correctly (${exception}: ${exp_message}) == ${exception_expected}"
+    END
+
 Read Input Registers
     [Arguments]    ${uid}    ${start_addr}    ${quantity}    ${exception_expected}
     ${classId} =    Get Class Id
     Log    Library ClassId: ${classId}
-    Log     Read Input Registers with parameters UID:${uid}, offs:${start_addr}, quantity:${quantity}
+    Log    Read Input Registers with parameters UID:${uid}, offs:${start_addr}, quantity:${quantity}
     ${req} =    Create Input Read Registers Request    ${uid}    ${start_addr}    ${quantity}
     #Create Connection    ${server}    ${port}
     ${response_frame} =    Send Packet And Get Response    ${req}

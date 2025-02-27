@@ -16,7 +16,7 @@ from scapy.error import Scapy_Exception
 from robot.api.deco import keyword, library
 from robot.api.logger import info, debug, trace, console
 
-from ModbusSupport import modbus_exceptions, ModbusADU_Request, ModbusADU_Response, ModbusPDU03_Read_Holding_Registers, ModbusPDU10_Write_Multiple_Registers, \
+from ModbusSupport import modbus_exceptions, ModbusADU_Request, ModbusADU_Response, ModbusPDUXX_Custom_Request, ModbusPDU11_Report_Slave_Id, ModbusPDU03_Read_Holding_Registers, ModbusPDU10_Write_Multiple_Registers, \
                           ModbusPDU04_Read_Input_Registers, ModbusPDU01_Read_Coils, ModbusPDU0F_Write_Multiple_Coils, ModbusPDU02_Read_Discrete_Inputs, ModbusPDU06_Write_Single_Register
 
 # Disable debugging of dissector, and set default padding for scapy configuration class
@@ -33,6 +33,7 @@ MB_DEF_FUNC_HOLDING_WRITE = 0x10
 MB_DEF_FUNC_INPUT_READ = 0x04
 MB_DEF_FUNC_COILS_READ = 0x01
 MB_DEF_FUNC_COILS_WRITE = 0x0F
+MB_DEF_FUNC_REPORT_SLAVE_ID = 0x11
 MB_DEF_QUANTITY = 1
 MB_DEF_START_OFFS = 0x0001
 MB_DEF_REQ_TOUT = 5.0
@@ -40,6 +41,11 @@ MB_DEF_REQ_TOUT = 5.0
 MB_LOGGING_PATH = '.'
 
 # The constructed packets for self testing
+
+TEST_PACKET_REPORT_SLAVE_ID_CUSTOM = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                            ModbusPDUXX_Custom_Request(customBytes=[0x11])'
+TEST_PACKET_REPORT_SLAVE_ID = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                            ModbusPDU11_Report_Slave_Id(funcCode=MB_DEF_FUNC_REPORT_SLAVE_ID)'
 TEST_PACKET_HOLDING_READ = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0, len=6)/\
                             ModbusPDU03_Read_Holding_Registers(funcCode=MB_DEF_FUNC_HOLDING_READ, startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)'
 TEST_PACKET_HOLDING_WRITE = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
@@ -130,6 +136,7 @@ class ModbusTestLib:
         if self._connection is None:
             raise ValueError("The connection is not active.")
         packet = pkt.build()
+        print(f'send packet: {packet}')
         try:
             self._connection.send(packet)
             ans = self._connection.sniff(filter=f"tcp and dst host {self.node_address} and dst port {self.node_port}",
@@ -424,6 +431,16 @@ class ModbusTestLib:
     def self_test(self) -> None:
        # type: () -> None
         self.connect(ip_addr=MB_DEF_SERVER_IP, port=MB_DEF_PORT)
+        packet = self.create_request(TEST_PACKET_REPORT_SLAVE_ID_CUSTOM)
+        print(f"Test: 0x11 <Report Slave ID> packet: {packet}")
+        response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
+        assert response and len(response) > 1, "No response from slave"
+        print(f"Test: received: {bytes(response)}")
+        pdu = self.translate_response(response)
+        if pdu is not None:
+           print(f"Slave identificator structure: {pdu}")
+           print(f"PDU Exception: {self.check_response(pdu, packet.customBytes[0])}")
+           print(f'slaveUID: {pdu.slaveUid}, runIdicatorStatus: {pdu.runIdicatorStatus}, IdStruct:  {pdu.slaveIdent}')
         packet = self.create_request(TEST_PACKET_HOLDING_READ)
         print(f"Test: Packet created: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)

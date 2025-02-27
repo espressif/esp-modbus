@@ -60,12 +60,14 @@ The function initializes Modbus communication descriptors for each type of Modbu
     reg_area.start_offset = MB_REG_HOLDING_START_AREA0; // Offset of register area in Modbus protocol
     reg_area.address = (void*)&holding_reg_area[0];     // Set pointer to storage instance
     reg_area.size = (sizeof(holding_reg_area) << 1);    // Set the size of register storage area in bytes!
+    reg_area.access = MB_ACCESS_RW;                     // Set the access rights for the area
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(slave_handle, reg_area));
     
     reg_area.type = MB_PARAM_INPUT;
     reg_area.start_offset = MB_REG_INPUT_START_AREA0;
     reg_area.address = (void*)&input_reg_area[0];
     reg_area.size = (sizeof(input_reg_area) << 1);
+    reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(slave_handle, reg_area));
 
 
@@ -94,6 +96,69 @@ Example initialization of mapped values:
     ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[0]));
     ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[1]));
     ESP_LOGI("TEST", "Test value ghefcdab: %lf", mb_get_double_ghefcdab(&holding_double_ghefcdab[0]));
+    ...
+
+The slave communication object supports initialization of special object identification structure which is vendor specific and can clarify some slave specific information for each slave object. The API functions below can be used to set and get this information from the slave object accordingly.
+This information set in the slave can be retrieved by master object using the standard Modbus command `0x11 - <Report Slave ID>`.
+
+:cpp:func:`mbc_set_slave_id`
+
+Allows to set vendor specific slave ID for the concrete slave object.
+
+.. note:: Each slave object sets the short default identificator defined in ``CONFIG_FMB_CONTROLLER_SLAVE_ID`` Kconfig value on start. This can be overridden by this API function. The option ``CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT`` allows disabling this functionality and the option ``CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE`` defines the maximum size of the slave identification structure.
+
+Example of initialization for slave ID:
+
+.. code:: c
+
+    #include "mbcontroller.h"       // for mbcontroller defines and api
+    ...
+    static void *mbc_slave_handle = NULL;
+    mb_communication_info_t comm_config = {
+        .ser_opts.port = MB_PORT_NUM,
+        .ser_opts.mode = MB_RTU,
+        .ser_opts.baudrate = MB_DEV_SPEED,
+        .ser_opts.parity = MB_PARITY_NONE,
+        .ser_opts.uid = MB_SLAVE_ADDR,
+        .ser_opts.data_bits = UART_DATA_8_BITS,
+        .ser_opts.stop_bits = UART_STOP_BITS_1
+    };
+    // Initialization of Modbus slave controller object
+    ESP_ERROR_CHECK(mbc_slave_create_serial(&comm_config, &mbc_slave_handle));
+    // Starts of modbus controller and stack
+    esp_err_t err = mbc_slave_start(mbc_slave_handle);
+    const char *pdevice_name = "my_slave_device_description"; // the vendor specific part for slave to be retrieved by master
+    bool is_started = (bool)(err == ESP_OK);                  // running status of the slave to be reported
+    // This is the way to set Slave ID information to retrieve it by master using <Report Slave ID> command.
+    esp_err_t err = mbc_set_slave_id(mbc_slave_handle, comm_config.ser_opts.uid, is_started, (uint8_t *)pdevice_name, strlen(pdevice_name));
+    if (err == ESP_OK) {
+        ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)pdevice_name, strlen(pdevice_name), ESP_LOG_WARN);
+    } else {
+        ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
+    }
+    ...
+
+:cpp:func:`mbc_get_slave_id`
+
+Allows to get actual slave UID, running status of slave and vendor specific data. The default object identificator is defined by option ``CONFIG_FMB_CONTROLLER_SLAVE_ID`` as ``01 ff 33 22 11`` (slave UID, running state, extended vendor data structure) and can be overridden in user application.
+
+Example to get the actual slave identificator:
+
+.. code:: c
+
+    #include "mbcontroller.h"
+    #include "sdkconfig.h"
+    ...
+    static void *mbc_slave_handle = NULL; // the object is initialized and started
+     // the vendor specific part of structure for slave to be retrieved by master
+    uint8_t current_slave_id[CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE] = {0};
+    esp_err_t err = mbc_get_slave_id(mbc_slave_handle, &current_slave_id[0], &length);
+    if (err == ESP_OK) {
+        ESP_LOGW("GET_SLAVE_ID", "Get slave ID, length=%u.", length);
+        ESP_LOG_BUFFER_HEX_LEVEL("GET_SLAVE_ID", (void*)current_slave_id, length, ESP_LOG_WARN);
+    } else {
+        ESP_LOGE("GET_SLAVE_ID", "Get slave ID fail, err=%d.", err);
+    }
     ...
 
 .. _modbus_api_slave_communication:

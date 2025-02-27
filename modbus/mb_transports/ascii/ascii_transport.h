@@ -22,7 +22,7 @@ extern "C" {
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN)
 
 /* ----------------------- Defines ------------------------------------------*/
-#define MB_ASCII_SER_PDU_SIZE_MIN   5                             /*!< Minimum size of a Modbus ASCII frame. */
+#define MB_ASCII_SER_PDU_SIZE_MIN   3                             /*!< Minimum size of a Modbus ASCII frame. */
 #define MB_ASCII_SER_PDU_SIZE_MAX   MB_SER_PDU_SIZE_MAX * 2       /*!< Maximum size of a Modbus ASCII frame. */
 #define MB_ASCII_SER_PDU_SIZE_LRC   1                             /*!< Size of LRC field in PDU. */
 #define MB_ASCII_SER_PDU_ADDR_OFF   0                             /*!< Offset of slave address in Ser-PDU. */

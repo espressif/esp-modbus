@@ -23,7 +23,7 @@ extern "C"
 {
 #endif
 
-#define MB_SER_PDU_SIZE_MIN             (4)
+#define MB_SER_PDU_SIZE_MIN             (3)
 #define MB_TIMER_TICS_PER_MS            (20UL)                         // Define number of timer reloads per 1 mS
 #define MB_TIMER_TICK_TIME_US           (1000 / MB_TIMER_TICS_PER_MS) // 50uS = one discreet for timer
 #define MB_EVENT_QUEUE_TIMEOUT_MAX_MS   (3000)

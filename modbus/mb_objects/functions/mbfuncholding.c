@@ -73,7 +73,6 @@ mb_exception_t mbs_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
         reg_addr = (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF] << 8);
         reg_addr |= (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF + 1]);
         reg_addr++;
-
         /* Make callback to update the value. */
         if (inst->rw_cbs.reg_holding_cb) {
             reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_WRITE_VALUE_OFF], reg_addr, 1, MB_REG_WRITE);

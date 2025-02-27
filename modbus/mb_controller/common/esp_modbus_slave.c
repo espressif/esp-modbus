@@ -14,7 +14,7 @@
 
 #include "mb_utils.h"               // for stack bit setting utilities
 
-#ifdef CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
 
 #define MB_ID_BYTE0(id) ((uint8_t)(id))
 #define MB_ID_BYTE1(id) ((uint8_t)(((uint16_t)(id) >> 8) & 0xFF))
@@ -138,6 +138,37 @@ esp_err_t mbc_slave_unlock(void *ctx)
     return ESP_OK;
 }
 
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+/**
+ * Set object ID for the Modbus controller
+ */
+esp_err_t mbc_set_slave_id(void *ctx, uint8_t slave_addr, bool is_running, uint8_t const *pdata, uint8_t data_len)
+{
+    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
+                        "Slave interface is not correctly initialized.");
+    mbs_controller_iface_t *pmbs_controller = MB_SLAVE_GET_IFACE(ctx);
+    // The Report Slave ID functionality is useful for TCP and gateway,
+    // so the design decision is to keep this functionality for all slaves
+    // Set the slave ID if the KConfig option is selected
+    mb_err_enum_t status = mbs_set_slave_id(pmbs_controller->mb_base, slave_addr, is_running, (uint8_t *)pdata, data_len);
+    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG, "mb stack set slave ID failure.");
+    return MB_ERR_TO_ESP_ERR(status);
+}
+
+/**
+ * Get object ID from the Modbus controller
+ */
+esp_err_t mbc_get_slave_id(void *ctx, uint8_t const *pdata, uint8_t *pdata_len)
+{
+    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
+                        "Slave interface is not correctly initialized.");
+    mbs_controller_iface_t *pmbs_controller = MB_SLAVE_GET_IFACE(ctx);
+    mb_err_enum_t status = mbs_get_slave_id(pmbs_controller->mb_base, (uint8_t *)pdata, pdata_len);
+    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG, "mb stack get slave ID failure.");
+    return MB_ERR_TO_ESP_ERR(status);
+}
+#endif
+
 /**
  * Start Modbus controller start function
  */
@@ -149,10 +180,11 @@ esp_err_t mbc_slave_start(void *ctx)
     mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
     MB_RETURN_ON_FALSE(mbs_controller->start, ESP_ERR_INVALID_STATE, TAG,
                     "Slave interface is not correctly configured.");
-#ifdef CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
-    // Set the slave ID if the KConfig option is selected
-    mb_err_enum_t status = mb_set_slv_id(mbs_controller->mb_base, MB_SLAVE_ID_SHORT, true, (uint8_t *)mb_slave_id, sizeof(mb_slave_id));
-    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG, "mb stack set slave ID failure.");
+    uint8_t slave_uid = mbs_controller->opts.comm_opts.common_opts.uid;
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+    // Set the default slave ID if the KConfig option is selected
+    error = mbc_set_slave_id(mbs_controller, slave_uid, true, (uint8_t *)mb_slave_id, sizeof(mb_slave_id));
+    MB_RETURN_ON_FALSE((error == ESP_OK), ESP_ERR_INVALID_STATE, TAG, "mb stack set slave ID failure.");
 #endif
     error = mbs_controller->start(ctx);
     MB_RETURN_ON_FALSE((error == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
