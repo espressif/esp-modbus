@@ -116,10 +116,13 @@ extern "C" void app_main(void)
     // Initialization of device peripheral and objects
     ESP_LOGI(TAG, "Setup master cpp....");
     ESP_ERROR_CHECK(master_serial_init(&pmaster_handle));
+    ESP_ERROR_CHECK(mbc_master_stop(pmaster_handle));
     ESP_ERROR_CHECK(mbc_master_delete(pmaster_handle));
     ESP_LOGI(TAG, "Master test passed successfully.");
     ESP_LOGI(TAG, "Setup slave cpp....");
     ESP_ERROR_CHECK(slave_serial_init(&pslave_handle));
+    // explicitly check stop method before delete
+    ESP_ERROR_CHECK(mbc_slave_stop(pslave_handle));
     ESP_ERROR_CHECK(mbc_slave_delete(pslave_handle));
     ESP_LOGI(TAG, "Slave test passed successfully.");
 }
