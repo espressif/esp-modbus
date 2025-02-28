@@ -577,12 +577,12 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                 break;
 
             default:
-                ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PARENT(inst), (int)event.event);
+                ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event 0x%02x or timeout?", MB_OBJ_PARENT(inst), (int)event.event);
                 break;
         }
     } else {
         // Something went wrong and task unblocked but there are no any correct events set
-        ESP_LOGE(TAG, MB_OBJ_FMT", unexpected event triggered 0x%02x.", MB_OBJ_PARENT(inst), (int)event.event);
+        ESP_LOGD(TAG, MB_OBJ_FMT": Unexpected event 0x%02x or timeout?", MB_OBJ_PARENT(inst), (int)event.event);
         status = MB_EILLSTATE;
     }
     return status;
