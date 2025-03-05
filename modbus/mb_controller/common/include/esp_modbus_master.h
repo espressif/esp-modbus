@@ -71,7 +71,7 @@ typedef union {
     struct {
         int cust_cmd_read;          /*!< Parameter custom read request command */
         int cust_cmd_write;         /*!< Parameter custom write request command */
-        int cust_cmd_not_used;      /*!< Not used option for custom request */
+        int cust_cmd_other;         /*!< Optional field for custom request */
     };
 } mb_parameter_opt_t;
 
@@ -179,7 +179,7 @@ typedef struct {
  */
 typedef struct {
     uint8_t slave_addr;             /*!< Modbus slave address */
-    uint8_t command;    /*!< Modbus command to send */
+    uint8_t command;                /*!< Modbus command to send */
     uint16_t reg_start;             /*!< Modbus start register */
     uint16_t reg_size;              /*!< Modbus number of registers */
 } mb_param_request_t;
@@ -481,6 +481,20 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
  *     - esp_err_t ESP_ERR_NOT_SUPPORTED - the request command is not supported by slave
 */
 esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param_type, size_t param_size);
+
+
+/**
+ * @brief The helper function to get supported modbus function code (command) according to parameter type
+ *
+ * @param[in] pdescr the pointer to the characteristic descriptor in data dictionary
+ * @param[in] mode access mode for characteristic
+ *
+ * @return
+ *     - modbus function code, if the command is correctly configured
+ *     - 0 - invalid argument or command not found
+*/
+uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *pdescr, mb_param_mode_t mode);
+
 
 #ifdef __cplusplus
 }

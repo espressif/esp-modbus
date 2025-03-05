@@ -167,7 +167,7 @@ const mb_parameter_descriptor_t device_parameters[] = {
             OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
     { CID_HOLD_CUSTOM1, STR("CustomHoldReg"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
             TEST_HOLD_REG_START(holding_area1_end), 1,
-            HOLD_OFFSET(holding_area1_end), PARAM_TYPE_U16, 2, 
+            HOLD_OFFSET(holding_area1_end), PARAM_TYPE_U16, 2,
             OPTS( 0x03, 0x06, 0x5555 ), PAR_PERMS_READ_WRITE_CUST_CMD },
     { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
             TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,

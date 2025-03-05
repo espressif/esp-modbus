@@ -306,6 +306,38 @@ Initialization of master descriptor. The descriptor represents an array of type 
 The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
 Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
 
+The Data Dictionary and related API functions (:cpp:func:`mbc_master_get_parameter`, :cpp:func:`mbc_master_set_parameter`) support custom commands to be defined for read and write operations separately. In this case, the first two options (``param_opts.cust_cmd_read`` and ``param_opts.cust_cmd_write``) are treated as read/write Modbus commands accordingly if the :cpp:enumerator:`PAR_PERMS_CUST_CMD` flag is set in the ``access`` field for the characteristic.
+
+.. note:: Please make sure that the requred commands are configured correctly in Modbus master and slave before using this feature. Refer to :ref:`modbus_api_master_handler_customization` for more information.
+
+The below example explains this use case:
+
+.. code:: c
+
+    enum {
+        CID_HOLD_CUSTOM1 = 0
+    };
+    const mb_parameter_descriptor_t device_parameters[] = {
+      // The commands `<0x03 - Read Multiple Holding Registers>`, 
+      // `<0x06 - Write Single Holding Register>` will be used to read/write characteristic data accordingly.
+      { CID_HOLD_CUSTOM1, STR("CustomHoldingRegister"), STR("__"),
+        MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
+        HOLD_OFFSET(custom_holding_reg), PARAM_TYPE_U16, 2,
+        OPTS(0x03, 0x06, 0x5555), PAR_PERMS_READ_WRITE_CUST_CMD },
+      ... // other characteristics in the data dictionary
+    };
+    static void *master_handle = NULL; // Pointer to allocated interface structure
+    ...
+    uint8_t temp_data[4];
+    esp_err_t err = mbc_master_get_parameter(master_handle, CID_HOLD_CUSTOM1, temp_data, &type);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Characteristic read successful.");
+    }
+    err = mbc_master_set_parameter(master_handle, CID_HOLD_CUSTOM1, temp_data, &type);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Set parameter data successfully.");
+    }
+
 .. _modbus_api_master_handler_customization:
 
 Master Customize Function Handlers
