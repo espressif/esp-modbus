@@ -42,6 +42,8 @@ MB_LOGGING_PATH = '.'
 
 # The constructed packets for self testing
 
+TEST_PACKET_REPORT_CUSTOM_0X41 = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                            ModbusPDUXX_Custom_Request(customBytes=[0x41])'
 TEST_PACKET_REPORT_SLAVE_ID_CUSTOM = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
                             ModbusPDUXX_Custom_Request(customBytes=[0x11])'
 TEST_PACKET_REPORT_SLAVE_ID = 'ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
@@ -431,6 +433,15 @@ class ModbusTestLib:
     def self_test(self) -> None:
        # type: () -> None
         self.connect(ip_addr=MB_DEF_SERVER_IP, port=MB_DEF_PORT)
+        packet = self.create_request(TEST_PACKET_REPORT_CUSTOM_0X41)
+        print(f"Test: 0x41 <Custom command> packet: {packet}")
+        response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
+        assert response and len(response) > 1, "No response from slave"
+        print(f"Test: received: {bytes(response)}")
+        pdu = self.translate_response(response)
+        if pdu is not None:
+           print(f"Received: {pdu}")
+           #print(f"PDU Exception: {self.check_response(pdu, packet.customBytes[0])}")
         packet = self.create_request(TEST_PACKET_REPORT_SLAVE_ID_CUSTOM)
         print(f"Test: 0x11 <Report Slave ID> packet: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)

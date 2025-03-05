@@ -29,6 +29,7 @@ extern "C"
 #define MB_EVENT_QUEUE_TIMEOUT_MAX_MS   (3000)
 #define MB_EVENT_QUEUE_TIMEOUT          (pdMS_TO_TICKS(CONFIG_FMB_EVENT_QUEUE_TIMEOUT))
 #define MB_EVENT_QUEUE_TIMEOUT_MAX      (pdMS_TO_TICKS(MB_EVENT_QUEUE_TIMEOUT_MAX_MS))
+#define MB_MS_TO_TICKS(time_ms)         ((TickType_t)(((time_ms)/portTICK_PERIOD_MS)))
 
 int lock_obj(_lock_t *plock);
 void unlock_obj(_lock_t *plock);

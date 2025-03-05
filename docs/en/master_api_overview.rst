@@ -7,9 +7,10 @@ The following overview describes how to setup Modbus master communication. The o
 
 1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface for the selected port.
 2. :ref:`modbus_api_master_configure_descriptor` - Configure data descriptors to access slave parameters.
-3. :ref:`modbus_api_master_setup_communication_options` - Allows to setup communication options for selected port.
-4. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
-5. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
+3. :ref:`modbus_api_master_handler_customization` - Customization of Modbus function handling.
+4. :ref:`modbus_api_master_setup_communication_options` - Allows to setup communication options for selected port.
+5. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
+6. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_master_configure_descriptor:
 
@@ -304,6 +305,102 @@ Initialization of master descriptor. The descriptor represents an array of type 
 
 The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
 Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
+
+.. _modbus_api_master_handler_customization:
+
+Master Customize Function Handlers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Master object contains the command handling tables to define the specific handling functionality for each supported Modbus command. The default handling functions in this table support most common Modbus commands. However, the list of commands can be extended by adding the new command into handling table with its custom handling behavior. It is also possible overriding the function handler for the specific command. The below described API functions allow using this behavior for master objects.
+
+:cpp:func:`mbc_master_set_handler`
+
+:cpp:func:`mbc_master_get_handler`
+
+The example code to overide the handler routine for command `0x04 - Read Input Registers`:
+
+.. code:: c
+
+    static void *master_handle = NULL;  // Pointer to allocated interface structure
+    uint8_t override_command = 0x04;
+    ....
+    // Define the custom function handler for the command.
+    // The handler body must be short and don't use any unpredictable logic. The handler 
+    // is executed in the context of modbus controller event task.
+    mb_exception_t my_custom_fc04_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        MB_RETURN_ON_FALSE(frame_ptr && plen, MB_EX_CRITICAL, TAG,
+                                "incorrect frame buffer length");
+        // This error handler will be executed to check the request for the command 0x04
+        // See the default handler in the file `esp-modbus//modbus/mb_objects/functions/mbfuncinput_master.c` for more information.
+        // The pframe is pointer to command buffer, plen - is pointer to length of the buffer
+        return MB_EX_CRITICAL;
+    }
+    ....
+    err = mbc_master_set_handler(master_handle, override_command, NULL);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+    err = mbc_master_set_handler(master_handle, override_command, my_custom_fc04_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+
+.. note:: The custom handler set by the function :cpp:func:`mbc_master_set_handler` should be as short as possible and should contain simple and safe logic to not break the normal functionality of the stack. This is user application responsibility to handle the command appropriately.
+
+The example code to handle custom vendor specific command is below. This example sends the 'Master' string to slave and gets the response from slave with the string being appended from slave. It is just a simple echo example to demonstrate the approach.
+
+.. code:: c
+
+    #define MB_CUST_DATA_LEN 100
+    static char my_custom_data[MB_CUST_DATA_LEN] = {0}; // custom data buffer for the request
+    static void *master_handle = NULL;  // Pointer to allocated interface structure
+
+    // This is the custom function handler to process incoming slave response.
+    // Refer the function handler examples in `esp-modbus/modbus/mb_objects/functions/mbfuncinput_master.c` for more information.
+    // Parameters: pframe: is pointer to incoming frame buffer, plen: is pointer to length including the function code
+    // In spite of logging showed here, try to use just simple functionality here.
+    mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        MB_RETURN_ON_FALSE((frame_ptr && plen && *plen && *plen < (MB_CUST_DATA_LEN - 1)), MB_EX_CRITICAL, TAG,
+                                "incorrect custom frame buffer");
+        ESP_LOGW(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *plen);
+        strncpy((char *)&my_custom_data[0], (char *)&frame_ptr[1], MB_CUST_DATA_LEN);
+        ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*plen - 1), ESP_LOG_WARN);
+        return MB_EX_NONE;
+    }
+    ....
+    // The setup of the master object is completed and the master_handle is already actual
+
+    // Add custom command handler
+    uint8_t custom_command = 0x41; // the function code for the request
+    // Reset the handler for the command if already set
+    err = mbc_master_set_handler(master_handle, custom_command, NULL);
+    MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_INVALID_STATE), ESP_ERR_INVALID_STATE, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+    err = mbc_master_set_handler(master_handle, custom_command, my_custom_fc_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                            "could not override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    // Make sure the handler is updated correctly
+    err = mbc_master_get_handler(master_handle, custom_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
+                            "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
+
+    char *pcustom_string = "Master"; // The custom request string that will be sent to the slave
+    mb_param_request_t req = {
+        .slave_addr = MB_DEVICE_ADDR1,              // the slave UID to send the request
+        .command = 0x41,                            // the custom function code,
+        .reg_start = 0,                             // unused,
+        .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
+    };
+
+    // Send the request with custom command (vendor speciic)
+    err = mbc_master_send_request(master_handle, &req, pcustom_string);
+    if (err != ESP_OK) {
+        ESP_LOGE("CUSTOM_DATA", "Send custom request fail.");
+    } else {
+    // The request is processed correctly and the `my_custom_data[]` contains the sent string with appended slave string
+    ...
+    }
 
 .. _modbus_api_master_start_communication:
 

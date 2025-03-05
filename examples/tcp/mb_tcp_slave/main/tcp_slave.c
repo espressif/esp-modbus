@@ -43,8 +43,8 @@
 #define MB_REG_HOLDING_START_AREA2_SIZE     ((size_t)((HOLD_OFFSET(holding_area2_end) - HOLD_OFFSET(holding_u8_a)) << 1))
 
 #define MB_PAR_INFO_GET_TOUT                (10) // Timeout for get parameter info
-#define MB_CHAN_DATA_MAX_VAL                (10)
-#define MB_CHAN_DATA_OFFSET                 (1.1f)
+#define MB_CHAN_DATA_MAX_VAL                (50)
+#define MB_CHAN_DATA_OFFSET                 (10.1f)
 
 #define MB_READ_MASK                        (MB_EVENT_INPUT_REG_RD \
                                                 | MB_EVENT_HOLDING_REG_RD \
@@ -55,6 +55,7 @@
 #define MB_READ_WRITE_MASK                  (MB_READ_MASK | MB_WRITE_MASK)
 #define MB_TEST_VALUE                       (12345.0)
 #define MB_SLAVE_ADDR                       (CONFIG_MB_SLAVE_ADDR)
+#define MB_CUST_DATA_MAX_LEN                (100)
 
 static const char *TAG = "SLAVE_TEST";
 
@@ -159,7 +160,7 @@ static void slave_operation_func(void *arg)
                     (unsigned)reg_info.size);
             if (reg_info.address == (uint8_t*)&holding_reg_params.holding_data0)
             {
-                (void)mbc_slave_unlock(slave_handle);
+                (void)mbc_slave_lock(slave_handle);
                 holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
                 if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
                     coil_reg_params.coils_port1 = 0xFF;
@@ -266,6 +267,23 @@ static esp_err_t destroy_services(void)
     return err;
 }
 
+// This custom command handler will be executed to check the request for the custom command
+// See the `esp-modbus/modbus/mb_objects/functions/mbfuncinput.c` for more information
+// pframe is pointer to the buffer starting from function code, plen - is pointer to length of the data
+mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+{
+    char *str_append = ":Slave";
+    MB_RETURN_ON_FALSE((frame_ptr && plen && *plen < (MB_CUST_DATA_MAX_LEN - strlen(str_append))),
+                            MB_EX_ILLEGAL_DATA_VALUE, TAG,
+                            "incorrect custom frame");
+    ESP_LOGW("CUSTOM_DATA", "Custom handler, frame ptr: %p, len: %u", frame_ptr, *plen);
+    ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", frame_ptr, *plen, ESP_LOG_WARN);
+    frame_ptr[*plen] = '\0';
+    strcat((char *)&frame_ptr[1], str_append);
+    *plen = (strlen(str_append) + *plen); // the length of (response + command)
+    return MB_EX_NONE; // Set the exception code for slave appropriately
+}
+
 // Modbus slave initialization
 static esp_err_t slave_init(mb_communication_info_t *pcomm_info)
 {
@@ -276,6 +294,18 @@ static esp_err_t slave_init(mb_communication_info_t *pcomm_info)
     MB_RETURN_ON_FALSE((err == ESP_OK && slave_handle != NULL), ESP_ERR_INVALID_STATE,
                                 TAG,
                                 "mb controller create fail.");
+
+    uint8_t custom_command = 0x41;
+    err = mbc_slave_set_handler(slave_handle, custom_command, NULL);
+    MB_RETURN_ON_FALSE((err == ESP_OK  || err == ESP_ERR_INVALID_STATE), ESP_ERR_INVALID_STATE, TAG,
+                        "could not reset handler, returned (0x%x).", (int)err);
+    err = mbc_slave_set_handler(slave_handle, custom_command, my_custom_fc_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                        "could not set or override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    err = mbc_slave_get_handler(slave_handle, custom_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
+                        "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 
     // The code below initializes Modbus register area descriptors
     // for Modbus Holding Registers, Input Registers, Coils and Discrete Inputs

@@ -18,6 +18,7 @@ extern "C" {
 
 #include "mb_common.h"              // for mb_base_t
 #include "esp_modbus_slave.h"       // for public type defines
+#include "mb_slave.h"
 
 /* ----------------------- Defines ------------------------------------------*/
 #define MB_INST_MIN_SIZE                    (1) // The minimal size of Modbus registers area in bytes

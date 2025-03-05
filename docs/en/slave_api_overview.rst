@@ -7,9 +7,10 @@ The sections below represent typical programming workflow for the slave API whic
 
 1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface using communication options.
 2. :ref:`modbus_api_slave_configure_descriptor` - Configure data descriptors to access slave parameters.
-3. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
-4. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
-5. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
+3. :ref:`modbus_api_slave_handler_customization` - Customization of Modbus function handling in slave object.
+4. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
+5. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
+6. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_slave_configure_descriptor:
 
@@ -160,6 +161,52 @@ Example to get the actual slave identificator:
         ESP_LOGE("GET_SLAVE_ID", "Get slave ID fail, err=%d.", err);
     }
     ...
+
+.. _modbus_api_slave_handler_customization:
+
+Slave Customize Function Handlers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Slave object contains the command handling tables to define the specific handling functionality for each supported Modbus command. The default handling functions in this table support most useful Modbus commands. However, the list of commands can be extended by adding the new command into handling table with its custom handling behavior. It is also possible overriding the function handler for the specific command. The below described API functions allow using this behavior slave objects.
+
+:cpp:func:`mbc_slave_set_handler`
+
+:cpp:func:`mbc_slave_get_handler`
+
+The following example allows to override the standard command to read input registers. Refer to examples for more information on how to handle custom commands.
+
+.. code:: c
+
+    static void *slave_handle = NULL;  // Pointer to allocated interface structure (must be actual)
+    ....
+    // The custom function handler for the function returns exception code for now
+    // Please place your custom handling behavior here.
+    // This error handler will be executed to check the request for the command 0x04
+    // See the default handler in the file `esp-modbus//modbus/mb_objects/functions/mbfuncinput_slave.c` for more information.
+    // The pframe is pointer to command buffer, plen - is pointer to the variable with the length of the buffer
+    mb_exception_t my_custom_fc04_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        MB_RETURN_ON_FALSE(frame_ptr && plen, MB_EX_CRITICAL, TAG,
+                                "incorrect frame buffer length");
+        return MB_EX_CRITICAL;
+    }
+    ...
+    uint8_t override_command = 0x04;
+    // Reset the existing handler for the command
+    esp_err_t err = mbc_slave_set_handler(slave_handle, override_command, NULL);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                          "could not reset handler, returned (0x%x).", (int)err);
+    // Set the custom handler function for the command
+    err = mbc_slave_set_handler(slave_handle, override_command, my_custom_fc04_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    // Get the actual handler for the command
+    err = mbc_slave_get_handler(slave_handle, override_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc04_handler), ;, TAG,
+                          "could not get handler, returned (0x%x).", (int)err);
+
+.. note:: The custom handlers set by the function :cpp:func:`mbc_slave_set_handler` should be as short as possible and should contain simple logic to not break the normal functionality of the stack. This is user application responsibility to handle the command appropriately.
 
 .. _modbus_api_slave_communication:
 
