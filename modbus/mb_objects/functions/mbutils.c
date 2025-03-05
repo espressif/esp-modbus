@@ -126,4 +126,52 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code)
     return status;
 }
 
+mb_err_enum_t mb_set_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp phandler)
+{
+    int index;
+    mb_err_enum_t status = MB_EILLSTATE;
+    if ((0 < func_code) && (func_code <= MB_FUNC_CODE_MAX)) {
+        if (phandler != NULL) {
+            for(index = 0; index < MB_FUNC_HANDLERS_MAX; index++) {
+                if ((pfh_table[index].handler == NULL) ||
+                    (pfh_table[index].handler == phandler)) {
+                    pfh_table[index].func_code = func_code;
+                    pfh_table[index].handler = phandler;
+                    break;
+                }
+            }
+            status = (index != MB_FUNC_HANDLERS_MAX) ? MB_ENOERR : MB_ENORES;
+        } else {
+            for (index = 0; index < MB_FUNC_HANDLERS_MAX; index++) {
+                if (pfh_table[index].func_code == func_code) {
+                    pfh_table[index].func_code = 0;
+                    pfh_table[index].handler = NULL;
+                    break;
+                }
+            }
+            status = (index < MB_FUNC_HANDLERS_MAX) ? MB_ENOERR : MB_ENORES;
+        }
+    } else {
+        status = MB_EINVAL;
+    }
+    return status;
+}
+
+mb_err_enum_t mb_get_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp *phandler)
+{
+    int index;
+    mb_err_enum_t status = MB_EILLSTATE;
+    if (pfh_table && phandler && (0 < func_code) && (func_code <= MB_FUNC_CODE_MAX)) {
+        for(index = 0; index < MB_FUNC_HANDLERS_MAX; index++) {
+            if (func_code == pfh_table[index].func_code) {
+                *phandler = pfh_table[index].handler;
+                break;
+            }
+        }
+        status = (index < MB_FUNC_HANDLERS_MAX) ? MB_ENOERR : MB_ENORES;
+    } else {
+        status = MB_EINVAL;
+    }
+    return status;
+}
 

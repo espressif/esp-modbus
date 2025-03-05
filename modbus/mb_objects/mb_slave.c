@@ -30,7 +30,6 @@ typedef struct
     // here are slave object properties and methods
     uint8_t mb_address;
     mb_comm_mode_t cur_mode;
-    const mb_fn_handler_t *func_handlers;
     mb_state_enum_t cur_state;
     uint8_t *frame;
     uint16_t length;
@@ -74,10 +73,57 @@ static mb_fn_handler_t slave_handlers[MB_FUNC_HANDLERS_MAX] =
 #endif
 };
 
+static _lock_t s_mbs_lock;
+
 mb_err_enum_t mbs_delete(mb_base_t *inst);
 mb_err_enum_t mbs_enable(mb_base_t *inst);
 mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
+
+// The helper function to register custom function handler for slave
+mb_err_enum_t mbs_set_handler(uint8_t fc, mb_fn_handler_fp phandler)
+{
+    mb_err_enum_t status = MB_EINVAL;
+    CRITICAL_SECTION(s_mbs_lock) {
+        status = mb_set_handler(&slave_handlers[0], fc, phandler);
+    }
+    return status;
+}
+
+// The helper function to register custom function handler for slave
+mb_err_enum_t mbs_get_handler(uint8_t fc, mb_fn_handler_fp *phandler)
+{
+    mb_err_enum_t status = MB_EINVAL;
+    if (phandler) {
+        CRITICAL_SECTION(s_mbs_lock) {
+            status = mb_get_handler(&slave_handlers[0], fc, phandler);
+        }
+    }
+    return status;
+}
+
+static mb_err_enum_t mbs_check_invoke_handler(mb_base_t *inst, uint8_t fc, uint8_t *pbuf, uint16_t *plen)
+{
+    mb_exception_t exception = MB_EX_ILLEGAL_FUNCTION;
+    if (!fc || (fc & MB_FUNC_ERROR)) {
+        return MB_EX_ILLEGAL_FUNCTION;
+    }
+    CRITICAL_SECTION(s_mbs_lock) {
+        for (int i = 0; i < MB_FUNC_HANDLERS_MAX; i++) {
+            /* No more function handlers registered. Abort. */
+            if (slave_handlers[i].func_code == 0) {
+                ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), handler is missing.", MB_OBJ_PARENT(inst), (int)fc);
+                break;
+            }
+            if (slave_handlers[i].func_code == fc) {
+                exception = slave_handlers[i].handler(inst, pbuf, plen);
+                ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)fc);
+                break;
+            }
+        }
+    }
+    return exception;
+}
 
 #if (MB_SLAVE_RTU_ENABLED)
 
@@ -111,7 +157,6 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     ret = mbs_rtu_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                                 TAG, "transport creation, err: %d", (int)ret);
-    mbs_obj->func_handlers = slave_handlers;
     mbs_obj->cur_mode = ser_opts->mode;
     mbs_obj->mb_address = ser_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
@@ -166,7 +211,6 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     ret = mbs_ascii_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                         TAG, "transport creation, err: %d", (int)ret);
-    mbs_obj->func_handlers = slave_handlers;
     mbs_obj->cur_mode = ser_opts->mode;
     mbs_obj->mb_address = ser_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
@@ -222,7 +266,6 @@ mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     ret = mbs_tcp_transp_create(tcp_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                                 TAG, "transport creation, err: %d", (int)ret);
-    mbs_obj->func_handlers = slave_handlers;
     mbs_obj->cur_mode = tcp_opts->mode;
     mbs_obj->mb_address = tcp_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
@@ -358,20 +401,7 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                 MB_RETURN_ON_FALSE(mbs_obj->frame, MB_EILLSTATE, TAG, "receive buffer fail.");
                 ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PARENT(inst));
                 mbs_obj->func_code = mbs_obj->frame[MB_PDU_FUNC_OFF];
-                exception = MB_EX_ILLEGAL_FUNCTION;
-                // If receive frame has exception. The receive function code highest bit is 1.
-                for (int i = 0; (i < MB_FUNC_HANDLERS_MAX); i++) {
-                    // No more function handlers registered. Abort.
-                    if (mbs_obj->func_handlers[i].func_code == 0) {
-                        ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), handler is not found.", MB_OBJ_PARENT(inst), (int)mbs_obj->func_code);
-                        break;
-                    }
-                    if ((mbs_obj->func_handlers[i].func_code) == mbs_obj->func_code) {
-                        ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), start handler.", MB_OBJ_PARENT(inst), (int)mbs_obj->func_code);
-                        exception = mbs_obj->func_handlers[i].handler(inst, mbs_obj->frame, &mbs_obj->length);
-                        break;
-                    }
-                }
+                exception = mbs_check_invoke_handler(inst, mbs_obj->func_code, mbs_obj->frame, &mbs_obj->length);
                 // If the request was not sent to the broadcast address, return a reply.
                 if ((mbs_obj->rcv_addr != MB_ADDRESS_BROADCAST) || (mbs_obj->cur_mode == MB_TCP)) {
                     if (exception != MB_EX_NONE) {
