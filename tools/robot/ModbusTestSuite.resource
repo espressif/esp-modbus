@@ -18,6 +18,11 @@ Library    Collections
 Library    ModbusTestLib.py    WITH NAME    ModbusTestLib
 
 *** Keywords ***
+Create Custom Command Request
+    [Arguments]    ${uid}    ${customData}
+    ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDUXX_Custom_Request(customBytes=${customData})
+    RETURN    ${packet}
+
 Create Report Slave Id Request
     [Arguments]    ${uid}    ${customData}
     #${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDU11_Report_Slave_Id(funcCode=${FUNC_REPORT_SLAVE_ID})
@@ -63,6 +68,48 @@ Create Discrete Read Request
     ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDU02_Read_Discrete_Inputs(funcCode=${FUNC_READ_DISCRETE_INPUTS}, startAddr=${startAddr}, quantity=${quantity})
     Log    Packet: ${packet}
     RETURN    ${packet}
+
+Lists Should Be Equal
+    [Arguments]    ${get_list}    ${exp_list}
+    Should Not Be Empty    ${get_list}
+    Should Not Be Empty    ${exp_list}
+    ${get_length} =    Get length    ${get_list}
+    ${exp_length} =    Get length    ${exp_list}
+    Should Be Equal As Integers    ${get_length}    ${exp_length}
+    FOR    ${i}    IN RANGE    ${exp_length}
+        ${get_item} =    Get From List    ${get_list}    ${i}
+        ${exp_item} =    Get From List    ${exp_list}    ${i}
+        Should Be Equal As Integers    ${get_item}    ${exp_item}
+    END
+
+Custom Command
+    [Arguments]    ${uid}    ${customData}    ${exception_expected}    ${expected_list}
+    ${classId} =    Get Class Id
+    Log    Library ClassId: ${classId}
+    Log    Get Slave Identificator UID:${uid}, Custom bytes: ${customData}
+    ${req} =    Create Custom Command Request    ${uid}    ${customData}
+    #Create Connection    ${server}    ${port}
+    ${response_frame} =    Send Packet And Get Response    ${req}
+    Should Not Be Empty    ${response_frame}
+    ${packet} =    Translate Response    ${response_frame}
+    Should Be Equal As Integers    ${req.transId}    ${packet.transId}
+    ${exception}    ${exp_message} =    Check Response    ${packet}    ${req.customBytes[0]}
+    Should Be Equal As Integers    ${exception}    ${exception_expected}
+    Log    exception: (${exception}: ${exp_message}), expected: ${exception_expected}
+    IF    ${exception} == ${0}
+        Log    SlaveUID:${uid}, Custom_data received:${packet.customBytes}
+        IF    ${expected_list} != ${None}
+            Log    ${expected_list}
+            Log    ${packet.customBytes}
+            ${get_list} =    Convert To List    ${packet.customBytes}
+            ${exp_list} =    Evaluate    ${expected_list}
+            Lists Should Be Equal    ${get_list}    ${exp_list}
+        ELSE
+            Log    "Skip comparison with expected list"
+        END
+    ELSE
+        Log    "Exception is evaluated correctly (${exception}: ${exp_message}) == ${exception_expected}"
+    END
 
 Report Slave Id
     [Arguments]    ${uid}    ${customData}   ${exception_expected}
