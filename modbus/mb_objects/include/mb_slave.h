@@ -15,6 +15,10 @@ extern "C" {
 mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *plen_buf);
 #endif
 
+// The helper function to register custom function handler for slave
+mb_err_enum_t mbs_set_handler(uint8_t func_code, mb_fn_handler_fp phandler);
+mb_err_enum_t mbs_get_handler(uint8_t func_code, mb_fn_handler_fp *phandler);
+
 #ifdef __cplusplus
 }
 #endif

@@ -5,8 +5,8 @@
  */
 #pragma once
 
-#include "mb_config.h"
 #include "mb_types.h"
+#include "sdkconfig.h"
 
 #if __has_include("esp_idf_version.h")
 #include "esp_idf_version.h"

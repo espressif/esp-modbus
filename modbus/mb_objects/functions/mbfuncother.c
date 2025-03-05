@@ -44,6 +44,39 @@
 /* ----------------------- Start implementation -----------------------------*/
 mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 
+/**
+ * This function will request read coil.
+ *
+ * @param uid slave address
+ * @param fc custom function code
+ * @param buf additional data to send
+ * @param buf_size size of data to send
+ * @param timeout timeout (-1 will waiting forever)
+ *
+ * @return error code (mb_err_enum_t)
+ */
+mb_err_enum_t mbm_rq_custom(mb_base_t *inst, uint8_t uid, uint8_t fc, uint8_t *buf, uint16_t buf_size, uint32_t tout)
+{
+    uint8_t *mb_frame_ptr;
+    if (!buf || (uid > MB_ADDRESS_MAX) || (buf_size >= (MB_BUFFER_SIZE - 2))) {
+        return MB_EINVAL;
+    }
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
+        return MB_EBUSY;
+    }
+    inst->get_send_buf(inst, &mb_frame_ptr);
+    inst->set_dest_addr(inst, uid);
+
+    mb_frame_ptr[MB_PDU_FUNC_OFF] = fc;
+
+    memcpy(&mb_frame_ptr[MB_PDU_DATA_OFF], buf, buf_size);
+
+    inst->set_send_len(inst, MB_PDU_SIZE_MIN + buf_size);
+
+    (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
+    return mb_port_event_wait_req_finish(inst->port_obj);
+}
+
 mb_err_enum_t mbm_rq_report_slave_id(mb_base_t *inst, uint8_t slave_addr, uint32_t timeout)
 {
     uint8_t *mb_frame_ptr = NULL;

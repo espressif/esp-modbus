@@ -38,22 +38,6 @@ typedef enum _mb_commands_enum
 
 /* ----------------------- Type definitions ---------------------------------*/
 
-typedef enum
-{
-    MB_EX_NONE = 0x00,
-    MB_EX_ILLEGAL_FUNCTION = 0x01,
-    MB_EX_ILLEGAL_DATA_ADDRESS = 0x02,
-    MB_EX_ILLEGAL_DATA_VALUE = 0x03,
-    MB_EX_SLAVE_DEVICE_FAILURE = 0x04,
-    MB_EX_ACKNOWLEDGE = 0x05,
-    MB_EX_SLAVE_BUSY = 0x06,
-    MB_EX_MEMORY_PARITY_ERROR = 0x08,
-    MB_EX_GATEWAY_PATH_FAILED = 0x0A,
-    MB_EX_GATEWAY_TGT_FAILED = 0x0B
-} mb_exception_t;
-
-typedef mb_exception_t (*mb_fn_handler_fp)(void *, uint8_t *frame_ptr, uint16_t *len_buf);
-
 typedef struct
 {
     uint8_t func_code;

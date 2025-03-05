@@ -152,7 +152,8 @@ struct mb_base_t
     mb_rw_callbacks_t rw_cbs;
 };
 
-typedef struct _port_tcp_opts mb_tcp_opts_t;
+mb_err_enum_t mb_set_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp phandler);
+mb_err_enum_t mb_get_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp *phandler);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
@@ -163,7 +164,12 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
 
 #endif
 
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+
+typedef struct _port_tcp_opts mb_tcp_opts_t;
 mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
+
+#endif
 
 mb_err_enum_t mbs_delete(mb_base_t *inst);
 mb_err_enum_t mbs_enable(mb_base_t *inst);

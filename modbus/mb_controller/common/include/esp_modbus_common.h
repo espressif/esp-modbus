@@ -201,6 +201,27 @@ typedef union
 typedef esp_err_t (*iface_create_fp)(mb_communication_info_t*, void **);    /*!< Interface method create */
 typedef esp_err_t (*iface_method_default_fp)(void *ctx);                   /*!< Interface method default prototype */
 
+/**
+ * @brief The function registers the new function handler for specified command and 
+ *        allows to override the existing one for the communication object.
+ *        If the phandler == 0, the function allows to clear the actual function handler for the `func_code` parameter.
+ * 
+ * @param[in] ctx context pointer to the communication object
+ * @param[in] func_code the function code for the handler
+ * @param[in] phandler the pointer to function handler being used for command
+ *
+ * @return
+ *     - esp_err_t ESP_OK - the function handler is correctly set
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *     - esp_err_t ESP_ERR_INVALID_RESPONSE - an invalid response from slave during processing of parameter
+ *     - esp_err_t ESP_ERR_INVALID_STATE - invalid state during data processing or allocation failure
+ *     - esp_err_t ESP_ERR_NOT_FOUND - the requested slave is not found (not connected or not configured)
+ *     - esp_err_t ESP_ERR_TIMEOUT - operation timed out and no response from slave
+ *     - esp_err_t ESP_ERR_NOT_SUPPORTED - the request command is not supported by slave
+ *     - esp_err_t ESP_FAIL - slave returned an exception or other failure
+*/
+esp_err_t mbc_register_cb(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler);
+
 #ifdef __cplusplus
 }
 #endif
