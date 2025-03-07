@@ -276,7 +276,7 @@ The below diagrams show how the extended data types appear on network layer.
 
 The approach showed above can be used to pack the data into MBAP frames used by Modbus TCP as well as for other types with similar size.
 
-The following sections give an overview of how to use the ESP_Modbus component found under `components/freemodbus`. The sections cover initialization of a Modbus port, and the setup a master or slave device accordingly:
+The following sections give an overview of how to use the ESP_Modbus component found under `components/esp-modbus`. The sections cover initialization of a Modbus port, and the setup a master or slave device accordingly:
 
 - :ref:`modbus_api_port_initialization`
 - :ref:`modbus_api_slave_overview`
