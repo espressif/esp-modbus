@@ -39,8 +39,7 @@ LOGGER_NAME = 'modbus_test'
 logger = logging.getLogger(LOGGER_NAME)
 
 test_configs = [
-    'wifi',
-#    'ethernet'
+    'ethernet'
 ]
 
 @pytest.mark.esp32

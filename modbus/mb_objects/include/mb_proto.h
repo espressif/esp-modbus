@@ -6,6 +6,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "mb_func.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +34,7 @@ typedef enum _mb_commands_enum
     MB_FUNC_DIAG_GET_COM_EVENT_CNT      = ( 11 ),
     MB_FUNC_DIAG_GET_COM_EVENT_LOG      = ( 12 ),
     MB_FUNC_OTHER_REPORT_SLAVEID        = ( 17 ),
-    MB_FUNC_ERROR                       = ( 128U ),
+    MB_FUNC_ERROR                       = ( 0x80 )
 } mb_commands_t;
 
 /* ----------------------- Type definitions ---------------------------------*/

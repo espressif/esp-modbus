@@ -14,7 +14,10 @@
 #include "driver/uart.h"            // for uart port number defines
 #include "sdkconfig.h"              // for KConfig options
 
+#include "esp_modbus_common.h"
 #include "esp_modbus_master.h"
 #include "esp_modbus_slave.h"
+
+
 
 

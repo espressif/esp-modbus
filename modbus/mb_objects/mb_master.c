@@ -18,49 +18,16 @@ static const char *TAG = "mb_object.master";
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED) 
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 #endif
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED || MB_MASTER_TCP_ENABLED)
 
-static mb_fn_handler_t master_handlers[MB_FUNC_HANDLERS_MAX] =
-{
-#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-        {MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbm_fn_report_slave_id},
-#endif
-#if MB_FUNC_READ_INPUT_ENABLED
-        {MB_FUNC_READ_INPUT_REGISTER, (void *)mbm_fn_read_inp_reg},
-#endif
-#if MB_FUNC_READ_HOLDING_ENABLED
-        {MB_FUNC_READ_HOLDING_REGISTER, (void *)mbm_fn_read_holding_reg},
-#endif
-#if MB_FUNC_WRITE_MULTIPLE_HOLDING_ENABLED
-        {MB_FUNC_WRITE_MULTIPLE_REGISTERS, (void *)mbm_fn_write_multi_holding_reg},
-#endif
-#if MB_FUNC_WRITE_HOLDING_ENABLED
-        {MB_FUNC_WRITE_REGISTER, (void *)mbm_fn_write_holding_reg},
-#endif
-#if MB_FUNC_READWRITE_HOLDING_ENABLED
-        {MB_FUNC_READWRITE_MULTIPLE_REGISTERS, (void *)mbm_fn_rw_multi_holding_regs},
-#endif
-#if MB_FUNC_READ_COILS_ENABLED
-        {MB_FUNC_READ_COILS, (void *)mbm_fn_read_coils},
-#endif
-#if MB_FUNC_WRITE_COIL_ENABLED
-        {MB_FUNC_WRITE_SINGLE_COIL, (void *)mbm_fn_write_coil},
-#endif
-#if MB_FUNC_WRITE_MULTIPLE_COILS_ENABLED
-        {MB_FUNC_WRITE_MULTIPLE_COILS, (void *)mbm_fn_write_multi_coils},
-#endif
-#if MB_FUNC_READ_DISCRETE_INPUTS_ENABLED
-        {MB_FUNC_READ_DISCRETE_INPUTS, (void *)mbm_fn_read_discrete_inputs},
-#endif
-};
-
 typedef struct
 {
     mb_base_t base;
+
     mb_comm_mode_t cur_mode;
     mb_state_enum_t cur_state;
     uint8_t *rcv_frame;
@@ -72,6 +39,7 @@ typedef struct
     mb_exception_t exception;
     uint8_t master_dst_addr;
     uint64_t curr_trans_id;
+    handler_descriptor_t handler_descriptor;
 } mbm_object_t;
 
 mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
@@ -87,54 +55,131 @@ static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr);
 static uint8_t mbm_get_dest_addr(mb_base_t *inst);
 static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf);
 
-static _lock_t s_mbm_lock; // lock section for command handlers
-
-mb_err_enum_t mbm_set_handler(uint8_t func_code, mb_fn_handler_fp phandler)
+mb_err_enum_t mbm_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp phandler)
 {
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_err_enum_t status = MB_EILLSTATE;
-    CRITICAL_SECTION(s_mbm_lock) {
-        status = mb_set_handler(&master_handlers[0], func_code, phandler);
+    SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
+        status = mb_set_handler(&mbm_obj->handler_descriptor, func_code, phandler);
     }
     return status;
 }
 
 // The helper function to register custom function handler for master
-mb_err_enum_t mbm_get_handler(uint8_t fc, mb_fn_handler_fp *phandler)
+mb_err_enum_t mbm_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *phandler)
 {
-    mb_err_enum_t status = MB_EINVAL;
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    mb_err_enum_t status = MB_EILLSTATE;
     if (phandler) {
-        CRITICAL_SECTION(s_mbm_lock) {
-            status = mb_get_handler(&master_handlers[0], fc, phandler);
+        SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
+            status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, phandler);
         }
     }
     return status;
 }
 
-static mb_err_enum_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t fc, uint8_t *pbuf, uint16_t *plen)
+mb_err_enum_t mbm_delete_handler(mb_base_t *inst, uint8_t func_code)
 {
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    mb_err_enum_t status = MB_EILLSTATE;
+    SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
+        status = mb_delete_handler(&mbm_obj->handler_descriptor, func_code);
+    }
+    return status;
+}
+
+mb_err_enum_t mbm_get_handler_count(mb_base_t *inst, uint16_t *pcount)
+{
+    MB_RETURN_ON_FALSE((pcount && inst), MB_EINVAL, TAG, "get handler count wrong arguments.");
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
+        *pcount = mbm_obj->handler_descriptor.count;
+    }
+    return MB_ENOERR;
+}
+
+static mb_err_enum_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *pbuf, uint16_t *plen)
+{
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_exception_t exception = MB_EX_ILLEGAL_FUNCTION;
-    if (!fc) {
+    if (!func_code || !pbuf) {
         return MB_EX_ILLEGAL_FUNCTION;
     }
-    if (fc & MB_FUNC_ERROR) {
+    if (func_code & MB_FUNC_ERROR) {
         exception = (mb_exception_t)pbuf[MB_PDU_DATA_OFF];
         return exception;
     }
-    CRITICAL_SECTION(s_mbm_lock) {
-        for (int i = 0; i < MB_FUNC_HANDLERS_MAX; i++) {
-            /* No more function handlers registered. Abort. */
-            if (master_handlers[i].func_code == 0) {
-                ESP_LOGE(TAG, MB_OBJ_FMT": function (0x%x), handler is missing.", MB_OBJ_PARENT(inst), (int)fc);
-                break;
-            }
-            if (master_handlers[i].func_code == fc) {
-                exception = master_handlers[i].handler(inst, pbuf, plen);
-                ESP_LOGD(__func__, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)fc);
-                break;
-            }
+    SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
+        mb_fn_handler_fp phandler = NULL;
+        mb_err_enum_t status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, &phandler);
+        if ((status == MB_ENOERR) && phandler) {
+            exception = phandler(inst, pbuf, plen);
         }
     }
     return exception;
+}
+
+static mb_err_enum_t mbm_register_default_handlers(mb_base_t *inst)
+{
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    mb_err_enum_t err = MB_EILLSTATE;
+    LIST_INIT(&mbm_obj->handler_descriptor.head);
+    mbm_obj->handler_descriptor.sema = xSemaphoreCreateBinary();
+    (void)xSemaphoreGive(mbm_obj->handler_descriptor.sema);
+    mbm_obj->handler_descriptor.instance = (void *)inst->descr.parent;
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbm_fn_report_slave_id);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_READ_INPUT_ENABLED
+        err =  mbm_set_handler(inst, MB_FUNC_READ_INPUT_REGISTER, (void *)mbm_fn_read_inp_reg);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_READ_HOLDING_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_READ_HOLDING_REGISTER, (void *)mbm_fn_read_holding_reg);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_WRITE_MULTIPLE_HOLDING_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_WRITE_MULTIPLE_REGISTERS, (void *)mbm_fn_write_multi_holding_reg);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_WRITE_HOLDING_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_WRITE_REGISTER, (void *)mbm_fn_write_holding_reg);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_READWRITE_HOLDING_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_READWRITE_MULTIPLE_REGISTERS, (void *)mbm_fn_rw_multi_holding_regs);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_READ_COILS_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_READ_COILS, (void *)mbm_fn_read_coils);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_WRITE_COIL_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_WRITE_SINGLE_COIL, (void *)mbm_fn_write_coil);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_WRITE_MULTIPLE_COILS_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_WRITE_MULTIPLE_COILS, (void *)mbm_fn_write_multi_coils);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+#if MB_FUNC_READ_DISCRETE_INPUTS_ENABLED
+        err = mbm_set_handler(inst, MB_FUNC_READ_DISCRETE_INPUTS, (void *)mbm_fn_read_discrete_inputs);
+        MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
+#endif
+    return MB_ENOERR;
+}
+
+static mb_err_enum_t mbm_unregister_handlers(mb_base_t *inst)
+{
+    mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    (void)xSemaphoreTake(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS);
+    ESP_LOGD(TAG, "Close %s command handlers.", mbm_obj->base.descr.parent_name);
+    (void)mb_delete_command_handlers(&mbm_obj->handler_descriptor);
+    mbm_obj->handler_descriptor.instance = NULL;
+    (void)xSemaphoreGive(mbm_obj->handler_descriptor.sema);
+    vSemaphoreDelete(mbm_obj->handler_descriptor.sema);
+    return MB_ENOERR;
 }
 
 #if (MB_MASTER_RTU_ENABLED)
@@ -181,6 +226,9 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->curr_trans_id = 0;
     mbm_obj->base.port_obj = transp_obj->port_obj;
     mbm_obj->base.transp_obj = transp_obj;
+    ret = mbm_register_default_handlers(&mbm_obj->base);
+    MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error,
+                        TAG, "default handlers registration fail, err: %d", (int)ret);
     *in_out_obj = (void *)&(mbm_obj->base);
     ESP_LOGD(TAG, "created object %s", mbm_obj->base.descr.parent_name);
     return MB_ENOERR;
@@ -189,6 +237,7 @@ error:
     if (transp_obj) {
         mbm_rtu_transp_delete(transp_obj);
     }
+    (void)mbm_unregister_handlers(&mbm_obj->base);
     free(mbm_obj->base.descr.parent_name);
     CRITICAL_SECTION_CLOSE(mbm_obj->base.lock);
     free(mbm_obj);
@@ -235,6 +284,9 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     ret = mbm_ascii_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
+    ret = mbm_register_default_handlers(&mbm_obj->base);
+    MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error,
+                        TAG, "default handlers registration fail, err: %d", (int)ret);
     mbm_obj->cur_mode = ser_opts->mode;
     mbm_obj->cur_state = STATE_DISABLED;
     transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
@@ -250,6 +302,7 @@ error:
     {
         mbm_ascii_transp_delete(transp_obj);
     }
+    (void)mbm_unregister_handlers(&mbm_obj->base);
     free(mbm_obj->base.descr.parent_name);
     CRITICAL_SECTION_CLOSE(mbm_obj->base.lock);
     free(mbm_obj);
@@ -296,6 +349,9 @@ mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     ret = mbm_tcp_transp_create(tcp_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
+    ret = mbm_register_default_handlers(&mbm_obj->base);
+    MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error,
+                        TAG, "default handlers registration fail, err: %d", (int)ret);
     mbm_obj->cur_mode = tcp_opts->mode;
     mbm_obj->cur_state = STATE_DISABLED;
     transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
@@ -310,6 +366,7 @@ error:
     if (transp_obj) {
         mbm_tcp_transp_delete(transp_obj);
     }
+    (void)mbm_unregister_handlers(&mbm_obj->base);
     free(mbm_obj->base.descr.parent_name);
     CRITICAL_SECTION_CLOSE(mbm_obj->base.lock);
     free(mbm_obj);
@@ -338,6 +395,7 @@ mb_err_enum_t mbm_delete(mb_base_t *inst)
             ESP_LOGW(TAG, "%p, Master object ID is not supported!", mbm_obj);
         }
 #endif
+        (void)mbm_unregister_handlers(&mbm_obj->base);
         // delete the modbus instance
         free(mbm_obj->base.descr.parent_name);
         CRITICAL_SECTION_CLOSE(inst->lock);
@@ -373,6 +431,9 @@ mb_err_enum_t mbm_disable(mb_base_t *inst)
 {
     mb_err_enum_t status = MB_ENOERR;
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
+    // Wait for function handler to be unlocked before disable the object
+    (void)xSemaphoreTake(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS);
+    (void)xSemaphoreGive(mbm_obj->handler_descriptor.sema);
     CRITICAL_SECTION(inst->lock)
     {
         if (mbm_obj->cur_state == STATE_ENABLED) {
@@ -547,7 +608,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                     mbm_obj->func_code = mbm_obj->rcv_frame[MB_PDU_FUNC_OFF];
                     exception = MB_EX_ILLEGAL_FUNCTION;
                     /* If master request is broadcast,
-                     * the master need to execute function for all slaves.
+                     * the master needs to execute function for all slaves.
                      */
                     if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)) {
                         length = mbm_obj->pdu_snd_len;
@@ -556,7 +617,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                             exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &length);
                         }
                     } else {
-                        ESP_LOGD(__func__, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code);
+                        ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code);
                         exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
                     }
                     /* If master has exception, will send error process event. Otherwise the master is idle.*/

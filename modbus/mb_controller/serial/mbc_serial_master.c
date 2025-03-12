@@ -258,15 +258,16 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
         default:
             mb_fn_handler_fp phandler = NULL;
             // check registered function handler
-            mb_error = mbm_get_handler(mb_command, &phandler);
+            mb_error = mbm_get_handler(mbm_controller_iface->mb_base, mb_command, &phandler);
             if (mb_error == MB_ENOERR) {
                 // send the request for custom command
                 mb_error = mbm_rq_custom(mbm_controller_iface->mb_base, mb_slave_addr, mb_command,
                                             data_ptr, (uint16_t)(mb_size << 1),
                                             pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
-                ESP_LOGD(TAG, "%s: Send custom request (%u), error = (0x%d) ", __FUNCTION__, mb_command, (int)mb_error);
+                ESP_LOGD(TAG, "%s: Send custom request (%u)", __FUNCTION__, mb_command);
             } else {
-                ESP_LOGE(TAG, "%s: Incorrect or unsupported function in request (%u) ", __FUNCTION__, mb_command);
+                ESP_LOGE(TAG, "%s: Incorrect or unsupported function in request (%u), error = (0x%x)",
+                            __FUNCTION__, mb_command, (int)mb_error);
                 mb_error = MB_ENOREG;
             }
             break;

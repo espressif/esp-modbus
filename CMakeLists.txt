@@ -1,6 +1,7 @@
 # The following five lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
 set(srcs
+    "mb_controller/common/esp_modbus_common.c"
     "mb_controller/common/esp_modbus_master.c"
     "mb_controller/common/esp_modbus_slave.c"
     "mb_controller/common/esp_modbus_master_serial.c"
@@ -13,6 +14,7 @@ set(srcs
     "mb_controller/tcp/mbc_tcp_slave.c"
     "mb_objects/mb_master.c"
     "mb_objects/mb_slave.c"
+    "mb_objects/functions/mbfunc_handling.c"
     "mb_objects/functions/mbfunccoils_master.c"
     "mb_objects/functions/mbfunccoils.c"
     "mb_objects/functions/mbfuncdiag.c"

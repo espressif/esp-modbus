@@ -16,8 +16,16 @@ mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame_ptr, uint1
 #endif
 
 // The helper function to register custom function handler for slave
-mb_err_enum_t mbs_set_handler(uint8_t func_code, mb_fn_handler_fp phandler);
-mb_err_enum_t mbs_get_handler(uint8_t func_code, mb_fn_handler_fp *phandler);
+mb_err_enum_t mbs_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp phandler);
+
+// The helper function to get custom function handler for slave
+mb_err_enum_t mbs_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *phandler);
+
+// The helper function to delete custom function handler for slave
+mb_err_enum_t mbs_delete_handler(mb_base_t *inst, uint8_t func_code);
+
+// The helper function to get count of handlers for slave
+mb_err_enum_t mbs_get_handler_count(mb_base_t *inst, uint16_t *pcount);
 
 #ifdef __cplusplus
 }

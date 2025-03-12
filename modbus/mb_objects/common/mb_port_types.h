@@ -39,7 +39,7 @@ typedef enum _mb_comm_mode mb_mode_type_t;
 
 #include "driver/uart.h"
 
-struct _port_serial_opts {
+struct port_serial_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uart_port_t port;               /*!< Modbus communication port (UART) number */
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
@@ -51,7 +51,7 @@ struct _port_serial_opts {
     uart_parity_t parity;           /*!< Modbus UART parity settings */
 } __attribute__((__packed__));
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 #endif
 
@@ -62,7 +62,7 @@ typedef enum _addr_type_enum {
 } mb_addr_type_t;
 
 
-struct _port_common_opts {
+struct port_common_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uint16_t port;                  /*!< Modbus communication port (UART) number */
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
@@ -70,7 +70,7 @@ struct _port_common_opts {
     uint64_t test_tout_us;          /*!< Modbus test timeout (reserved) */
 } __attribute__((__packed__));
 
-struct _port_tcp_opts {
+struct port_tcp_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uint16_t port;                  /*!< Modbus communication port (UART) number */
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
@@ -83,7 +83,7 @@ struct _port_tcp_opts {
     bool start_disconnected;        /*!< (Master only option) do not wait for connection to all nodes before polling */
 } __attribute__((__packed__));
 
-typedef struct _port_tcp_opts mb_tcp_opts_t;
+typedef struct port_tcp_opts_s mb_tcp_opts_t;
 
 // The common object descriptor struture (common for mb, transport, port objects)
 struct _obj_descr { 

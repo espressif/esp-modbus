@@ -65,6 +65,9 @@
 // Options can be used as bit masks or parameter limits
 #define OPTS(min_val, max_val, step_val) { .opt1 = min_val, .opt2 = max_val, .opt3 = step_val }
 
+#define EACH_ITEM(array, length) \
+    (typeof(*(array)) *pitem = (array); (pitem < &((array)[length])); pitem++)
+
 #define MB_ID_BYTE0(id) ((uint8_t)(id))
 #define MB_ID_BYTE1(id) ((uint8_t)(((uint16_t)(id) >> 8) & 0xFF))
 #define MB_ID_BYTE2(id) ((uint8_t)(((uint32_t)(id) >> 16) & 0xFF))
@@ -79,9 +82,6 @@
 #endif
 
 #define MB_MDNS_INSTANCE(pref) pref"mb_master_tcp"
-
-#define EACH_ITEM(array, length) \
-(typeof(*(array)) *pitem = (array); (pitem < &((array)[length])); pitem++)
 
 #define MB_CUST_DATA_LEN 100 // The length of custom command buffer
 
@@ -675,16 +675,18 @@ static esp_err_t destroy_services(void)
     return err;
 }
 
-mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+// This is the custom function handler for the command.
+// The handler is executed from the context of modbus controller event task and should be as simple as possible.
+// Parameters: frame_ptr - the pointer to the incoming ADU frame from slave starting from function code,
+// plen - the pointer to length of the frame. After return from the handler the modbus object will 
+// handle the end of transaction according to the exception returned.
+mb_exception_t my_custom_fc_handler(void *inst, uint8_t *frame_ptr, uint16_t *plen)
 {
-    MB_RETURN_ON_FALSE((frame_ptr && plen && *plen && *plen < (MB_CUST_DATA_LEN - 1)), MB_EX_CRITICAL, TAG,
+    MB_RETURN_ON_FALSE((frame_ptr && plen && *plen && *plen < (MB_CUST_DATA_LEN - 1)), MB_EX_ILLEGAL_DATA_VALUE, TAG,
                             "incorrect custom frame buffer");
-    ESP_LOGW(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *plen);
-    // This error handler will be executed to handle the request for the registered custom command
-    // Refer the handler functions in `esp-modbus/modbus/mb_objects/functions/mbfuncinput_master.c` for more information.
-    // Parameters: pframe: is pointer to incoming frame buffer, plen: is pointer to length including the function code
+    ESP_LOGI(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *plen);
     strncpy((char *)&my_custom_data[0], (char *)&frame_ptr[1], MB_CUST_DATA_LEN);
-    ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*plen - 1), ESP_LOG_WARN);
+    ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*plen - 1), ESP_LOG_INFO);
     return MB_EX_NONE;
 }
 
@@ -702,15 +704,15 @@ static esp_err_t master_init(mb_communication_info_t *pcomm_info)
 
     // Add custom command handler
     uint8_t custom_command = 0x41;
-    // Make sure the handler is undefined for the command
-    err = mbc_master_set_handler(master_handle, custom_command, NULL);
+    // Delete the handler for specified command, if available
+    err = mbc_delete_handler(master_handle, custom_command);
     MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_INVALID_STATE), ESP_ERR_INVALID_STATE, TAG,
                         "could not override handler, returned (0x%x).", (int)err);
-    err = mbc_master_set_handler(master_handle, custom_command, my_custom_fc_handler);
+    err = mbc_set_handler(master_handle, custom_command, my_custom_fc_handler);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
                             "could not override handler, returned (0x%x).", (int)err);
     mb_fn_handler_fp phandler = NULL;
-    err = mbc_master_get_handler(master_handle, custom_command, &phandler);
+    err = mbc_get_handler(master_handle, custom_command, &phandler);
     MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
                             "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 

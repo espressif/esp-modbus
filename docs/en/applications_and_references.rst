@@ -48,11 +48,11 @@ The examples below demonstrate the library port for serial, TCP slave and master
 
 .. _example_mb_tcp_master:
 
-- `Modbus TCP master example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_slave>`__
+- `Modbus TCP master example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_master>`__
 
 .. _example_mb_tcp_slave:
 
-- `Modbus TCP slave example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_master>`__
+- `Modbus TCP slave example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_slave>`__
 
 Please refer to the specific example README.md for details.
 

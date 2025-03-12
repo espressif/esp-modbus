@@ -466,38 +466,6 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
 */
 esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param_type, size_t param_size);
 
-/**
- * @brief The function registers the new function handler for specified command 
- *        and allows to override the existing one for the master object.
- *        If the phandler == NULL, the function allows to reset the actual function handler
- *        for the `func_code` parameter.
- * 
- * @param[in] ctx context pointer to the master controller object
- * @param[in] func_code the function code for the handler
- * @param[in] phandler the pointer to function handler being used for command
- *
- * @return
- *     - esp_err_t ESP_OK - the function handler is correctly set
- *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
- *     - esp_err_t ESP_ERR_INVALID_RESPONSE - an invalid response from slave during processing of parameter
- *     - esp_err_t ESP_ERR_INVALID_STATE - invalid state during data processing or allocation failure
- *     - esp_err_t ESP_ERR_NOT_FOUND - the requested slave is not found (not connected or not configured)
-*/
-esp_err_t mbc_master_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler);
-
-/**
- * @brief The function gets function handler for specified command from master command handler table.
- * 
- * @param[in] ctx context pointer to the master controller object
- * @param[in] func_code the function code for the handler
- * @param[out] phandler the pointer to function handler being returned
- *
- * @return
- *     - esp_err_t ESP_OK - the function handler is returned in the 
- *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
-*/
-esp_err_t mbc_master_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *phandler);
-
 #ifdef __cplusplus
 }
 #endif

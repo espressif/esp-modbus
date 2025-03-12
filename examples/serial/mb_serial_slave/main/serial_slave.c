@@ -145,20 +145,22 @@ static void setup_reg_data(void)
     input_reg_params.input_data7 = 4.78;
 }
 
+// This is a simple custom function handler for the command.
+// The handler is executed from the context of modbus controller event task and should be as simple as possible.
+// Parameters: frame_ptr - the pointer to the incoming ADU request frame from master starting from function code,
+// plen - the pointer to length of the frame. The handler body can override the buffer and return the length of data.
+// After return from the handler the modbus object will handle the end of transaction according to the exception returned,
+// then builds the response frame and send it back to the master. If the whole transaction time including the response
+// latency exceeds the configured slave response time set in the master configuration the master will ignore the transaction.
 mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
 {
     char *str_append = ":Slave";
     MB_RETURN_ON_FALSE((frame_ptr && plen && *plen < (MB_CUST_DATA_MAX_LEN - strlen(str_append))), MB_EX_ILLEGAL_DATA_VALUE, TAG,
                             "incorrect custom frame");
-    //ESP_LOGW("CUSTOM_DATA", "Custom handler, frame ptr: %p, len: %u", frame_ptr, *plen);
-    //ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", frame_ptr, *plen, ESP_LOG_WARN);
-    // This command handler will be executed to check the request for the custom command
-    // See the `esp-modbus/modbus/mb_objects/functions/functions/mbfuncinput.c` for more information
-    // pframe is pointer to the buffer starting from function code, plen - is pointer to length of the data
     frame_ptr[*plen] = '\0';
     strcat((char *)&frame_ptr[1], str_append);
     *plen = (strlen(str_append) + *plen); // the length of (response + command)
-    return MB_EX_NONE; // Set the exception code for slave appropriately
+    return MB_EX_NONE; // Set the exception code for modbus object appropriately
 }
 
 // An example application of Modbus slave. It is based on esp-modbus stack.
@@ -190,15 +192,16 @@ void app_main(void)
 
     ESP_ERROR_CHECK(mbc_slave_create_serial(&comm_config, &mbc_slave_handle)); // Initialization of Modbus controller
 
-    uint8_t custom_command = 0x41; // The custom command to be sent to slave
-    esp_err_t err = mbc_slave_set_handler(mbc_slave_handle, custom_command, NULL);
+    const uint8_t custom_command = 0x41; // The custom command to be sent to slave
+    // Try to delete the handler for specified command.
+    esp_err_t err = mbc_delete_handler(mbc_slave_handle, custom_command);
     MB_RETURN_ON_FALSE((err == ESP_OK  || err == ESP_ERR_INVALID_STATE), ;, TAG,
-                        "could not reset handler, returned (0x%x).", (int)err);
-    err = mbc_slave_set_handler(mbc_slave_handle, custom_command, my_custom_fc_handler);
+                        "could not delete handler, returned (0x%x).", (int)err);
+    err = mbc_set_handler(mbc_slave_handle, custom_command, my_custom_fc_handler);
     MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
                         "could not set or override handler, returned (0x%x).", (int)err);
     mb_fn_handler_fp phandler = NULL;
-    err = mbc_slave_get_handler(mbc_slave_handle, custom_command, &phandler);
+    err = mbc_get_handler(mbc_slave_handle, custom_command, &phandler);
     MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ;, TAG,
                         "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 

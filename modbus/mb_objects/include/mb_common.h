@@ -6,6 +6,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <sys/queue.h>
 
 #include "mb_config.h"
 #include "mb_frame.h"
@@ -63,6 +64,9 @@ extern "C" {
 #endif
 
 #define MB_CAT_BUF_SIZE (100)
+#define MB_HANDLER_UNLOCK_TICKS (pdMS_TO_TICKS(5000))
+
+#define SEMA_SECTION(sema, tout) for (int st = (int)xSemaphoreTake(sema, tout); (st > 0); xSemaphoreGive(sema), st = -1)
 
 #define MB_STR_CAT(pref, message) (__extension__(                               \
 {                                                                               \
@@ -103,6 +107,24 @@ extern "C" {
     (((mb_base_t *)pinst)->port_obj);           \
 }                                               \
 ))
+
+/**
+ * @brief Modbus function handlers entry
+ */
+typedef struct mb_command_entry_s {
+    uint8_t func_code;                          /*!< function code */
+    mb_fn_handler_fp handler;                   /*!< handler function pointer */
+    LIST_ENTRY(mb_command_entry_s) entries;     /*!< command handler entry */
+} mb_command_entry_t;
+
+typedef LIST_HEAD(handler_head, mb_command_entry_s) handler_head_t;
+
+typedef struct mb_handler_descriptor_s {
+    SemaphoreHandle_t sema;
+    void* instance;
+    handler_head_t head;
+    uint16_t count;
+} handler_descriptor_t;
 
 typedef struct mb_base_t mb_base_t;
 typedef struct mb_trans_base_t mb_trans_base_t;
@@ -152,12 +174,15 @@ struct mb_base_t
     mb_rw_callbacks_t rw_cbs;
 };
 
-mb_err_enum_t mb_set_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp phandler);
-mb_err_enum_t mb_get_handler(mb_fn_handler_t *pfh_table, uint8_t func_code, mb_fn_handler_fp *phandler);
+// Helper functions for command handlers registration
+mb_err_enum_t mb_set_handler(handler_descriptor_t *pdescriptor, uint8_t func_code, mb_fn_handler_fp phandler);
+mb_err_enum_t mb_get_handler(handler_descriptor_t *pdescriptor, uint8_t func_code, mb_fn_handler_fp *phandler);
+mb_err_enum_t mb_delete_handler(handler_descriptor_t *pdescriptor, uint8_t func_code);
+mb_err_enum_t mb_delete_command_handlers(handler_descriptor_t *pdescriptor);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
 mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
@@ -166,7 +191,7 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-typedef struct _port_tcp_opts mb_tcp_opts_t;
+typedef struct port_tcp_opts_s mb_tcp_opts_t;
 mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
 
 #endif

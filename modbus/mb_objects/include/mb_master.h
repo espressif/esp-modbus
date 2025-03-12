@@ -46,10 +46,16 @@ mb_err_enum_t mbc_reg_common_cb(mb_base_t *inst, uint8_t *pdata, uint16_t addres
 #endif
 
 // The function to register custom function handler for master
-mb_err_enum_t mbm_set_handler(uint8_t func_code, mb_fn_handler_fp phandler);
+mb_err_enum_t mbm_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp phandler);
 
 // The helper function to get custom function handler for master
-mb_err_enum_t mbm_get_handler(uint8_t fc, mb_fn_handler_fp *phandler);
+mb_err_enum_t mbm_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *phandler);
+
+// The helper function to delete custom function handler for master
+mb_err_enum_t mbm_delete_handler(mb_base_t *inst, uint8_t func_code);
+
+// The helper function to get count of handlers for master
+mb_err_enum_t mbm_get_handler_count(mb_base_t *inst, uint16_t *pcount);
 
 #ifdef __cplusplus
 }

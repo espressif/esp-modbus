@@ -19,8 +19,7 @@
 #include "mb_port_types.h"
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 #define MB_SER_PDU_SIZE_MIN             (3)
@@ -29,7 +28,7 @@ extern "C"
 #define MB_EVENT_QUEUE_TIMEOUT_MAX_MS   (3000)
 #define MB_EVENT_QUEUE_TIMEOUT          (pdMS_TO_TICKS(CONFIG_FMB_EVENT_QUEUE_TIMEOUT))
 #define MB_EVENT_QUEUE_TIMEOUT_MAX      (pdMS_TO_TICKS(MB_EVENT_QUEUE_TIMEOUT_MAX_MS))
-#define MB_MS_TO_TICKS(time_ms)         ((TickType_t)(((time_ms)/portTICK_PERIOD_MS)))
+#define MB_MS_TO_TICKS(time_ms)         (pdMS_TO_TICKS(time_ms))
 
 int lock_obj(_lock_t *plock);
 void unlock_obj(_lock_t *plock);
@@ -65,29 +64,6 @@ void unlock_obj(_lock_t *plock);
     {                               \
         spinlock_initialize(&lock); \
     } while (0)
-
-
-#define CRITICAL_STORE(LOCK, PTR, VAL) \
-__extension__ \
-({  \
-    __auto_type __atomic_ptr = (PTR); \
-    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp = (VAL); \
-    _lock_acquire((_lock_t *)&LOCK); \
-    *__atomic_ptr = __atomic_tmp; \
-    _lock_release((_lock_t *)&LOCK); \
-    (__atomic_tmp); \
-})
-
-#define CRITICAL_LOAD(LOCK, PTR) \
-__extension__ \
-({  \
-    __auto_type __atomic_ptr = (PTR); \
-    __typeof__ ((void)0, *__atomic_ptr) __atomic_tmp; \
-    _lock_acquire((_lock_t *)&LOCK); \
-    __atomic_tmp = (*__atomic_ptr); \
-    _lock_release((_lock_t *)&LOCK); \
-    (__atomic_tmp); \
-})
 
 #define SPIN_LOCK_ENTER(lock)                           \
     do                                                  \

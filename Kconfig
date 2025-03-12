@@ -224,18 +224,9 @@ menu "Modbus configuration"
                 otherwise the only legacy types are supported. The extended types include
                 integer, float, double types with different endianness and size.
 
-    config FMB_CONTROLLER_SLAVE_ID_MAX_SIZE
-        int "Modbus Slave ID maximum buffer size (bytes)"
-        range 4 255
-        default 32
-        depends on FMB_CONTROLLER_SLAVE_ID_SUPPORT
-        help
-                Modbus slave ID buffer size used to store vendor specific ID information
-                for the <Report Slave ID> command.
-
     config FMB_FUNC_HANDLERS_MAX
         int "Maximum number of Modbus function handlers"
-        range 16 64
+        range 16 255
         default 16
         help
                 This option defines the maximum number of Modbus command handlers for Modbus master and slave.

@@ -547,33 +547,3 @@ mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
     }
     return status;
 }
-
-/**
- * Register or override command handler for the command in slave command handler table
- */
-esp_err_t mbc_slave_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler)
-{
-    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
-                            "Slave interface is not correctly initialized.");
-    mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbs_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && !pmb_obj->descr.is_master), ESP_ERR_INVALID_STATE, TAG,
-                            "Slave interface is not correctly initialized.");
-    mb_err_enum_t ret = mbs_set_handler(func_code, phandler);
-    return  MB_ERR_TO_ESP_ERR(ret);
-}
-
-/**
- * Get slave command handler from the slave command handler table
- */
-esp_err_t mbc_slave_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *phandler)
-{
-    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
-                            "Slave interface is not correctly initialized.");
-    mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbs_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && !pmb_obj->descr.is_master), ESP_ERR_INVALID_STATE, TAG,
-                            "Slave interface is not correctly initialized.");
-    mb_err_enum_t ret = mbs_get_handler(func_code, phandler);
-    return  MB_ERR_TO_ESP_ERR(ret);
-}

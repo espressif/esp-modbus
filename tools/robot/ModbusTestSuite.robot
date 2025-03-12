@@ -14,7 +14,7 @@ ${suiteConnection}    None
 Test Cusom Command Request
     [Documentation]    Test reading slave UID, running status, identificator structure (use custom frame template)
     [Template]    Custom Command
-    0x01    [0x41]    0    ${None}                                                              # Try o send shortest request for custom command, do not check the buffer
+    0x01    [0x41]    0    ${None}                                                              # Try to send shortest request for custom command, do not check the buffer
     0x01    [0x41, 0x11, 0x22, 0x33, 0x44]    0    ${None}                                      # Send custom data, do not compare the response buffer
     0x01    [0x41, 0x11, 0x22, 0x33]    0    [17, 34, 51, 0x3A, 83, 108, 97, 118, 101]          # Send the custom command and compare expected response (can use hex or dec values)
 

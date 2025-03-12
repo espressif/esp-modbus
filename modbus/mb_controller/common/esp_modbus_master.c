@@ -733,32 +733,3 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
     return err;
 }
 
-/**
- * Register or override command handler for the command in master command handler table
- */
-esp_err_t mbc_master_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler)
-{
-    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
-                            "Master interface is not correctly initialized.");
-    mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbm_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->descr.is_master), ESP_ERR_INVALID_STATE, TAG,
-                            "Master interface is not correctly initialized.");
-    mb_err_enum_t ret = mbm_set_handler(func_code, phandler);
-    return  MB_ERR_TO_ESP_ERR(ret);
-}
-
-/**
- * Get command master command handler from the slave command handler table
- */
-esp_err_t mbc_master_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *phandler)
-{
-    MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
-                            "Master interface is not correctly initialized.");
-    mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbm_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->descr.is_master), ESP_ERR_INVALID_STATE, TAG,
-                            "Master interface is not correctly initialized.");
-    mb_err_enum_t ret = mbm_get_handler(func_code, phandler);
-    return  MB_ERR_TO_ESP_ERR(ret);
-}

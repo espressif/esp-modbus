@@ -79,7 +79,7 @@ error:
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED) 
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 mb_err_enum_t mb_stub_serial_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 {

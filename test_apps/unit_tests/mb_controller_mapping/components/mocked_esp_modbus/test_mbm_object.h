@@ -81,7 +81,7 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
 mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj);
@@ -102,7 +102,7 @@ mb_err_enum_t mbs_set_slv_id(mb_base_t *inst, uint8_t slv_id, bool is_running, u
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-typedef struct _port_tcp_opts mb_tcp_opts_t;
+typedef struct port_tcp_opts_s mb_tcp_opts_t;
 
 mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
 
