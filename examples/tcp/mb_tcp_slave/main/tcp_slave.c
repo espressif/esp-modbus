@@ -159,7 +159,7 @@ static void slave_operation_func(void *arg)
                     (unsigned)reg_info.size);
             if (reg_info.address == (uint8_t*)&holding_reg_params.holding_data0)
             {
-                (void)mbc_slave_unlock(slave_handle);
+                (void)mbc_slave_lock(slave_handle);
                 holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
                 if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
                     coil_reg_params.coils_port1 = 0xFF;
