@@ -119,7 +119,7 @@ void mb_port_ser_enable(mb_port_base_t *inst)
         mb_port_ser_bus_sema_release(inst);
         ESP_LOGD(TAG, "%s, resume port.", port_obj->base.descr.parent_name);
         // Resume receiver task from known position
-        vTaskResume(port_obj->task_handle);
+        xTaskNotifyGive(port_obj->task_handle);
     }
 }
 
@@ -142,9 +142,9 @@ static void mb_port_ser_task(void *p_args)
     (void)mb_port_ser_rx_flush(&port_obj->base);
     while(1) {
         // Workaround to suspend task from known place to avoid dead lock when resume
-        if (!atomic_load(&(port_obj->enabled))) {
+        while (!atomic_load(&(port_obj->enabled))) {
             ESP_LOGI(TAG, "%s, suspend port from task.", port_obj->base.descr.parent_name);
-            vTaskSuspend(NULL);
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         }
         if (xQueueReceive(port_obj->uart_queue, (void *)&event, MB_SERIAL_RX_TOUT_TICKS)) {
             ESP_LOGD(TAG, "%s, UART[%d] event:", port_obj->base.descr.parent_name, port_obj->ser_opts.port);
