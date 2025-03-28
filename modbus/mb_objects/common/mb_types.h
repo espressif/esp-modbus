@@ -86,6 +86,26 @@ typedef enum _mb_event_enum {
 } mb_event_enum_t;
 
 /*! \ingroup modbus
+ * \brief Modbus exception types used in the stack.
+ */
+typedef enum _mb_exception_enum
+{
+    MB_EX_NONE = 0x00,
+    MB_EX_ILLEGAL_FUNCTION = 0x01,
+    MB_EX_ILLEGAL_DATA_ADDRESS = 0x02,
+    MB_EX_ILLEGAL_DATA_VALUE = 0x03,
+    MB_EX_SLAVE_DEVICE_FAILURE = 0x04,
+    MB_EX_ACKNOWLEDGE = 0x05,
+    MB_EX_SLAVE_BUSY = 0x06,
+    MB_EX_MEMORY_PARITY_ERROR = 0x08,
+    MB_EX_GATEWAY_PATH_FAILED = 0x0A,
+    MB_EX_GATEWAY_TGT_FAILED = 0x0B,
+    MB_EX_CRITICAL = 0xFF
+} mb_exception_t;
+
+typedef mb_exception_t (*mb_fn_handler_fp)(void *, uint8_t *frame_ptr, uint16_t *len_buf);
+
+/*! \ingroup modbus
  * \brief Error event type
  */
 typedef enum _mb_err_event_enum {

@@ -36,8 +36,8 @@ class ModbusMBAP(Packet):
     name = "Modbus TCP"
     fields_desc = [ ShortField("transId", 0),
                     ShortField("protoId", 0),
-                    ShortField("len", 6),
-                    XByteField("UnitId", 247),
+                    ShortField("len", 0),
+                    XByteField("unitId", 0),
                     ]
 
 # Can be used to replace all Modbus read
@@ -252,10 +252,27 @@ class ModbusPDUXX_Custom_Request(Packet):
         FieldListField("customBytes", [0x00], XByteField("", 0x00))
     ]
 
+class ModbusPDUXX_Custom_Exception(Packet):
+    name = "Custom Command Exception"
+    fields_desc = [ 
+        XByteField("funcCode", 0x00),
+        ByteEnumField("exceptCode", 1, modbus_exceptions)
+    ]
+
+# Custom command respond
+class ModbusPDUXX_Custom_Answer(Packet):
+    name = "Custom Command Answer"
+    fields_desc = [
+        ConditionalField(XByteField("funcCode", 0x00), lambda pkt: (type(pkt.underlayer) is ModbusADU_Response)),
+        ConditionalField(FieldListField("customBytes", [0x00], XByteField("", 0x00), count_from = lambda pkt: pkt.underlayer.len if pkt.underlayer is not None else 0), lambda pkt: type(pkt.underlayer) is ModbusADU_Response)
+    ]
+
 # 0x11 - Report Slave Id
 class ModbusPDU11_Report_Slave_Id(Packet):
     name = "Report Slave Id"
-    fields_desc = [ XByteField("funcCode", 0x11) ]
+    fields_desc = [ 
+        XByteField("funcCode", 0x11)
+    ]
 
 class ModbusPDU11_Report_Slave_Id_Answer(Packet):
     name = "Report Slave Id Answer"
@@ -279,7 +296,8 @@ class ModbusADU_Request(ModbusMBAP):
             XShortField("transId", 0x0000), # needs to be unique
             XShortField("protoId", 0x0000), # needs to be zero (Modbus)
             XShortField("len", None),       # is calculated with payload
-            XByteField("unitId", 0x00)]     # 0xFF or 0x00 should be used for Modbus over TCP/IP
+            XByteField("unitId", 0x00)      # 0xFF or 0x00 should be used for Modbus over TCP/IP
+    ]
 
     def mb_get_last_exception(self):
         return _mb_exception
@@ -372,7 +390,8 @@ class ModbusADU_Request(ModbusMBAP):
 class ModbusADU_Response(ModbusMBAP):
     name = "ModbusADU Response"
     _mb_exception: modbus_exceptions = 0
-
+    _current_main_packet: Packet = None
+    _modbus_pdu: Packet = None
     fields_desc = [ 
             XShortField("transId", 0x0000), # needs to be unique
             XShortField("protoId", 0x0000), # needs to be zero (Modbus)
@@ -381,6 +400,15 @@ class ModbusADU_Response(ModbusMBAP):
 
     def mb_get_last_exception(self):
         return _mb_exception
+    
+    # def extract_padding(self, s):
+    #     print(f'Extract pedding: {self, s, self.len, self.underlayer}')
+    #     return self.guess_payload_class( s) #, s #self.extract_pedding(self, s)
+
+    def pre_dissect(self, s):
+        print(f'Pre desect: {self, s, self.len, self.underlayer}')
+        _current_main_packet = self
+        return s
 
     # Dissects packets
     def guess_payload_class(self, payload):
@@ -443,11 +471,14 @@ class ModbusADU_Response(ModbusMBAP):
             return ModbusPDU10_Write_Multiple_Registers_Exception
 
         elif funcCode == 0x11:
-            print(f'Packet answer: {payload}, func: {funcCode}')
             return ModbusPDU11_Report_Slave_Id_Answer
         elif funcCode == 0x91:
             self._mb_exception = int(payload[1])
             return ModbusPDU11_Report_Slave_Id_Exception
 
         else:
-            return Packet.guess_payload_class(self, payload)
+            if (funcCode & 0x80):
+                self._mb_exception = int(payload[1])
+                return ModbusPDUXX_Custom_Exception
+            return ModbusPDUXX_Custom_Answer
+            #return Packet.guess_payload_class(self, payload)

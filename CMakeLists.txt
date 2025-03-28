@@ -1,6 +1,7 @@
 # The following five lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
 set(srcs
+    "mb_controller/common/esp_modbus_common.c"
     "mb_controller/common/esp_modbus_master.c"
     "mb_controller/common/esp_modbus_slave.c"
     "mb_controller/common/esp_modbus_master_serial.c"
@@ -13,6 +14,7 @@ set(srcs
     "mb_controller/tcp/mbc_tcp_slave.c"
     "mb_objects/mb_master.c"
     "mb_objects/mb_slave.c"
+    "mb_objects/functions/mbfunc_handling.c"
     "mb_objects/functions/mbfunccoils_master.c"
     "mb_objects/functions/mbfunccoils.c"
     "mb_objects/functions/mbfuncdiag.c"
@@ -43,9 +45,9 @@ set(srcs
     "mb_transports/tcp/tcp_slave.c"
 )
 
-set(include_dirs mb_transports mb_controller/common/include mb_objects/include mb_ports/common mb_ports/serial mb_ports/tcp)
+set(include_dirs mb_transports mb_controller/common/include mb_objects/common mb_ports/common mb_ports/serial mb_ports/tcp)
 
-set(priv_include_dirs mb_controller/serial mb_controller/tcp mb_controller/common mb_transports/rtu mb_transports/ascii mb_transports/tcp)
+set(priv_include_dirs mb_controller/serial mb_controller/tcp mb_controller/common mb_objects/include mb_transports/rtu mb_transports/ascii mb_transports/tcp)
 
 if(CONFIG_FMB_EXT_TYPE_SUPPORT)
      list(APPEND srcs "mb_controller/common/mb_endianness_utils.c")

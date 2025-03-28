@@ -7,9 +7,10 @@ The sections below represent typical programming workflow for the slave API whic
 
 1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface using communication options.
 2. :ref:`modbus_api_slave_configure_descriptor` - Configure data descriptors to access slave parameters.
-3. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
-4. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
-5. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
+3. :ref:`modbus_api_slave_handler_customization` - Customization of Modbus function handling in slave object.
+4. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
+5. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
+6. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_slave_configure_descriptor:
 
@@ -160,6 +161,72 @@ Example to get the actual slave identificator:
         ESP_LOGE("GET_SLAVE_ID", "Get slave ID fail, err=%d.", err);
     }
     ...
+
+.. _modbus_api_slave_handler_customization:
+
+Slave Customize Function Handlers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Slave object contains the command handling tables to define the specific handling functionality for each supported Modbus command. The default handling functions in this table support most useful Modbus commands. However, the list of commands can be extended by adding the new command into handling table with its custom handling behavior. It is also possible overriding the function handler for the specific command. The below described API functions allow using this behavior for slave objects.
+
+:cpp:func:`mbc_set_handler`
+
+The function adds new handler for the function or overrides the existing handler for the function.
+
+:cpp:func:`mbc_get_handler`
+
+The function returns the handler for the specified function code from handling table. Allows to keep and use the predefined handlers for standard functions.
+
+:cpp:func:`mbc_delete_handler`
+
+The function allows to delete the handler for specified command and free the handler table entry for this.
+
+:cpp:func:`mbc_get_handler_count`
+
+The function returns the actual number of command handlers registered for the object reffered by parameter.
+
+The following example allows to override the standard command to read input registers. Refer to standard handler function :cpp:func:`mbs_fn_read_input_reg` for more information on how to handle custom commands.
+
+.. code:: c
+
+    static void *slave_handle = NULL;  // Pointer to allocated interface structure (must be actual)
+    mb_fn_handler_fp pstandard_handler = NULL;
+    ....
+    // This is the custom function handler for the command.
+    // The handler is executed from the context of modbus controller event task and should be as simple as possible.
+    // Parameters: frame_ptr - the pointer to the incoming ADU request frame from master starting from function code,
+    // plen - the pointer to length of the frame. The handler body can override the buffer and return the length of data.
+    // After return from the handler the modbus object will handle the end of transaction according to the exception returned,
+    // then builds the response frame and send it back to the master. If the whole transaction time including the response
+    // latency exceeds the configured slave response time set in the master configuration the master will ignore the transaction.
+    mb_exception_t my_custom_fc04_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        MB_RETURN_ON_FALSE(frame_ptr && plen, MB_EX_CRITICAL, TAG, "incorrect frame buffer length");
+        // Place the custom behavior to process the buffer here
+        if (pstandard_handler) {
+            exception = pstandard_handler(pinst, frame_ptr, plen); // invoke standard behavior with mapping
+        }
+        return exception;
+    }
+    ...
+    const uint8_t override_command = 0x04;
+    // Get the standard handler for the command to use it in the handler.
+    err = mbc_get_handler(master_handle, override_command, &pstandard_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                            "could not get handler for command %d, returned (0x%x).", (int)override_command, (int)err);
+    // Set the custom handler function for the command
+    err = mbc_set_handler(slave_handle, override_command, my_custom_fc04_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    // Check the actual handler for the command
+    err = mbc_get_handler(slave_handle, override_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc04_handler), ;, TAG,
+                          "could not get handler, returned (0x%x).", (int)err);
+
+Refer to :ref:`example Serial slave <example_mb_slave>` for more information.
+
+.. note:: The custom handlers set by the function :cpp:func:`mbc_set_handler` should be as short as possible, contain simple and safe logic and avoid blocking calls to not break the normal functionality of the stack. The possible latency in this handler may prevent to respond properly to the master request which waits for response during the slave response time configured in the configuration structure. If the slave does not respond to the master during the slave response time the master will report timeout failure and ignores the late response. This is user application responsibility to handle the command appropriately.
 
 .. _modbus_api_slave_communication:
 

@@ -224,4 +224,12 @@ menu "Modbus configuration"
                 otherwise the only legacy types are supported. The extended types include
                 integer, float, double types with different endianness and size.
 
+    config FMB_FUNC_HANDLERS_MAX
+        int "Maximum number of Modbus function handlers"
+        range 16 255
+        default 16
+        help
+                This option defines the maximum number of Modbus command handlers for Modbus master and slave.
+                The option can be useful to register additional commands and its handlers.
+
 endmenu

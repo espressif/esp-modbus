@@ -28,7 +28,7 @@ extern "C" {
 #define MB_ASCII_SER_PDU_ADDR_OFF   0                             /*!< Offset of slave address in Ser-PDU. */
 #define MB_ASCII_SER_PDU_PDU_OFF    1                             /*!< Offset of Modbus-PDU in Ser-PDU. */
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 typedef struct mb_trans_base_t mb_trans_base_t;
 
 mb_err_enum_t mbm_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_inst);
