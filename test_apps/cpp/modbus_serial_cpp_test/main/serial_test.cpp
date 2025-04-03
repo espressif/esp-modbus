@@ -105,6 +105,44 @@ static esp_err_t slave_serial_init(void **pinst)
     return err;
 }
 
+mb_exception_t test_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+{
+    return MB_EX_CRITICAL; // Set the exception code for slave appropriately
+}
+
+static int check_custom_handlers(void *pinst)
+{
+    mb_fn_handler_fp phandler = NULL;
+    int entry;
+    uint16_t count = 0;
+    esp_err_t err = ESP_FAIL;
+    err = mbc_get_handler_count(pinst, &count);
+    MB_RETURN_ON_FALSE((err == ESP_OK), 0, TAG,
+                            "mbc slave get handler count, returns(0x%x).", (int)err);
+    ESP_LOGI(TAG,"Object %p, custom handler test, (registered:max) handlers: %d:%d.", pinst, count, CONFIG_FMB_FUNC_HANDLERS_MAX);
+    for (entry = 0x01; entry < CONFIG_FMB_FUNC_HANDLERS_MAX; entry++) {
+        // Try to remove the handler
+        err = mbc_delete_handler(pinst, (uint8_t)entry);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Could not remove handler for command: (0x%x), returned (0x%x), already empty?", entry, (int)err);
+        }
+        err = mbc_set_handler(pinst, (uint8_t)entry, test_handler);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG,"Could not set handler for command 0x%x, returned (0x%x).", entry, (int)err);
+            break;
+        } else {
+            ESP_LOGI(TAG,"Set handler for command 0x%x, returned (0x%x).", entry, (int)err);
+        }
+        err = mbc_get_handler(pinst, (uint8_t)entry, &phandler);
+        if (err != ESP_OK || phandler != test_handler) {
+            ESP_LOGE(TAG, "Could not get handler for command (0x%x) = (%p), returned (0x%x).", entry, phandler, (int)err);
+            break;
+        }
+    }
+    ESP_LOGI(TAG, "Last entry processed: %d.", entry);
+    return entry;
+}
+
 // Intentionally verify that atomic values are layout compatible with original types
 static_assert(
     sizeof(std::atomic<int>) == sizeof(int),
@@ -117,12 +155,18 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Setup master cpp....");
     ESP_ERROR_CHECK(master_serial_init(&pmaster_handle));
     ESP_ERROR_CHECK(mbc_master_stop(pmaster_handle));
+    int last_entry = check_custom_handlers(pmaster_handle);
+    MB_RETURN_ON_FALSE((last_entry >= CONFIG_FMB_FUNC_HANDLERS_MAX), ;, TAG,
+                        "Incorrect number of command entries for master: %d.", (int)last_entry);
     ESP_ERROR_CHECK(mbc_master_delete(pmaster_handle));
     ESP_LOGI(TAG, "Master test passed successfully.");
     ESP_LOGI(TAG, "Setup slave cpp....");
     ESP_ERROR_CHECK(slave_serial_init(&pslave_handle));
+    last_entry = check_custom_handlers(pslave_handle);
     // explicitly check stop method before delete
     ESP_ERROR_CHECK(mbc_slave_stop(pslave_handle));
     ESP_ERROR_CHECK(mbc_slave_delete(pslave_handle));
+    MB_RETURN_ON_FALSE((last_entry >= CONFIG_FMB_FUNC_HANDLERS_MAX), ;, TAG,
+                        "Incorrect number of command entries for slave: %d.", (int)last_entry);
     ESP_LOGI(TAG, "Slave test passed successfully.");
 }

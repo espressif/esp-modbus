@@ -28,10 +28,11 @@
  *
  * File: $Id: mbutils.c, v 1.6 2007/02/18 23:49:07 wolti Exp $
  */
-#include <mb_common.h>
-#include <mb_proto.h>
+#include "mb_common.h"
+#include "mb_proto.h"
 /* ----------------------- Defines ------------------------------------------*/
-#define BITS_uint8_t      8U
+#define BITS_uint8_t                (8U)
+static const char TAG[] __attribute__((unused)) = "MB_UTILS";
 
 /* ----------------------- Start implementation -----------------------------*/
 void mb_util_set_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num, uint8_t value)
@@ -125,5 +126,3 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code)
 
     return status;
 }
-
-

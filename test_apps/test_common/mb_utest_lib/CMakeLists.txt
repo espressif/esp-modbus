@@ -11,6 +11,7 @@ target_include_directories(mb_ut_lib PUBLIC
                             "${dir}/modbus/mb_controller/common/include"
                             "${dir}/modbus/mb_controller/serial"
                             "${dir}/modbus/mb_controller/tcp"
+                            "${dir}/modbus/mb_objects/common"
                             "${dir}/modbus/mb_objects/include"
                             "${dir}/modbus/mb_ports/common"
                             "${dir}/modbus/mb_ports/serial"
