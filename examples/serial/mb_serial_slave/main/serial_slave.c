@@ -43,7 +43,8 @@
 #define MB_WRITE_MASK                       (MB_EVENT_HOLDING_REG_WR \
                                                 | MB_EVENT_COILS_WR)
 #define MB_READ_WRITE_MASK                  (MB_READ_MASK | MB_WRITE_MASK)
-#define MB_TEST_VALUE 12345.0
+#define MB_TEST_VALUE                       (12345.0)
+#define MB_CUST_DATA_MAX_LEN                (100)
 
 static const char *TAG = "SLAVE_TEST";
 
@@ -144,6 +145,24 @@ static void setup_reg_data(void)
     input_reg_params.input_data7 = 4.78;
 }
 
+// This is a simple custom function handler for the command.
+// The handler is executed from the context of modbus controller event task and should be as simple as possible.
+// Parameters: frame_ptr - the pointer to the incoming ADU request frame from master starting from function code,
+// plen - the pointer to length of the frame. The handler body can override the buffer and return the length of data.
+// After return from the handler the modbus object will handle the end of transaction according to the exception returned,
+// then builds the response frame and send it back to the master. If the whole transaction time including the response
+// latency exceeds the configured slave response time set in the master configuration the master will ignore the transaction.
+mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+{
+    char *str_append = ":Slave";
+    MB_RETURN_ON_FALSE((frame_ptr && plen && *plen < (MB_CUST_DATA_MAX_LEN - strlen(str_append))), MB_EX_ILLEGAL_DATA_VALUE, TAG,
+                            "incorrect custom frame");
+    frame_ptr[*plen] = '\0';
+    strcat((char *)&frame_ptr[1], str_append);
+    *plen = (strlen(str_append) + *plen); // the length of (response + command)
+    return MB_EX_NONE; // Set the exception code for modbus object appropriately
+}
+
 // An example application of Modbus slave. It is based on esp-modbus stack.
 // See deviceparams.h file for more information about assigned Modbus parameters.
 // These parameters can be accessed from main application and also can be changed
@@ -172,6 +191,19 @@ void app_main(void)
     };
 
     ESP_ERROR_CHECK(mbc_slave_create_serial(&comm_config, &mbc_slave_handle)); // Initialization of Modbus controller
+
+    const uint8_t custom_command = 0x41; // The custom command to be sent to slave
+    // Try to delete the handler for specified command.
+    esp_err_t err = mbc_delete_handler(mbc_slave_handle, custom_command);
+    MB_RETURN_ON_FALSE((err == ESP_OK  || err == ESP_ERR_INVALID_STATE), ;, TAG,
+                        "could not delete handler, returned (0x%x).", (int)err);
+    err = mbc_set_handler(mbc_slave_handle, custom_command, my_custom_fc_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                        "could not set or override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    err = mbc_get_handler(mbc_slave_handle, custom_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ;, TAG,
+                        "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 
     // The code below initializes Modbus register area descriptors
     // for Modbus Holding Registers, Input Registers, Coils and Discrete Inputs
@@ -243,7 +275,7 @@ void app_main(void)
     ESP_ERROR_CHECK(uart_set_mode(MB_PORT_NUM, UART_MODE_RS485_HALF_DUPLEX));
     
     // Starts of modbus controller and stack
-    esp_err_t err = mbc_slave_start(mbc_slave_handle);
+    err = mbc_slave_start(mbc_slave_handle);
 
 #if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
     // Initialize the new slave identificator structure (example)

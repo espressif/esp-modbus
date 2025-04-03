@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -76,6 +76,47 @@ extern "C" {
     *(uint8_t *)(dst + 0) = *(uint8_t *)(src)++; \
 }
 
+#define mb_err_var esp_err##__func__##__line__
+#define esp_err_var mb_error##__func__##__line__
+#define MB_ERR_TO_ESP_ERR(error_code) (__extension__(           \
+{                                                               \
+    mb_err_enum_t mb_err_var = (mb_err_enum_t)error_code;       \
+    esp_err_t esp_err_var = ESP_FAIL;                           \
+    switch(mb_err_var) {                                        \
+        case MB_ENOERR:                                         \
+            esp_err_var = ESP_OK;                               \
+            break;                                              \
+        case MB_ENOREG:                                         \
+            esp_err_var = ESP_ERR_NOT_SUPPORTED;                \
+            break;                                              \
+        case MB_ETIMEDOUT:                                      \
+            esp_err_var = ESP_ERR_TIMEOUT;                      \
+            break;                                              \
+        case MB_EINVAL:                                         \
+            esp_err_var = ESP_ERR_INVALID_ARG;                  \
+            break;                                              \
+        case MB_EILLFUNC:                                       \
+            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
+            break;                                              \
+        case MB_ERECVDATA:                                      \
+            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
+            break;                                              \
+        case MB_EBUSY:                                          \
+        case MB_EILLSTATE:                                      \
+        case MB_EPORTERR:                                       \
+        case MB_ENORES:                                         \
+        case MB_ENOCONN:                                        \
+            esp_err_var = ESP_ERR_INVALID_STATE;                \
+            break;                                              \
+        default:                                                \
+            ESP_LOGE(TAG, "%s: Incorrect return code (%x) ", __FUNCTION__, (int)mb_err_var); \
+            esp_err_var = ESP_FAIL;                             \
+            break;                                              \
+    }                                                           \
+    (esp_err_var);                                              \
+}                                                               \
+))
+
 /**
  * @brief Types of actual Modbus implementation
  */
@@ -117,45 +158,6 @@ typedef enum {
     MB_PARAM_UNKNOWN = 0xFF
 } mb_param_type_t;
 
-#define mb_err_var esp_err##__func__##__line__
-#define esp_err_var mb_error##__func__##__line__
-#define MB_ERR_TO_ESP_ERR(error_code) (__extension__(           \
-{                                                               \
-    mb_err_enum_t mb_err_var = (mb_err_enum_t)error_code;       \
-    esp_err_t esp_err_var = ESP_FAIL;                           \
-    switch(mb_err_var) {                                        \
-        case MB_ENOERR:                                         \
-            esp_err_var = ESP_OK;                               \
-            break;                                              \
-        case MB_ENOREG:                                         \
-            esp_err_var = ESP_ERR_NOT_SUPPORTED;                \
-            break;                                              \
-        case MB_ETIMEDOUT:                                      \
-            esp_err_var = ESP_ERR_TIMEOUT;                      \
-            break;                                              \
-        case MB_EILLFUNC:                                       \
-        case MB_EINVAL:                                         \
-            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
-            break;                                              \
-        case MB_ERECVDATA:                                      \
-            esp_err_var = ESP_ERR_INVALID_RESPONSE;             \
-            break;                                              \
-        case MB_EBUSY:                                          \
-        case MB_EILLSTATE:                                      \
-        case MB_EPORTERR:                                       \
-        case MB_ENORES:                                         \
-        case MB_ENOCONN:                                        \
-            esp_err_var = ESP_ERR_INVALID_STATE;                \
-            break;                                              \
-        default:                                                \
-            ESP_LOGE(TAG, "%s: Incorrect return code (%x) ", __FUNCTION__, (int)mb_err_var); \
-            esp_err_var = ESP_FAIL;                             \
-            break;                                              \
-    }                                                           \
-    (esp_err_var);                                              \
-}                                                               \
-))
-
 typedef enum _mb_comm_mode mb_mode_type_t;
 
 typedef struct mb_base_t mb_base_t;
@@ -168,17 +170,17 @@ typedef enum _addr_type_enum mb_tcp_addr_type_t;
 /*!
  * \brief Modbus TCP communication options structure.
  */
-typedef struct _port_tcp_opts mb_tcp_opts_t;
+typedef struct port_tcp_opts_s mb_tcp_opts_t;
 
 /*!
  * \brief Modbus serial communication options structure.
  */
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 
 /*!
  * \brief Modbus common communication options structure.
  */
-typedef struct _port_common_opts mb_common_opts_t;
+typedef struct port_common_opts_s mb_common_opts_t;
 
 /**
  * @brief Device communication structure to setup Modbus controller
@@ -199,7 +201,70 @@ typedef union
  * common interface method types
  */
 typedef esp_err_t (*iface_create_fp)(mb_communication_info_t*, void **);    /*!< Interface method create */
-typedef esp_err_t (*iface_method_default_fp)(void *ctx);                   /*!< Interface method default prototype */
+typedef esp_err_t (*iface_method_default_fp)(void *ctx);                    /*!< Interface method default prototype */
+
+/**
+ * @brief Modbus controller common interface structure
+ */
+typedef struct {
+    mb_base_t *mb_base;      /*!< base object pointer */
+} mb_controller_common_t;
+
+/**
+ * @brief The function registers the new function handler for specified command 
+ *        and allows to override the existing handler for the the controller object.
+ * 
+ * @param[in] ctx context pointer to the controller object (master or slave)
+ * @param[in] func_code the function code for the handler
+ * @param[in] phandler the pointer to function handler being used for command
+ *
+ * @return
+ *     - esp_err_t ESP_OK - the function handler is correctly set the handler
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *     - esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or can not
+ *     - esp_err_t ESP_ERR_NOT_FOUND - the requested slave is not found (not connected or not configured)
+*/
+esp_err_t mbc_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler);
+
+/**
+ * @brief The function gets function handler for specified command from the controller object handler table.
+ * 
+ * @param[in] ctx context pointer to the controller object (master or slave)
+ * @param[in] func_code the function code for the handler
+ * @param[out] phandler the pointer to function handler being returned
+ *
+ * @return
+ *     - esp_err_t ESP_OK - the function handler is returned
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *       esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or incorrect configuration
+*/
+esp_err_t mbc_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *phandler);
+
+/**
+ * @brief The function deletes function handler for specified command from the controller object command handler table.
+ * 
+ * @param[in] ctx context pointer to the controller object (master or slave)
+ * @param[in] func_code the function code for the handler
+ *
+ * @return
+ *     - esp_err_t ESP_OK - the function handler is deleted
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *       esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or incorrect configuration
+*/
+esp_err_t mbc_delete_handler(void *ctx, uint8_t func_code);
+
+/**
+ * @brief The function gets the number of registered function handlers for the controller object.
+ * 
+ * @param[in] ctx context pointer to the controller object (master or slave)
+ * @param[out] pcount the pointer to returned counter
+ * 
+ * @return
+ *     - esp_err_t ESP_OK - the function handler is returned in the 
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
+ *       esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or incorrect configuration
+*/
+esp_err_t mbc_get_handler_count(void *ctx, uint16_t *pcount);
 
 #ifdef __cplusplus
 }

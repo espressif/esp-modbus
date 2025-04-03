@@ -53,7 +53,7 @@ typedef enum
     MB_RTU_STATE_ERROR              /*!< If the frame is invalid. */
 } mb_rtu_state_enum_t;
 
-typedef struct _port_serial_opts mb_serial_opts_t;
+typedef struct port_serial_opts_s mb_serial_opts_t;
 typedef struct mb_trans_base_t mb_trans_base_t;
 
 mb_err_enum_t mbm_rtu_transp_create(mb_serial_opts_t *ser_opts, void **in_out_inst);

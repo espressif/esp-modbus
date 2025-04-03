@@ -14,8 +14,8 @@ from conftest import ModbusTestDut, Stages
 
 pattern_dict_slave = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_connect: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
                       Stages.STACK_IPV6: (r'I \([0-9]+\) example_connect: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})'),
-                      Stages.STACK_INIT: (r'I \(([0-9]+)\) MB_TCP_SLAVE_PORT: (Protocol stack initialized).'),
-                      Stages.STACK_CONNECT: (r'I\s\(([0-9]+)\) MB_TCP_SLAVE_PORT: Socket \(#[0-9]+\), accept client connection from address: '
+                      Stages.STACK_INIT: (r'I \(([0-9]+)\) SLAVE_TEST: (Modbus slave stack initialized)'),
+                      Stages.STACK_CONNECT: (r'I\s\(([0-9]+)\) SLAVE_TEST: Socket \(#[0-9]+\), accept client connection from address: '
                                              r'([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'),
                       Stages.STACK_START: (r'I\s\(([0-9]+)\) SLAVE_TEST: (Start modbus test)'),
                       Stages.STACK_PAR_OK: (r'I\s\(([0-9]+)\) SLAVE_TEST: ([A-Z]+ [A-Z]+) \([a-zA-Z0-9_]+ us\),\s'
@@ -48,16 +48,16 @@ test_configs = [
 @pytest.mark.parametrize('config', test_configs, indirect=True)
 @pytest.mark.parametrize(
     'count, app_path', [
-        (2, f'{os.path.join(os.path.dirname(__file__), "mb_serial_master")}|{os.path.join(os.path.dirname(__file__), "mb_serial_slave")}')
+        (2, f'{os.path.join(os.path.dirname(__file__), "mb_serial_slave")}|{os.path.join(os.path.dirname(__file__), "mb_serial_master")}')
     ],
     indirect=True
 )
 def test_modbus_serial_communication(config: str, dut: Tuple[ModbusTestDut, ModbusTestDut]) -> None:
-    dut_slave = dut[1]
-    dut_master = dut[0]
+    dut_slave = dut[0]
+    dut_master = dut[1]
 
-    logger.info('DUT: %s start.', dut_master.dut_get_name())
     logger.info('DUT: %s start.', dut_slave.dut_get_name())
+    logger.info('DUT: %s start.', dut_master.dut_get_name())
 
     dut_slave.dut_test_start(dictionary=pattern_dict_slave)
     dut_master.dut_test_start(dictionary=pattern_dict_master)

@@ -12,6 +12,9 @@
 extern "C" {
 #endif
 
+#define MB_FUNC_CODE_MIN            (0x01)
+#define MB_FUNC_CODE_MAX            (0x7F)
+
 typedef struct mb_base_t mb_base_t;
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED

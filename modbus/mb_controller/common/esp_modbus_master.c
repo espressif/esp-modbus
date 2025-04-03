@@ -732,3 +732,4 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
     }
     return err;
 }
+
