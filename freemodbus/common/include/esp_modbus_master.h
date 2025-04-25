@@ -9,7 +9,7 @@
 
 #include <stdint.h>                 // for standard int types definition
 #include <stddef.h>                 // for NULL and std defines
-#include "soc/soc.h"                // for BITN definitions
+#include "esp_bit_defs.h"           // for BITN definitions
 #include "esp_modbus_common.h"      // for common types
 
 #ifdef __cplusplus
@@ -112,9 +112,9 @@ typedef union {
  * @brief Permissions for the characteristics
  */
 typedef enum {
-    PAR_PERMS_READ               = 1 << BIT0,                                   /**< the characteristic of the device are readable */
-    PAR_PERMS_WRITE              = 1 << BIT1,                                   /**< the characteristic of the device are writable*/
-    PAR_PERMS_TRIGGER            = 1 << BIT2,                                   /**< the characteristic of the device are triggerable */
+    PAR_PERMS_READ               = BIT0,                                        /**< the characteristic of the device are readable */
+    PAR_PERMS_WRITE              = BIT1,                                        /**< the characteristic of the device are writable*/
+    PAR_PERMS_TRIGGER            = BIT2,                                        /**< the characteristic of the device are triggerable */
     PAR_PERMS_READ_WRITE         = PAR_PERMS_READ | PAR_PERMS_WRITE,            /**< the characteristic of the device are readable & writable */
     PAR_PERMS_READ_TRIGGER       = PAR_PERMS_READ | PAR_PERMS_TRIGGER,          /**< the characteristic of the device are readable & triggerable */
     PAR_PERMS_WRITE_TRIGGER      = PAR_PERMS_WRITE | PAR_PERMS_TRIGGER,         /**< the characteristic of the device are writable & triggerable */
