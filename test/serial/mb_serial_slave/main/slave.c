@@ -230,6 +230,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Modbus slave stack initialized.");
     ESP_LOGI(TAG, "Start modbus test...");
 
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
     uint8_t ext_data[] = {0x11, 0x22, 0x33, 0x44, 0x55};
     // This is the way to set Slave ID fields to retrieve it by master using report slave ID command.
     int err = eMBSetSlaveID(comm_info.slave_addr, true, (uint8_t *)&ext_data, sizeof(ext_data));
@@ -238,6 +239,7 @@ void app_main(void)
     } else {
         ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
     }
+#endif
 
     // The cycle below will be terminated when parameter holdingRegParams.dataChan0
     // incremented each access cycle reaches the CHAN_DATA_MAX_VAL value.

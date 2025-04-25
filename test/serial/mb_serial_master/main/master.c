@@ -304,7 +304,7 @@ static void master_operation_func(void *arg)
     const mb_parameter_descriptor_t* param_descriptor = NULL;
 
     ESP_LOGI(TAG, "Start modbus test...");
-
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
     // Command - 17 (0x11) Report Slave ID (Serial Line only)
     // The command contains vendor specific data and should be interpreted accordingly.
     // This version of command handler needs to define the maximum number
@@ -324,6 +324,7 @@ static void master_operation_func(void *arg)
     } else {
         ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
     }
+#endif
 
     for(uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
         // Read all found characteristics from slave(s)

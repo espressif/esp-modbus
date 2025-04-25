@@ -192,9 +192,11 @@ static esp_err_t mbc_serial_master_send_request(mb_param_request_t* request, voi
         // Calls appropriate request function to send request and waits response
         switch(mb_command)
         {
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
             case MB_FUNC_OTHER_REPORT_SLAVEID:
                 mb_error = eMBMasterReqReportSlaveID((UCHAR)mb_slave_addr, (LONG)MB_SERIAL_API_RESP_TICS );
                 break;
+#endif
             case MB_FUNC_READ_COILS:
                 mb_error = eMBMasterReqReadCoils((UCHAR)mb_slave_addr, (USHORT)mb_offset,
                                                 (USHORT)mb_size , (LONG)MB_SERIAL_API_RESP_TICS );
