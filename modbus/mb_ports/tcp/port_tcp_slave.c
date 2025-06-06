@@ -185,7 +185,6 @@ void mbs_port_tcp_delete(mb_port_base_t *inst)
             mbs_port_tcp_unregister_handlers(port_obj->pdriver);
         }
         (void)mb_drv_unregister(port_obj->pdriver);
-        CRITICAL_SECTION_CLOSE(port_obj->base.lock);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(port_obj);

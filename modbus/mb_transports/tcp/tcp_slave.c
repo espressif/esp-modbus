@@ -91,9 +91,9 @@ bool mbs_tcp_transp_delete(mb_trans_base_t *inst)
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
     // destroy method of port tcp slave is here
     CRITICAL_SECTION(inst->lock) {
-        mbs_port_tcp_delete(inst->port_obj);
         mb_port_timer_delete(inst->port_obj);
         mb_port_event_delete(inst->port_obj);
+        mbs_port_tcp_delete(inst->port_obj);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);
