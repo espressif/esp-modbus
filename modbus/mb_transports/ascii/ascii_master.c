@@ -97,10 +97,12 @@ error:
 bool mbm_ascii_transp_delete(mb_trans_base_t *inst)
 {
     mbm_ascii_trasp_t *trans = __containerof(inst, mbm_ascii_trasp_t, base);
-    mb_port_timer_delete(trans->base.port_obj);
-    mb_port_event_delete(trans->base.port_obj);
-    mb_port_ser_delete(trans->base.port_obj);
-    free((void *)trans->pascii_puf);
+    CRITICAL_SECTION(inst->lock) {
+        mb_port_timer_delete(trans->base.port_obj);
+        mb_port_event_delete(trans->base.port_obj);
+        mb_port_ser_delete(trans->base.port_obj);
+        free((void *)trans->pascii_puf);
+    }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(trans);
     return true;

@@ -93,9 +93,9 @@ bool mbm_tcp_transp_delete(mb_trans_base_t *inst)
     mbm_tcp_transp_t *transp = __containerof(inst, mbm_tcp_transp_t, base);
     // destroy method of port tcp master is here
     CRITICAL_SECTION(inst->lock) {
-        mbm_port_tcp_delete(inst->port_obj);
         mb_port_timer_delete(inst->port_obj);
         mb_port_event_delete(inst->port_obj);
+        mbm_port_tcp_delete(inst->port_obj);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);

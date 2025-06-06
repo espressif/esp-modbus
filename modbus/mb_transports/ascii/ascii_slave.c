@@ -94,9 +94,11 @@ error:
 bool mbs_ascii_transp_delete(mb_trans_base_t *inst)
 {
     mbs_ascii_trasp_t *transp = __containerof(inst, mbs_ascii_trasp_t, base);
-    mb_port_timer_delete(transp->base.port_obj);
-    mb_port_event_delete(transp->base.port_obj);
-    mb_port_ser_delete(transp->base.port_obj);
+    CRITICAL_SECTION(inst->lock) {
+        mb_port_timer_delete(transp->base.port_obj);
+        mb_port_event_delete(transp->base.port_obj);
+        mb_port_ser_delete(transp->base.port_obj);
+    }
     free(transp->pascii_puf);
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(transp);
