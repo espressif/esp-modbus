@@ -39,16 +39,12 @@ uint32_t mb_port_get_inst_counter()
 
 uint32_t mb_port_get_inst_counter_inc()
 {
-    uint32_t counter = atomic_load(&inst_counter);
-    atomic_store(&inst_counter, (counter + 1));
-    return counter;
+    return atomic_fetch_add(&inst_counter, 1);
 }
 
 uint32_t mb_port_get_inst_counter_dec()
 {
-    uint32_t counter = atomic_load(&inst_counter);
-    atomic_store(&inst_counter, (counter - 1));
-    return counter;
+    return atomic_fetch_sub(&inst_counter, 1);
 }
 
 QueueHandle_t queue_create(int queue_size)
