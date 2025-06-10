@@ -7,6 +7,10 @@
 #include "mbc_master.h"        // for master interface define
 #include "esp_modbus_master.h" // for public interface defines
 
+// Helper macro to set custom command
+#define GET_CMD(mode, access, rd_cmd, wr_cmd) (((mode == MB_PARAM_WRITE) && (access & PAR_PERMS_WRITE)) ? wr_cmd : \
+                                               ((mode == MB_PARAM_READ) && (access & PAR_PERMS_READ)) ? rd_cmd : 0)
+
 static const char TAG[] __attribute__((unused)) = "MB_CONTROLLER_MASTER";
 
 // This file implements public API for Modbus master controller.
@@ -60,7 +64,6 @@ esp_err_t mbc_master_unlock(void *ctx)
 
 esp_err_t mbc_master_get_cid_info(void *ctx, uint16_t cid, const mb_parameter_descriptor_t **param_info)
 {
-
     esp_err_t error = ESP_OK;
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
@@ -731,5 +734,42 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
             break;
     }
     return err;
+}
+
+// Helper function to get configured Modbus command for each type of Modbus register area.
+// Supports custom command options using the PAR_PERMS_CUST_CMD permission.
+// The MB_PARAM_CUSTOM register type mimics the custom commands specificly handled with
+// custom command handlers which have to be defined in command handling table.
+uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *pdescr, mb_param_mode_t mode)
+{
+    MB_RETURN_ON_FALSE((pdescr), 0, TAG, "incorrect data pointer.");
+    uint8_t command = 0;
+    switch(pdescr->mb_param_type)
+    {
+        case MB_PARAM_HOLDING:
+            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_HOLDING_REGISTER, MB_FUNC_WRITE_MULTIPLE_REGISTERS);
+            break;
+        case MB_PARAM_INPUT:
+            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_INPUT_REGISTER, 0);
+            break;
+        case MB_PARAM_COIL:
+            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_COILS, MB_FUNC_WRITE_MULTIPLE_COILS);
+            break;
+        case MB_PARAM_DISCRETE:
+            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_DISCRETE_INPUTS, 0);
+            break;
+        case MB_PARAM_CUSTOM:
+            if (pdescr->access & PAR_PERMS_CUST_CMD) {
+                // Use custom command in the request for read or write
+                command = GET_CMD(mode, pdescr->access, (uint8_t)pdescr->param_opts.cust_cmd_read, (uint8_t)pdescr->param_opts.cust_cmd_write);
+            } else {
+                command = 0;
+            }
+            break;
+        default:
+            ESP_LOGE(TAG, "%s: Incorrect param type (%u)", __FUNCTION__, (unsigned)pdescr->mb_param_type);
+            break;
+    }
+    return command;
 }
 

@@ -29,7 +29,7 @@
 #define MB_REG_HOLDING_START_AREA0          (HOLD_OFFSET(holding_data0))
 #define MB_REG_HOLDING_START_AREA0_SIZE     ((size_t)((HOLD_OFFSET(holding_data4) - HOLD_OFFSET(holding_data0)) << 1))
 #define MB_REG_HOLDING_START_AREA1          (HOLD_OFFSET(holding_data4))
-#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1))
+#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1) + 2)
 #define MB_REG_HOLDING_START_AREA2          (HOLD_OFFSET(holding_u8_a))
 #define MB_REG_HOLDING_START_AREA2_SIZE     ((size_t)((HOLD_OFFSET(holding_area2_end) - HOLD_OFFSET(holding_u8_a)) << 1))
 
