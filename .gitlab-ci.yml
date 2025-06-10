@@ -81,7 +81,9 @@ after_script:
     --recursive \
     --target all \
     --default-build-targets ${TEST_TARGETS} \
-    --config "sdkconfig.ci.*=" --build-dir "build_@t_@w" \
+    --config "sdkconfig.ci.*=" \
+    --build-dir "build_@t_@w" \
+    --build-log build_log.txt \
     --check-warnings \
     --ignore-warning-file ../tools/ignore_build_warnings.txt \
     --collect-size-info $SIZE_INFO_LOCATION \
