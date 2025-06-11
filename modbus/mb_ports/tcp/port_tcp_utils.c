@@ -556,12 +556,6 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *pinfo)
 
 static int mdns_instance_count = 0;
 
-inline char *gen_id_str(char *service_name, char *node_id_str)
-{
-    sprintf(node_id_str, "%s%02X%02X%02X%02X", service_name, MB_ID2STR(MB_DEVICE_ID));
-    return node_id_str;
-}
-
 // This function has limitation of working with IP6 address only
 esp_err_t port_start_mdns_service(char **ppdns_name, bool is_master, int uid, void *pnode_netif)
 {
