@@ -181,6 +181,7 @@ static esp_err_t mbc_serial_slave_controller_create(void **ctx)
 
     mb_slave_options_t *mbs_opts = &mbs_controller_iface->opts;
     mbs_opts->port_type = MB_PORT_SERIAL_SLAVE; // set interface port type
+    mbs_opts->task_handle = NULL;
 
     // Initialization of active context of the Modbus controller
     BaseType_t status = 0;
@@ -250,13 +251,13 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
     mbs_opts->port_type = MB_PORT_SERIAL_SLAVE;
     mbs_opts->comm_opts = *config;
     mb_err_enum_t err = MB_ENOERR;
-    void *pinst = (void *)mbs_controller_iface;
+    void *inst = (void *)mbs_controller_iface;
 
     // Initialize Modbus stack using mbcontroller parameters
     if (pcomm_info->mode == MB_RTU)
     {
 #if (CONFIG_FMB_COMM_MODE_RTU_EN)
-        err = mbs_rtu_create(pcomm_info, &pinst);
+        err = mbs_rtu_create(pcomm_info, &inst);
 #else
         ESP_LOGE(TAG, "RTU mode is not enabled in the configuration.");
         ret = ESP_ERR_NOT_SUPPORTED;
@@ -266,7 +267,7 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
     else if (pcomm_info->mode == MB_ASCII)
     {
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN)
-        err = mbs_ascii_create(pcomm_info, &pinst);
+        err = mbs_ascii_create(pcomm_info, &inst);
 #else
         ESP_LOGE(TAG, "ASCII mode is not enabled in the configuration.");
         ret = ESP_ERR_NOT_SUPPORTED;
@@ -275,7 +276,7 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
     }
     MB_GOTO_ON_FALSE((err == MB_ENOERR), ESP_ERR_INVALID_STATE, error, TAG,
                      "mbs create returns (0x%x).", (int)err);
-    mbs_controller_iface->mb_base = (mb_base_t *)pinst;
+    mbs_controller_iface->mb_base = (mb_base_t *)inst;
 
     // Configure Modbus read/write callbacks for the base modbus object
     const mb_rw_callbacks_t rw_cbs = {

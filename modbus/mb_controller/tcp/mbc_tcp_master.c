@@ -36,8 +36,6 @@ static const char *TAG = "mbc_tcp.master";
 
 #define MB_TCP_CONNECTION_TOUT  pdMS_TO_TICKS(CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000)
 
-//typedef enum _mb_sock_state mb_sock_state_t;
-
 // Modbus event processing task
 static void modbus_tcp_master_task(void *param)
 {
@@ -135,7 +133,7 @@ static esp_err_t mbc_tcp_master_set_descriptor(void *ctx, const mb_parameter_des
     MB_RETURN_ON_FALSE((comm_ip_table), ESP_ERR_INVALID_ARG, TAG, "mb ip table address is incorrect.");
 
     const mb_parameter_descriptor_t *reg_ptr = descriptor;
-    mb_uid_info_t *paddr_info = NULL;
+    mb_uid_info_t *addr_info = NULL;
 
     // Go through all items in the table to check all Modbus registers
     for (int idx = 0; idx < (num_elements); idx++, reg_ptr++) {
@@ -149,8 +147,8 @@ static esp_err_t mbc_tcp_master_set_descriptor(void *ctx, const mb_parameter_des
         }
 
         // Is the slave with the UID already in the list?
-        paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, reg_ptr->mb_slave_addr, MB_SOCK_STATE_OPENED);
-        MB_RETURN_ON_FALSE((paddr_info), ESP_ERR_INVALID_ARG, TAG, 
+        addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, reg_ptr->mb_slave_addr, MB_SOCK_STATE_OPENED);
+        MB_RETURN_ON_FALSE((addr_info), ESP_ERR_INVALID_ARG, TAG, 
                             "mb missing IP address configuration for cid #%u, uid=%d.", (unsigned)reg_ptr->cid, (int)reg_ptr->mb_slave_addr);
         ESP_LOGI(TAG, "mb found config for cid #%d, uid=%d.", (int)reg_ptr->cid, (int)reg_ptr->mb_slave_addr);
     }
@@ -183,15 +181,14 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
         switch(mb_command) {
 #if MB_FUNC_READ_COILS_ENABLED
             case MB_FUNC_READ_COILS:
-                mb_error = mbm_rq_read_coils(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                (uint16_t)mb_size , 
-                                                pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_read_coils(mbm_controller_iface->mb_base, mb_slave_addr, 
+                                                mb_offset, mb_size , pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_WRITE_COIL_ENABLED
             case MB_FUNC_WRITE_SINGLE_COIL:
-                mb_error = mbm_rq_write_coil(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
+                mb_error = mbm_rq_write_coil(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
                                                     *(uint16_t *)data_ptr, 
                                                     pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
@@ -199,31 +196,29 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
 
 #if MB_FUNC_WRITE_MULTIPLE_COILS_ENABLED
             case MB_FUNC_WRITE_MULTIPLE_COILS:
-                mb_error = mbm_rq_write_multi_coils(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                                (uint16_t)mb_size, (uint8_t *)data_ptr, 
+                mb_error = mbm_rq_write_multi_coils(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
+                                                                mb_size, (uint8_t *)data_ptr, 
                                                                 pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_READ_DISCRETE_INPUTS_ENABLED
             case MB_FUNC_READ_DISCRETE_INPUTS:
-                mb_error = mbm_rq_read_discrete_inputs(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                            (uint16_t)mb_size, 
-                                                            pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_read_discrete_inputs(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
+                                                        mb_size, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_READ_HOLDING_ENABLED
             case MB_FUNC_READ_HOLDING_REGISTER:
-                mb_error = mbm_rq_read_holding_reg(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                                (uint16_t)mb_size, 
-                                                                pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_read_holding_reg(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
+                                                                mb_size, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_WRITE_HOLDING_ENABLED
             case MB_FUNC_WRITE_REGISTER:
-                mb_error = mbm_rq_write_holding_reg(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
+                mb_error = mbm_rq_write_holding_reg(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
                                                                 *(uint16_t *)data_ptr, 
                                                                 pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
@@ -231,33 +226,28 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
 
 #if MB_FUNC_WRITE_MULTIPLE_HOLDING_ENABLED
             case MB_FUNC_WRITE_MULTIPLE_REGISTERS:
-                mb_error = mbm_rq_write_multi_holding_reg(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr,
-                                                                        (uint16_t)mb_offset, (uint16_t)mb_size,
-                                                                        (uint16_t *)data_ptr, 
-                                                                        pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_write_multi_holding_reg(mbm_controller_iface->mb_base, mb_slave_addr,
+                                                            mb_offset, mb_size, (uint16_t *)data_ptr, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_READWRITE_HOLDING_ENABLED
             case MB_FUNC_READWRITE_MULTIPLE_REGISTERS:
-                mb_error = mbm_rq_rw_multi_holding_reg(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                                        (uint16_t)mb_size, (uint16_t *)data_ptr,
-                                                                        (uint16_t)mb_offset, (uint16_t)mb_size,
-                                                                        pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_rw_multi_holding_reg(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
+                                                            mb_size, (uint16_t *)data_ptr, mb_offset, mb_size, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
 
 #if MB_FUNC_READ_INPUT_ENABLED
             case MB_FUNC_READ_INPUT_REGISTER:
-                mb_error = mbm_rq_read_inp_reg(mbm_controller_iface->mb_base, (uint8_t)mb_slave_addr, (uint16_t)mb_offset,
-                                                            (uint16_t)mb_size,
-                                                            pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
+                mb_error = mbm_rq_read_inp_reg(mbm_controller_iface->mb_base, mb_slave_addr, mb_offset,
+                                                            mb_size, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS));
                 break;
 #endif
             default:
-                mb_fn_handler_fp phandler = NULL;
+                mb_fn_handler_fp handler = NULL;
                 // check registered function handler
-                mb_error = mbm_get_handler(mbm_controller_iface->mb_base, mb_command, &phandler);
+                mb_error = mbm_get_handler(mbm_controller_iface->mb_base, mb_command, &handler);
                 if (mb_error == MB_ENOERR) {
                     // send the request for custom command
                     mb_error = mbm_rq_custom(mbm_controller_iface->mb_base, mb_slave_addr, mb_command,
@@ -334,27 +324,27 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
-    uint8_t *pdata = NULL;
+    uint8_t *data_ptr = NULL;
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
+        mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
                                                                         request.slave_addr, MB_SOCK_STATE_CONNECTED);
-        if (!paddr_info) {
+        if (!addr_info) {
             ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
                                 (unsigned)reg_info.cid, (int)request.slave_addr);
         }
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
-        pdata = calloc(1, (reg_info.mb_size << 1));
-        if (!pdata) {
+        data_ptr = calloc(1, (reg_info.mb_size << 1));
+        if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
-        error = mbc_tcp_master_send_request(ctx, &request, pdata);
+        error = mbc_tcp_master_send_request(ctx, &request, data_ptr);
         if (error == ESP_OK) {
             // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
             if (value) {
-                error = mbc_master_set_param_data((void *)value, (void *)pdata,
+                error = mbc_master_set_param_data((void *)value, (void *)data_ptr,
                                                     reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
                     ESP_LOGE(TAG, "fail to set parameter data.");
@@ -368,7 +358,7 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
                         __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
-        free(pdata);
+        free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
@@ -388,14 +378,14 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request;
     mb_parameter_descriptor_t reg_info = { 0 };
-    uint8_t *pdata = NULL;
+    uint8_t *data_ptr = NULL;
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
         // check that the requested uid is connected (call to port iface)
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
+        mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
                                                                         uid, MB_SOCK_STATE_CONNECTED);
-        if (!paddr_info) {
+        if (!addr_info) {
             ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
                                 (unsigned)reg_info.cid, (int)request.slave_addr);
         }
@@ -406,15 +396,15 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
         request.slave_addr = uid; // override the UID
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
-        pdata = calloc(1, (reg_info.mb_size << 1));
-        if (!pdata) {
+        data_ptr = calloc(1, (reg_info.mb_size << 1));
+        if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
-        error = mbc_tcp_master_send_request(ctx, &request, pdata);
+        error = mbc_tcp_master_send_request(ctx, &request, data_ptr);
         if (error == ESP_OK) {
             // If data pointer is NULL then we don't need to set value (it is still in the cache of cid)
             if (value) {
-                error = mbc_master_set_param_data((void *)value, (void *)pdata,
+                error = mbc_master_set_param_data((void *)value, (void *)data_ptr,
                                                     reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
                     ESP_LOGE(TAG, "fail to set parameter data.");
@@ -428,7 +418,7 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
             ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
                         __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
-        free(pdata);
+        free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
@@ -448,31 +438,31 @@ static esp_err_t mbc_tcp_master_set_parameter(void *ctx, uint16_t cid, uint8_t *
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
-    uint8_t *pdata = NULL;
+    uint8_t *data_ptr = NULL;
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
+        mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
                                                                         request.slave_addr, MB_SOCK_STATE_CONNECTED);
-        if (!paddr_info) {
+        if (!addr_info) {
             ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
                                 (unsigned)reg_info.cid, (int)request.slave_addr);
         }
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
-        pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
-        if (!pdata) {
+        data_ptr = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
         // Transfer value of characteristic into parameter buffer
-        error = mbc_master_set_param_data((void *)pdata, (void *)value,
+        error = mbc_master_set_param_data((void *)data_ptr, (void *)value,
                                               reg_info.param_type, reg_info.param_size);
         if (error != ESP_OK) {
             ESP_LOGE(TAG, "fail to set parameter data.");
-            free(pdata);
+            free(data_ptr);
             return ESP_ERR_INVALID_STATE;
         }
         // Send request to write characteristic data
-        error = mbc_tcp_master_send_request(ctx, &request, pdata);
+        error = mbc_tcp_master_send_request(ctx, &request, data_ptr);
         if (error == ESP_OK) {
             ESP_LOGD(TAG, "%s: Good response for set cid(%u) = %s",
                                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
@@ -480,7 +470,7 @@ static esp_err_t mbc_tcp_master_set_parameter(void *ctx, uint16_t cid, uint8_t *
             ESP_LOGD(TAG, "%s: Bad response to set cid(%u) = %s",
                                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
-        free(pdata);
+        free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
@@ -500,14 +490,14 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
-    uint8_t *pdata = NULL;
+    uint8_t *data_ptr = NULL;
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid)) {
         // check that the requested uid is connected (call to port iface)
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
+        mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
                                                                         uid, MB_SOCK_STATE_CONNECTED);
-        if (!paddr_info) {
+        if (!addr_info) {
             ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
                                 (unsigned)reg_info.cid, (int)request.slave_addr);
         }
@@ -518,20 +508,20 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
         request.slave_addr = uid; // override the UID
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
 
-        pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
-        if (!pdata) {
+        data_ptr = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
         // Transfer value of characteristic into parameter buffer
-        error = mbc_master_set_param_data((void *)pdata, (void *)value,
+        error = mbc_master_set_param_data((void *)data_ptr, (void *)value,
                                               reg_info.param_type, reg_info.param_size);
         if (error != ESP_OK) {
             ESP_LOGE(TAG, "fail to set parameter data.");
-            free(pdata);
+            free(data_ptr);
             return ESP_ERR_INVALID_STATE;
         }
         // Send request to write characteristic data
-        error = mbc_tcp_master_send_request(ctx, &request, pdata);
+        error = mbc_tcp_master_send_request(ctx, &request, data_ptr);
         if (error == ESP_OK) {
             ESP_LOGD(TAG, "%s: Good response for set cid(%u) = %s",
                                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
@@ -539,7 +529,7 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
             ESP_LOGD(TAG, "%s: Bad response to set cid(%u) = %s",
                                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
-        free(pdata);
+        free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
@@ -596,6 +586,7 @@ esp_err_t mbc_tcp_master_controller_create(void ** ctx)
 
     // Initialize interface properties
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(mbm_controller_iface);
+    mbm_opts->task_handle = NULL;
 
     // Initialization of active context of the modbus controller
     BaseType_t status = 0;
@@ -685,16 +676,16 @@ esp_err_t mbc_tcp_master_create(mb_communication_info_t *config, void **ctx)
     }
 
     mb_err_enum_t err = MB_EILLSTATE;
-    void *pinst = (void *)mbm_controller_iface; // set as descr.parent object
+    void *inst = (void *)mbm_controller_iface; // set as descr.parent object
 
     // Initialize Modbus stack using mbcontroller parameters
     if (tcp_opts.mode == MB_TCP) {
-        err = mbm_tcp_create(&tcp_opts, &pinst);
+        err = mbm_tcp_create(&tcp_opts, &inst);
     }
     MB_GOTO_ON_FALSE((err == MB_ENOERR), ESP_ERR_INVALID_STATE, error, TAG, 
                         "mbm create returns (0x%x).", (int)ret);
 
-    mbm_controller_iface->mb_base = (mb_base_t *)pinst;
+    mbm_controller_iface->mb_base = (mb_base_t *)inst;
 
     const mb_rw_callbacks_t rw_cbs = {
         .reg_input_cb = mbc_reg_input_master_cb,
@@ -714,7 +705,7 @@ esp_err_t mbc_tcp_master_create(mb_communication_info_t *config, void **ctx)
     return ESP_OK;
 
 error:
-    if (mbm_controller_iface->mb_base) {
+    if (mbm_controller_iface && mbm_controller_iface->mb_base) {
         mbm_controller_iface->mb_base->delete(mbm_controller_iface->mb_base);
         mbm_controller_iface->mb_base = NULL;
     }

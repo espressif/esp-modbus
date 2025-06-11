@@ -159,14 +159,14 @@ typedef enum {
     MB_PARAM_UNKNOWN = 0xFF
 } mb_param_type_t;
 
-typedef enum _mb_comm_mode mb_mode_type_t;
+typedef enum mb_comm_mode_enum mb_mode_type_t;
 
 typedef struct mb_base_t mb_base_t;
 
 /*!
  * \brief Modbus TCP type of address for communication.
  */
-typedef enum _addr_type_enum mb_tcp_addr_type_t;
+typedef enum addr_type_enum mb_tcp_addr_type_t;
 
 /*!
  * \brief Modbus TCP communication options structure.
@@ -217,7 +217,7 @@ typedef struct {
  * 
  * @param[in] ctx context pointer to the controller object (master or slave)
  * @param[in] func_code the function code for the handler
- * @param[in] phandler the pointer to function handler being used for command
+ * @param[in] handler the pointer to function handler being used for command
  *
  * @return
  *     - esp_err_t ESP_OK - the function handler is correctly set the handler
@@ -225,21 +225,21 @@ typedef struct {
  *     - esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or can not
  *     - esp_err_t ESP_ERR_NOT_FOUND - the requested slave is not found (not connected or not configured)
 */
-esp_err_t mbc_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp phandler);
+esp_err_t mbc_set_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp handler);
 
 /**
  * @brief The function gets function handler for specified command from the controller object handler table.
  * 
  * @param[in] ctx context pointer to the controller object (master or slave)
  * @param[in] func_code the function code for the handler
- * @param[out] phandler the pointer to function handler being returned
+ * @param[out] handler the pointer to function handler being returned
  *
  * @return
  *     - esp_err_t ESP_OK - the function handler is returned
  *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
  *       esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or incorrect configuration
 */
-esp_err_t mbc_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *phandler);
+esp_err_t mbc_get_handler(void *ctx, uint8_t func_code, mb_fn_handler_fp *handler);
 
 /**
  * @brief The function deletes function handler for specified command from the controller object command handler table.
@@ -258,14 +258,14 @@ esp_err_t mbc_delete_handler(void *ctx, uint8_t func_code);
  * @brief The function gets the number of registered function handlers for the controller object.
  * 
  * @param[in] ctx context pointer to the controller object (master or slave)
- * @param[out] pcount the pointer to returned counter
+ * @param[out] count the pointer to returned counter
  * 
  * @return
  *     - esp_err_t ESP_OK - the function handler is returned in the 
  *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument of function or parameter descriptor
  *       esp_err_t ESP_ERR_INVALID_STATE - can not register non-existent handler or incorrect configuration
 */
-esp_err_t mbc_get_handler_count(void *ctx, uint16_t *pcount);
+esp_err_t mbc_get_handler_count(void *ctx, uint16_t *count);
 
 #ifdef __cplusplus
 }

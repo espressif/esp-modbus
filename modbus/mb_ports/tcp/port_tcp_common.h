@@ -36,16 +36,16 @@ mb_err_enum_t mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
 void mbm_port_tcp_delete(mb_port_base_t *inst);
 void mbm_port_tcp_enable(mb_port_base_t *inst);
 void mbm_port_tcp_disable(mb_port_base_t *inst);
-bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *pframe, uint16_t length);
-bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength);
+bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *frame, uint16_t length);
+bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length);
 bool mbm_port_tcp_add_slave_info(mb_port_base_t *inst, const uint16_t index, const char *ip_str, uint8_t uid);
 
 mb_err_enum_t mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port_obj);
 void mbs_port_tcp_delete(mb_port_base_t *inst);
 void mbs_port_tcp_enable(mb_port_base_t *inst);
 void mbs_port_tcp_disable(mb_port_base_t *inst);
-bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *pframe, uint16_t length);
-bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength);
+bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t length);
+bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length);
 
 #endif
 

@@ -33,7 +33,7 @@ static_assert(
 
 #define MB_ATTR_WEAK __attribute__ ((weak))
 
-typedef enum _mb_comm_mode mb_mode_type_t;
+typedef enum mb_comm_mode_enum mb_mode_type_t;
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
@@ -55,7 +55,7 @@ typedef struct port_serial_opts_s mb_serial_opts_t;
 
 #endif
 
-typedef enum _addr_type_enum {
+typedef enum addr_type_enum {
     MB_NOIP = 0,
     MB_IPV4 = 1,                    /*!< TCP IPV4 addressing */
     MB_IPV6 = 2                     /*!< TCP IPV6 addressing */
@@ -85,7 +85,7 @@ struct port_tcp_opts_s {
 typedef struct port_tcp_opts_s mb_tcp_opts_t;
 
 // The common object descriptor struture (common for mb, transport, port objects)
-struct _obj_descr { 
+struct obj_descr_s { 
     char *parent_name;              /*!< Name of the parent (base) object */
     char *obj_name;                 /*!< Name of the object */
     void *parent;                   /*!< Pointer to the parent (base) object */
@@ -93,9 +93,9 @@ struct _obj_descr {
     bool is_master;                 /*!< The current object is master or slave (false) */
 };
 
-typedef struct _obj_descr obj_descr_t;
+typedef struct obj_descr_s obj_descr_t;
 
-typedef enum _mb_sock_state {
+typedef enum mb_sock_state_enum {
     MB_SOCK_STATE_UNDEF = 0x0000,   /*!< Default init state */
     MB_SOCK_STATE_CLOSED,           /*!< Node is closed */
     MB_SOCK_STATE_READY,            /*!< Node is ready for communication */
@@ -106,7 +106,7 @@ typedef enum _mb_sock_state {
     MB_SOCK_STATE_ACCEPTED          /*!< Slave node accepted the connection */
 } mb_sock_state_t;
 
-typedef struct _uid_info {
+typedef struct uid_info_s {
     uint16_t index;                 /*!< index of the address info */
     int fd;                         /*!< node global FD for VFS (reserved) */
     char *node_name_str;            /*!< node name string (host name of node to resolve) */

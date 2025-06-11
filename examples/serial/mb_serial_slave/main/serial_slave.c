@@ -83,15 +83,15 @@ static void setup_reg_data(void)
     discrete_reg_params.discrete_input6 = 1;
     discrete_reg_params.discrete_input7 = 0;
 
-    holding_reg_params.holding_data0 = 1.34;
-    holding_reg_params.holding_data1 = 2.56;
-    holding_reg_params.holding_data2 = 3.78;
-    holding_reg_params.holding_data3 = 4.90;
+    holding_reg_params.holding_data0 = 1.34F;
+    holding_reg_params.holding_data1 = 2.56F;
+    holding_reg_params.holding_data2 = 3.78F;
+    holding_reg_params.holding_data3 = 4.90F;
 
-    holding_reg_params.holding_data4 = 5.67;
-    holding_reg_params.holding_data5 = 6.78;
-    holding_reg_params.holding_data6 = 7.79;
-    holding_reg_params.holding_data7 = 8.80;
+    holding_reg_params.holding_data4 = 5.67F;
+    holding_reg_params.holding_data5 = 6.78F;
+    holding_reg_params.holding_data6 = 7.79F;
+    holding_reg_params.holding_data7 = 8.80F;
 
 #if CONFIG_FMB_EXT_TYPE_SUPPORT
     mb_set_uint8_a((val_16_arr *)&holding_reg_params.holding_u8_a[0], (uint8_t)0x55);
@@ -134,32 +134,32 @@ static void setup_reg_data(void)
     coil_reg_params.coils_port0 = 0x55;
     coil_reg_params.coils_port1 = 0xAA;
 
-    input_reg_params.input_data0 = 1.12;
-    input_reg_params.input_data1 = 2.34;
-    input_reg_params.input_data2 = 3.56;
-    input_reg_params.input_data3 = 4.78;
+    input_reg_params.input_data0 = 1.12F;
+    input_reg_params.input_data1 = 2.34F;
+    input_reg_params.input_data2 = 3.56F;
+    input_reg_params.input_data3 = 4.78F;
 
-    input_reg_params.input_data4 = 1.12;
-    input_reg_params.input_data5 = 2.34;
-    input_reg_params.input_data6 = 3.56;
-    input_reg_params.input_data7 = 4.78;
+    input_reg_params.input_data4 = 1.12F;
+    input_reg_params.input_data5 = 2.34F;
+    input_reg_params.input_data6 = 3.56F;
+    input_reg_params.input_data7 = 4.78F;
 }
 
 // This is a simple custom function handler for the command.
 // The handler is executed from the context of modbus controller event task and should be as simple as possible.
 // Parameters: frame_ptr - the pointer to the incoming ADU request frame from master starting from function code,
-// plen - the pointer to length of the frame. The handler body can override the buffer and return the length of data.
+// len - the pointer to length of the frame. The handler body can override the buffer and return the length of data.
 // After return from the handler the modbus object will handle the end of transaction according to the exception returned,
 // then builds the response frame and send it back to the master. If the whole transaction time including the response
 // latency exceeds the configured slave response time set in the master configuration the master will ignore the transaction.
-mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+mb_exception_t my_custom_fc_handler(void *inst, uint8_t *frame_ptr, uint16_t *len)
 {
     char *str_append = ":Slave";
-    MB_RETURN_ON_FALSE((frame_ptr && plen && *plen < (MB_CUST_DATA_MAX_LEN - strlen(str_append))), MB_EX_ILLEGAL_DATA_VALUE, TAG,
+    MB_RETURN_ON_FALSE((frame_ptr && len && *len < (MB_CUST_DATA_MAX_LEN - strlen(str_append))), MB_EX_ILLEGAL_DATA_VALUE, TAG,
                             "incorrect custom frame");
-    frame_ptr[*plen] = '\0';
+    frame_ptr[*len] = '\0';
     strcat((char *)&frame_ptr[1], str_append);
-    *plen = (strlen(str_append) + *plen); // the length of (response + command)
+    *len = (strlen(str_append) + *len); // the length of (response + command)
     return MB_EX_NONE; // Set the exception code for modbus object appropriately
 }
 
@@ -200,9 +200,9 @@ void app_main(void)
     err = mbc_set_handler(mbc_slave_handle, custom_command, my_custom_fc_handler);
     MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
                         "could not set or override handler, returned (0x%x).", (int)err);
-    mb_fn_handler_fp phandler = NULL;
-    err = mbc_get_handler(mbc_slave_handle, custom_command, &phandler);
-    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ;, TAG,
+    mb_fn_handler_fp handler = NULL;
+    err = mbc_get_handler(mbc_slave_handle, custom_command, &handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && handler == my_custom_fc_handler), ;, TAG,
                         "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 
     // The code below initializes Modbus register area descriptors
@@ -283,7 +283,7 @@ void app_main(void)
     uint8_t is_running = (bool)(err == ESP_OK);
 
     // This is the way to set Slave ID fields to retrieve it by master using report slave ID command.
-    err = mbc_set_slave_id(mbc_slave_handle, comm_config.ser_opts.uid, is_running, (uint8_t *)&new_id_struct.length, new_id_struct.length);
+    err = mbc_set_slave_id(mbc_slave_handle, comm_config.ser_opts.uid, is_running, &new_id_struct.length, new_id_struct.length);
     if (err == ESP_OK) {
         ESP_LOGW("SET_SLAVE_ID", "dev_name: %s", (char*)new_id_struct.dev_name);
         ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)&new_id_struct.length, new_id_struct.length, ESP_LOG_WARN);
@@ -344,7 +344,10 @@ void app_main(void)
                             (unsigned)reg_info.type,
                             (uint32_t)reg_info.address,
                             (unsigned)reg_info.size);
-            if (coil_reg_params.coils_port1 == 0xFF) break;
+            if (coil_reg_params.coils_port1 == 0xFF) {
+                ESP_LOGI(TAG, "Stop polling.");
+                break;
+            }
         }
     }
     // Destroy of Modbus controller on alarm

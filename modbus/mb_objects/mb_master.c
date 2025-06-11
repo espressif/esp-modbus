@@ -53,26 +53,26 @@ static void mbm_set_pdu_send_length(mb_base_t *inst, uint16_t length);
 static uint16_t mbm_get_pdu_send_length(mb_base_t *inst);
 static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr);
 static uint8_t mbm_get_dest_addr(mb_base_t *inst);
-static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf);
+static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **buf);
 
-mb_err_enum_t mbm_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp phandler)
+mb_err_enum_t mbm_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp handler)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_err_enum_t status = MB_EILLSTATE;
     SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        status = mb_set_handler(&mbm_obj->handler_descriptor, func_code, phandler);
+        status = mb_set_handler(&mbm_obj->handler_descriptor, func_code, handler);
     }
     return status;
 }
 
 // The helper function to register custom function handler for master
-mb_err_enum_t mbm_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *phandler)
+mb_err_enum_t mbm_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *handler)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_err_enum_t status = MB_EILLSTATE;
-    if (phandler) {
+    if (handler) {
         SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-            status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, phandler);
+            status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, handler);
         }
     }
     return status;
@@ -88,32 +88,32 @@ mb_err_enum_t mbm_delete_handler(mb_base_t *inst, uint8_t func_code)
     return status;
 }
 
-mb_err_enum_t mbm_get_handler_count(mb_base_t *inst, uint16_t *pcount)
+mb_err_enum_t mbm_get_handler_count(mb_base_t *inst, uint16_t *count)
 {
-    MB_RETURN_ON_FALSE((pcount && inst), MB_EINVAL, TAG, "get handler count wrong arguments.");
+    MB_RETURN_ON_FALSE((count && inst), MB_EINVAL, TAG, "get handler count wrong arguments.");
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        *pcount = mbm_obj->handler_descriptor.count;
+        *count = mbm_obj->handler_descriptor.count;
     }
     return MB_ENOERR;
 }
 
-static mb_err_enum_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *pbuf, uint16_t *plen)
+static mb_err_enum_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *buf, uint16_t *len)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_exception_t exception = MB_EX_ILLEGAL_FUNCTION;
-    if (!func_code || !pbuf) {
+    if (!func_code || !buf) {
         return MB_EX_ILLEGAL_FUNCTION;
     }
     if (func_code & MB_FUNC_ERROR) {
-        exception = (mb_exception_t)pbuf[MB_PDU_DATA_OFF];
+        exception = (mb_exception_t)buf[MB_PDU_DATA_OFF];
         return exception;
     }
     SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        mb_fn_handler_fp phandler = NULL;
-        mb_err_enum_t status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, &phandler);
-        if ((status == MB_ENOERR) && phandler) {
-            exception = phandler(inst, pbuf, plen);
+        mb_fn_handler_fp handler = NULL;
+        mb_err_enum_t status = mb_get_handler(&mbm_obj->handler_descriptor, func_code, &handler);
+        if ((status == MB_ENOERR) && handler) {
+            exception = handler(inst, buf, len);
         }
     }
     return exception;
@@ -126,7 +126,7 @@ static mb_err_enum_t mbm_register_default_handlers(mb_base_t *inst)
     LIST_INIT(&mbm_obj->handler_descriptor.head);
     mbm_obj->handler_descriptor.sema = xSemaphoreCreateBinary();
     (void)xSemaphoreGive(mbm_obj->handler_descriptor.sema);
-    mbm_obj->handler_descriptor.instance = (void *)inst->descr.parent;
+    mbm_obj->handler_descriptor.instance = inst->descr.parent;
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
         err = mbm_set_handler(inst, MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbm_fn_report_slave_id);
         MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
@@ -190,6 +190,7 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_RTU), MB_EILLSTATE, TAG, "incorrect mode != RTU.");
     mb_err_enum_t ret = MB_ENOERR;
     mbm_object_t *mbm_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbm_obj = (mbm_object_t *)calloc(1, sizeof(mbm_object_t));
     MB_GOTO_ON_FALSE((mbm_obj), MB_EILLSTATE, error, TAG, "no mem for mb master instance.");
     CRITICAL_SECTION_INIT(mbm_obj->base.lock);
@@ -208,21 +209,21 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id = NULL;
     mbm_obj->base.obj_id_len = 0;
     mbm_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_rtu@%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbm_obj;
+    transp_obj = (mb_trans_base_t *)mbm_obj;
     ret = mbm_rtu_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
     mbm_obj->cur_mode = ser_opts->mode;
     mbm_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
-    transp_obj->get_rx_frm(transp_obj, (uint8_t **)&mbm_obj->rcv_frame);
+    transp_obj->get_tx_frm(transp_obj, &mbm_obj->snd_frame);
+    transp_obj->get_rx_frm(transp_obj, &mbm_obj->rcv_frame);
     mbm_obj->curr_trans_id = 0;
     mbm_obj->base.port_obj = transp_obj->port_obj;
     mbm_obj->base.transp_obj = transp_obj;
@@ -255,6 +256,7 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_ASCII), MB_EILLSTATE, TAG, "incorrect option mode != ASCII.");
     mb_err_enum_t ret = MB_ENOERR;
     mbm_object_t *mbm_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbm_obj = (mbm_object_t *)calloc(1, sizeof(mbm_object_t));
     MB_GOTO_ON_FALSE((mbm_obj), MB_EILLSTATE, error, TAG, "no mem for mb master instance.");
     CRITICAL_SECTION_INIT(mbm_obj->base.lock);
@@ -273,14 +275,14 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id = NULL;
     mbm_obj->base.obj_id_len = 0;
     mbm_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_ascii@%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbm_obj;
+    transp_obj = (mb_trans_base_t *)mbm_obj;
     ret = mbm_ascii_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
@@ -289,8 +291,8 @@ mb_err_enum_t mbm_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
                         TAG, "default handlers registration fail, err: %d", (int)ret);
     mbm_obj->cur_mode = ser_opts->mode;
     mbm_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
-    transp_obj->get_rx_frm(transp_obj, (uint8_t **)&mbm_obj->rcv_frame);
+    transp_obj->get_tx_frm(transp_obj, &mbm_obj->snd_frame);
+    transp_obj->get_rx_frm(transp_obj, &mbm_obj->rcv_frame);
     mbm_obj->base.port_obj = transp_obj->port_obj; // binding of the modbus object with port object
     mbm_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbm_obj->base);
@@ -320,6 +322,7 @@ mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE((tcp_opts->mode == MB_TCP), MB_EILLSTATE, TAG, "incorrect option mode != TCP.");
     mb_err_enum_t ret = MB_ENOERR;
     mbm_object_t *mbm_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbm_obj = (mbm_object_t *)calloc(1, sizeof(mbm_object_t));
     MB_RETURN_ON_FALSE(mbm_obj, MB_EILLSTATE, TAG, "no mem for mb master instance.");
     CRITICAL_SECTION_INIT(mbm_obj->base.lock);
@@ -338,14 +341,14 @@ mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     mbm_obj->base.descr.obj_name = (char *)TAG;
     mbm_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbm_obj->base.pobj_id = NULL;
+    mbm_obj->base.obj_id = NULL;
     mbm_obj->base.obj_id_len = 0;
     mbm_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_tcp#%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                         TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbm_obj;
+    transp_obj = (mb_trans_base_t *)mbm_obj;
     ret = mbm_tcp_transp_create(tcp_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
@@ -354,8 +357,8 @@ mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
                         TAG, "default handlers registration fail, err: %d", (int)ret);
     mbm_obj->cur_mode = tcp_opts->mode;
     mbm_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbm_obj->snd_frame);
-    transp_obj->get_rx_frm(transp_obj, (uint8_t **)&mbm_obj->rcv_frame);
+    transp_obj->get_tx_frm(transp_obj, &mbm_obj->snd_frame);
+    transp_obj->get_rx_frm(transp_obj, &mbm_obj->rcv_frame);
     mbm_obj->base.port_obj = transp_obj->port_obj; // binding of the modbus object with port object
     mbm_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbm_obj->base);
@@ -387,9 +390,9 @@ mb_err_enum_t mbm_delete(mb_base_t *inst)
         }
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
         // check object ID
-        if (mbm_obj->base.pobj_id) {
-            free(mbm_obj->base.pobj_id);
-            mbm_obj->base.pobj_id = NULL;
+        if (mbm_obj->base.obj_id) {
+            free(mbm_obj->base.obj_id);
+            mbm_obj->base.obj_id = NULL;
             mbm_obj->base.obj_id_len = 0;
             mbm_obj->base.obj_id_chunks = 0;
             ESP_LOGW(TAG, "%p, Master object ID is not supported!", mbm_obj);
@@ -449,17 +452,17 @@ mb_err_enum_t mbm_disable(mb_base_t *inst)
     return status;
 }
 
-static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf)
+static void mbm_get_pdu_send_buf(mb_base_t *inst, uint8_t **buf)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
-    MB_OBJ(mbm_obj->base.transp_obj)->get_tx_frm(mbm_obj->base.transp_obj, pbuf);
+    MB_OBJ(mbm_obj->base.transp_obj)->get_tx_frm(mbm_obj->base.transp_obj, buf);
 }
 
 __attribute__((unused))
-static void mbm_get_pdu_recv_buf(mb_base_t *inst, uint8_t **pbuf)
+static void mbm_get_pdu_recv_buf(mb_base_t *inst, uint8_t **buf)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
-    MB_OBJ(mbm_obj->base.transp_obj)->get_rx_frm(mbm_obj->base.transp_obj, pbuf);
+    MB_OBJ(mbm_obj->base.transp_obj)->get_rx_frm(mbm_obj->base.transp_obj, buf);
 }
 
 static void mbm_set_pdu_send_length(mb_base_t *inst, uint16_t length)
@@ -542,8 +545,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
 
             case EV_FRAME_TRANSMIT:
                 mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
-                ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_TRANSMIT"), 
-                                            (void *)mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_DEBUG);
+                MB_PRT_BUF(inst->descr.parent_name, ":MB_TRANSMIT",
+                                mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_DEBUG);
                 status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbm_obj->master_dst_addr, 
                                                                 mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 if (status != MB_ENOERR) {
@@ -571,8 +574,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                             || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS))) {
                         if ((mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR) == (mbm_obj->snd_frame[MB_PDU_FUNC_OFF])) {
                             ESP_LOGD(TAG, MB_OBJ_FMT", frame data received successfully, (%d).", MB_OBJ_PARENT(inst), (int)status);
-                            ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_RECV"), (void *)mbm_obj->rcv_frame, 
-                                                        (uint16_t)mbm_obj->pdu_rcv_len, ESP_LOG_DEBUG);
+                            MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",
+                                            mbm_obj->rcv_frame, mbm_obj->pdu_rcv_len, ESP_LOG_DEBUG);
                             (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE));
                         } else {
                             ESP_LOGE(TAG, MB_OBJ_FMT", drop incorrect frame, receive_func(%u) != send_func(%u)",

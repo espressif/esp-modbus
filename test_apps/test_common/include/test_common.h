@@ -66,9 +66,9 @@ void test_common_stop();
 // TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig);
 
 TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, uint32_t priority);
-TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
+TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size);
 TaskHandle_t test_common_slave_tcp_create(mb_communication_info_t *pconfig, uint32_t priority);
-TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size);
+TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size);
 TaskHandle_t test_common_start_busy_task(uint32_t priority);
 
 /**

@@ -1,0 +1,24 @@
+---
+Checks: >
+  -*,
+  bugprone-argument-comment,
+  bugprone-too-small-loop-variable,
+  google-explicit-constructor,
+  misc-unused-using-decls,
+  modernize-loop-convert,
+  modernize-use-bool-literals,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-nullptr,
+  readability-avoid-const-params-in-decls,
+  readability-make-member-function-const,
+  readability-redundant-control-flow,
+  readability-redundant-member-init,
+  readability-simplify-boolean-expr,
+  readability-static-accessed-through-instance,
+  readability-else-after-return,
+  readability-inconsistent-declaration-parameter-name,
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(examples|include|src).*(?<!third_party.*repo)'
+
+

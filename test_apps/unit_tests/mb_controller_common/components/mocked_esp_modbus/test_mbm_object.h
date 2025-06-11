@@ -22,7 +22,7 @@ extern "C" {
 typedef struct mb_base_t mb_base_t;             /*!< Type of modbus object */
 typedef struct mb_port_base_t mb_port_base_t;
 
-bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent);
+bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event);
 bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
 void mb_port_event_res_release(mb_port_base_t *inst);

@@ -24,7 +24,7 @@ typedef enum
 
 #define MB_QUEUE_FLAGS (MB_QUEUE_FLAG_SENT | MB_QUEUE_FLAG_RECV | MB_QUEUE_FLAG_CONNECTED)
 
-typedef struct _uid_info mb_uid_info_t;
+typedef struct uid_info_s mb_uid_info_t;
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 mb_err_enum_t mb_port_adapter_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in_out_obj);
@@ -36,10 +36,10 @@ mb_err_enum_t mb_port_adapter_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t
 
 void mb_port_adapter_delete(mb_port_base_t *inst);
 void mb_port_adapter_set_response_time(mb_port_base_t *inst, uint64_t resp_time);
-int mb_port_adapter_get_rx_buffer(mb_port_base_t *inst, uint8_t **ppfame, int *plength);
+int mb_port_adapter_get_rx_buffer(mb_port_base_t *inst, uint8_t **ppfame, int *length);
 
-bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *pframe, uint16_t length);
-bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength);
+bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *frame, uint16_t length);
+bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length);
 void mb_port_adapter_enable(mb_port_base_t *inst);
 void mb_port_adapter_disable(mb_port_base_t *inst);
 void mb_port_adapter_tcp_set_conn_cb(mb_port_base_t *inst, void *conn_fp, void *arg);

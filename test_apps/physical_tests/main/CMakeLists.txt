@@ -1,3 +1,5 @@
+set(PROJECT_NAME "test_modbus_comm_multi_dev")
+
 set(srcs "test_app_main.c" 
             "test_modbus_rs485_comm_master_slave.c"
             "test_modbus_tcp_comm_master_slave.c"
@@ -12,3 +14,8 @@ idf_component_register(SRCS ${srcs}
 set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u mb_test_include_phys_impl_tcp")
 set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u mb_test_include_phys_impl_serial")
 
+# Workaround to avoid static analysis false positives for some components.
+if(CONFIG_FMB_COMPILER_STATIC_ANALYZER_ENABLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${COMPONENT_LIB} PRIVATE "-fanalyzer")
+    message(STATUS "Static analyzer build for ${PROJECT_NAME}.")
+endif()

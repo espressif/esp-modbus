@@ -43,7 +43,7 @@ extern "C" {
  * a low jitter. ASCII is slower and more reliable on slower links (E.g. modems)
  * The TCP or UDP mode is used for communication over ethernet. 
  */
-typedef enum _mb_comm_mode
+typedef enum mb_comm_mode_enum
 {
     MB_RTU,                     /*!< RTU transmission mode. */
     MB_ASCII,                   /*!< ASCII transmission mode. */
@@ -71,7 +71,7 @@ typedef enum
 /*! \ingroup modbus
  * \brief Event types used by all function in the protocol stack.
  */
-typedef enum _mb_event_enum {
+typedef enum mb_event_enum {
     EV_TRANS_START = 0x0001,                    /*!< Start of transaction. */
     EV_READY = 0x0002,                          /*!< Startup finished. */
     EV_FRAME_RECEIVED = 0x0004,                 /*!< Frame received. */
@@ -88,7 +88,7 @@ typedef enum _mb_event_enum {
 /*! \ingroup modbus
  * \brief Modbus exception types used in the stack.
  */
-typedef enum _mb_exception_enum
+typedef enum mb_exception_enum
 {
     MB_EX_NONE = 0x00,
     MB_EX_ILLEGAL_FUNCTION = 0x01,
@@ -108,7 +108,7 @@ typedef mb_exception_t (*mb_fn_handler_fp)(void *, uint8_t *frame_ptr, uint16_t 
 /*! \ingroup modbus
  * \brief Error event type
  */
-typedef enum _mb_err_event_enum {
+typedef enum mb_err_event_enum {
     EV_ERROR_INIT,             /*!< No error, initial state. */
     EV_ERROR_RESPOND_TIMEOUT,  /*!< Slave respond timeout. */
     EV_ERROR_RECEIVE_DATA,     /*!< Receive frame data error. */
@@ -116,11 +116,11 @@ typedef enum _mb_err_event_enum {
     EV_ERROR_OK                /*!< No error, processing completed. */
 } mb_err_event_t;
 
-typedef struct _mb_event_t {
+typedef struct mb_event_s {
     mb_event_enum_t event;      /*!< event itself. */
     uint64_t trans_id;          /*!< unique transaction id */
     uint16_t length;            /*!< length of data accociated with the event */ 
-    void *pdata;                /*!< data accociated with the event */
+    void *data_ptr;             /*!< data accociated with the event */
     mb_err_event_t type;        /*!< error type accociated with the event */
     uint64_t post_ts;           /*!< timestamp of event posted */
     uint64_t get_ts;            /*!< timestamp of event receved */

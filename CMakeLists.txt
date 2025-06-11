@@ -91,4 +91,9 @@ endforeach()
 # target_link_options(${COMPONENT_LIB} INTERFACE -fsanitize=address)
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-strict-aliasing -Wno-write-strings -Werror)
 
+if(CONFIG_FMB_COMPILER_STATIC_ANALYZER_ENABLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${COMPONENT_LIB} PRIVATE "-fanalyzer")
+    message(STATUS "Static analyzer option `-analyzer` is applied for ${COMPONENT_NAME}.")
+endif()
+
 message(STATUS "The mdns included is: ${MB_MDNS_IS_INCLUDED}")

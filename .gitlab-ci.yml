@@ -1,4 +1,5 @@
 stages:
+  - pre_check
   - build
   - target_test
   - deploy
@@ -18,6 +19,8 @@ variables:
 .options_list:
 #  versions:
 #    IDF_VER: ["latest", "v5.3", "v5.2", "v5.0"]
+  analyzers:
+    ANALYZER_TYPE: [gcc, clang]
   markers:
     TEST_MARKER:
     - "tcp"
@@ -117,6 +120,7 @@ after_script:
     - *build_cur_folder
   variables:
     TEST_TARGETS: "esp32"
+  dependencies: []
   artifacts:
     name: artifacts_${CI_JOB_NAME}
     paths:
@@ -133,15 +137,48 @@ after_script:
       - "**/build*/partition_table/*.bin"
       - "**/idf_version_info.txt"
       - "**/test_dir*.txt"
+      - "**/warnings.txt"
       - $SIZE_INFO_LOCATION
     when: always
     expire_in: 3 weeks
+  needs: []
+
+.before_static_analyzer_build:
+  before_script:
+    - pip install --upgrade pyclang
+    - ${IDF_PATH}/tools/idf_tools.py --non-interactive install esp-clang
+    - . $IDF_PATH/export.sh
+
+build_static_analyzer_idf_latest:
+  tags:
+    - build
+  stage: pre_check
+  extends:
+    - .before_static_analyzer_build
+  image: espressif/idf:latest
+  artifacts:
+    name: artifacts_${CI_JOB_NAME}
+    paths:
+      - "${TEST_DIR}/**/idf_version_info.txt"
+      - "${TEST_DIR}/**/warnings.txt"
+      - "${TEST_DIR}/**/sdkconfig"
+    when: always
+    expire_in: 3 weeks
+  parallel:
+    matrix:
+      - !reference [.options_list, analyzers]
+  script:
+    - *check_idf_ver
+    - cd ${TEST_DIR}/examples
+    - ${TEST_DIR}/tools/static_analyzer_check.sh ${ANALYZER_TYPE}
+  needs: []
+  after_script: []
 
 build_idf_latest:
- extends: .build_pytest_template
- image: espressif/idf:latest
- variables:
-   TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2"
+  extends: .build_pytest_template
+  image: espressif/idf:latest
+  variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2"
 
 build_idf_v5.3:
   extends: .build_pytest_template

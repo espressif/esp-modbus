@@ -96,18 +96,18 @@ mb_err_enum_t mbm_rq_report_slave_id(mb_base_t *inst, uint8_t slave_addr, uint32
     return err;
 }
 
-mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *pframe, uint16_t *plen)
+mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t *len)
 {
     uint8_t byte_count = 0;
     mb_exception_t status = MB_EX_NONE;
     mb_err_enum_t err;
 
-    if (!inst || !plen || !pframe) {
+    if (!inst || !len || !frame) {
         status = MB_EX_SLAVE_DEVICE_FAILURE;
-    } else if (*plen <= MB_BUFFER_SIZE - 2) {
-        byte_count = pframe[MB_PDU_BYTECNT_OFF];
+    } else if (*len <= MB_BUFFER_SIZE - 2) {
+        byte_count = frame[MB_PDU_BYTECNT_OFF];
         // Transfer data from command buffer.
-        err = mbc_reg_common_cb(inst, &pframe[MB_PDU_FUNC_DATA_OFF], 0, byte_count);
+        err = mbc_reg_common_cb(inst, &frame[MB_PDU_FUNC_DATA_OFF], 0, byte_count);
         // If an err occured convert it into a Modbus exception.
         if (err != MB_ENOERR) {
             status = mb_error_to_exception(err);
@@ -119,19 +119,19 @@ mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *pframe, uint16_t
     return status;
 }
 
-mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *pframe, uint16_t *plen_buf)
+mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t *len_buf)
 {
     mb_exception_t status = MB_EX_NONE;
-    if (!inst || !pframe || !plen_buf || !inst->pobj_id || !inst->obj_id_len) {
+    if (!inst || !frame || !len_buf || !inst->obj_id || !inst->obj_id_len) {
         status = MB_EX_SLAVE_DEVICE_FAILURE;
     } else if ((inst->obj_id_len <= MB_BUFFER_SIZE - 2)
-                && (*plen_buf == MB_CMD_SL_ID_LEN)) {
+                && (*len_buf == MB_CMD_SL_ID_LEN)) {
         CRITICAL_SECTION(inst->lock) {
-            pframe[MB_PDU_FUNC_OFF] = MB_FUNC_OTHER_REPORT_SLAVEID; // rewrite the FC
-            *plen_buf = (uint16_t)(inst->obj_id_len);
-            pframe[MB_PDU_BYTECNT_OFF] = *plen_buf;
-            memcpy(&pframe[MB_PDU_FUNC_DATA_OFF], inst->pobj_id, (size_t)inst->obj_id_len);
-            *plen_buf += 2; // count function code + length in frame length
+            frame[MB_PDU_FUNC_OFF] = MB_FUNC_OTHER_REPORT_SLAVEID; // rewrite the FC
+            *len_buf = inst->obj_id_len;
+            frame[MB_PDU_BYTECNT_OFF] = *len_buf;
+            memcpy(&frame[MB_PDU_FUNC_DATA_OFF], inst->obj_id, (size_t)inst->obj_id_len);
+            *len_buf += 2; // count function code + length in frame length
         }
     } else {
         status = MB_EX_ILLEGAL_DATA_VALUE;
@@ -139,7 +139,7 @@ mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *pframe, uint16_t
     return status;
 }
 
-mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t slave_id, bool is_running, uint8_t const *pdata, uint8_t data_len)
+mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t slave_id, bool is_running, uint8_t const *data_ptr, uint8_t data_len)
 {
     mb_err_enum_t status = MB_ENOERR;
     // the first byte and second byte in the buffer is reserved for
@@ -147,20 +147,20 @@ mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t slave_id, bool is_runnin
     // the buffer is available for additional data.
     if (inst && inst->lock && (data_len + 2 <= MB_FUNC_OTHER_REP_SLAVEID_BUF)) {
         uint8_t chunk_num = ((data_len + 2) / MB_SLAVE_ID_CHUNK_SIZE) + 1;
-        if (!inst->pobj_id || inst->obj_id_chunks != chunk_num) {
+        if (!inst->obj_id || inst->obj_id_chunks != chunk_num) {
             CRITICAL_SECTION(inst->lock) {
-                inst->pobj_id = realloc(inst->pobj_id, (chunk_num * MB_SLAVE_ID_CHUNK_SIZE));
+                inst->obj_id = realloc(inst->obj_id, (chunk_num * MB_SLAVE_ID_CHUNK_SIZE));
             }
         }
-        if (!inst->pobj_id) {
+        if (!inst->obj_id) {
             return MB_ENORES;
         }
         CRITICAL_SECTION(inst->lock) {
             inst->obj_id_len = 0;
-            inst->pobj_id[inst->obj_id_len++] = slave_id;
-            inst->pobj_id[inst->obj_id_len++] = (uint8_t)(is_running ? 0xFF : 0x00);
+            inst->obj_id[inst->obj_id_len++] = slave_id;
+            inst->obj_id[inst->obj_id_len++] = (uint8_t)(is_running ? 0xFF : 0x00);
             if (data_len > 0) {
-                memcpy(&inst->pobj_id[inst->obj_id_len], pdata, (size_t)data_len);
+                memcpy(&inst->obj_id[inst->obj_id_len], data_ptr, (size_t)data_len);
                 inst->obj_id_len += data_len;
                 inst->obj_id_chunks = chunk_num;
             }
@@ -171,21 +171,21 @@ mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t slave_id, bool is_runnin
     return status;
 }
 
-mb_err_enum_t mbs_get_slave_id(mb_base_t *inst, uint8_t *pdata, uint8_t *pdata_len)
+mb_err_enum_t mbs_get_slave_id(mb_base_t *inst, uint8_t *data_ptr, uint8_t *data_len)
 {
     mb_err_enum_t status = MB_ENOERR;
-    if (inst && inst->lock && pdata_len) {
-        if (!inst->pobj_id) {
+    if (inst && inst->lock && data_len) {
+        if (!inst->obj_id) {
             return MB_ENOREG;
         }
-        if (pdata && (*pdata_len >= inst->obj_id_len)) {
+        if (data_ptr && (*data_len >= inst->obj_id_len)) {
             CRITICAL_SECTION(inst->lock) {
-                memcpy(pdata, &inst->pobj_id[0],(size_t)inst->obj_id_len);
+                memcpy(data_ptr, &inst->obj_id[0],(size_t)inst->obj_id_len);
             }
         } else {
             status = MB_ENORES;
         }
-        *pdata_len = inst->obj_id_len;
+        *data_len = inst->obj_id_len;
     } else {
         status = MB_EINVAL;
     }

@@ -30,10 +30,10 @@ extern "C" {
 
 #define MB_MASTER_IS_ACTIVE(pctx) ((bool)(MB_MASTER_GET_IFACE(pctx)->is_active))
 
-#define MB_MASTER_GET_IFACE_FROM_BASE(pinst) (__extension__( \
+#define MB_MASTER_GET_IFACE_FROM_BASE(inst) (__extension__( \
 { \
-    MB_MASTER_ASSERT(pinst); \
-    mb_base_t *pbase = (mb_base_t *)pinst; \
+    MB_MASTER_ASSERT(inst); \
+    mb_base_t *pbase = (mb_base_t *)inst; \
     MB_RETURN_ON_FALSE(pbase->descr.parent, MB_EILLSTATE, TAG, "Master interface is not correctly initialized."); \
     ((mbm_controller_iface_t*)pbase->descr.parent); \
 } \
@@ -42,8 +42,8 @@ extern "C" {
 /*!
  * \brief The macro to access arrays of elements for type conversion.
  */
-#define MB_EACH_ELEM(psrc, pdest, arr_size, elem_size) \
-(int i = 0; (i < (arr_size / elem_size)); i++, pdest += elem_size, psrc += elem_size)
+#define MB_EACH_ELEM(src_ptr, dest_ptr, arr_size, elem_size) \
+(int i = 0; (i < (arr_size / elem_size)); i++, dest_ptr += elem_size, src_ptr += elem_size)
 
 /**
  * @brief Request mode for parameter to use in data dictionary
@@ -195,7 +195,7 @@ typedef struct {
  *     - ESP_ERR_NOT_SUPPORTED  Port type not supported
  *     - ESP_ERR_INVALID_STATE  Initialization failure
  */
-esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void ** ctx);
+esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void **ctx);
 
 /**
  * @brief Initialize Modbus Master controller and stack for Serial port
@@ -208,7 +208,7 @@ esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void ** ctx);
  *     - ESP_ERR_NOT_SUPPORTED  Port type not supported
  *     - ESP_ERR_INVALID_STATE  Initialization failure
  */
-esp_err_t mbc_master_create_serial(mb_communication_info_t *config, void ** ctx);
+esp_err_t mbc_master_create_serial(mb_communication_info_t *config, void **ctx);
 
 /**
  * @brief Deletes Modbus controller and stack engine
@@ -413,58 +413,58 @@ esp_err_t mbc_master_set_parameter_with(void *ctx, uint16_t cid, uint8_t uid, ui
  *
  * @param[in] inst the pointer of the initialized modbus base
  * @param[in] reg_buffer input buffer of registers
- * @param[in] address - start address of register
+ * @param[in] reg_address - start address of register
  * @param[in] mode - parameter access mode (MB_REG_READ, MB_REG_WRITE)
- * @param[in] n_regs - number of registers
+ * @param[in] num_regs - number of registers
  * 
  * @return
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode) __attribute__ ((weak));
+mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_address, uint16_t num_regs, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 /**
  * @brief Input register read/write callback function
  *
  * @param[in] inst the pointer of the initialized modbus base
  * @param[in] reg_buffer input buffer of registers
- * @param[in] address - start address of register
- * @param[in] n_regs - number of registers
+ * @param[in] reg_address - start address of register
+ * @param[in] num_regs - number of registers
  *
  * @return
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs) __attribute__ ((weak));
+mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_address, uint16_t num_regs) __attribute__ ((weak));
 
 /**
  * @brief Discrete register read/write callback function
  *
  * @param[in] inst the pointer of the initialized modbus base
  * @param[in] reg_buffer input buffer of registers
- * @param[in] address - start address of register
+ * @param[in] reg_address - start address of register
  * @param[in] n_discrete - number of discrete registers
  * 
  * @return
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete) __attribute__ ((weak));
+mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_address, uint16_t n_discrete) __attribute__ ((weak));
 
 /**
  * @brief Coil register read/write callback function
  *
  * @param[in] inst the pointer of the initialized modbus base
  * @param[in] reg_buffer input buffer of registers
- * @param[in] address - start address of register
- * @param[in] n_coils - number of coil registers
+ * @param[in] reg_addr - start address of register
+ * @param[in] ncoils - number of coil registers
  * @param[in] mode - parameter access mode (MB_REG_READ, MB_REG_WRITE)
  *
  * @return
  *     - MB_ENOERR: Read write is successful
  *     - MB_ENOREG: The argument is incorrect
  */
-mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_coils, mb_reg_mode_enum_t mode) __attribute__ ((weak));
+mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_addr, uint16_t ncoils, mb_reg_mode_enum_t mode) __attribute__ ((weak));
 
 /**
  * @brief The helper function to set data of parameters according to its type
@@ -486,14 +486,14 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
 /**
  * @brief The helper function to get supported modbus function code (command) according to parameter type
  *
- * @param[in] pdescr the pointer to the characteristic descriptor in data dictionary
+ * @param[in] descr the pointer to the characteristic descriptor in data dictionary
  * @param[in] mode access mode for characteristic
  *
  * @return
  *     - modbus function code, if the command is correctly configured
  *     - 0 - invalid argument or command not found
 */
-uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *pdescr, mb_param_mode_t mode);
+uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *descr, mb_param_mode_t mode);
 
 
 #ifdef __cplusplus

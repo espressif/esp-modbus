@@ -14,14 +14,14 @@ extern "C" {
 #endif
 
 typedef struct mb_trans_base_t mb_trans_base_t;  /*!< Type of moddus transport object */
-typedef struct _obj_descr obj_descr_t;
+typedef struct obj_descr_s obj_descr_t;
 
 typedef void (*mb_frm_start_fp)(mb_trans_base_t *transport);
 typedef void (*mb_frm_stop_fp)(mb_trans_base_t *transport);
-typedef mb_err_enum_t (*mb_frm_rcv_fp)(mb_trans_base_t *transport, uint8_t *rcv_addr_buf, uint8_t **frame_ptr_buf, uint16_t *len_buf);
+typedef mb_err_enum_t (*mb_frm_rcv_fp)(mb_trans_base_t *transport, uint8_t *rcv_addr_buf, uint8_t **frame_buf, uint16_t *len_buf);
 typedef mb_err_enum_t (*mb_frm_snd_fp)(mb_trans_base_t *transport, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
-typedef void (*mb_get_rx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_ptr_buf);
-typedef void (*mb_get_tx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_ptr_buf);
+typedef void (*mb_get_rx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_buf);
+typedef void (*mb_get_tx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_buf);
 typedef bool (*mb_get_fp)(mb_trans_base_t *inst);
 
 struct mb_trans_base_t

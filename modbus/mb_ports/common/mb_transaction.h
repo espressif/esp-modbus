@@ -48,7 +48,7 @@ typedef enum pending_state {
 
 transaction_handle_t transaction_init(void);
 transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, transaction_message_handle_t message, transaction_tick_t tick);
-transaction_item_handle_t transaction_dequeue(transaction_handle_t transaction, pending_state_t pending, transaction_tick_t *tick);
+transaction_item_handle_t transaction_dequeue(transaction_handle_t transaction, pending_state_t state, transaction_tick_t *tick);
 transaction_item_handle_t transaction_get(transaction_handle_t transaction, int msg_id);
 transaction_item_handle_t transaction_get_first(transaction_handle_t transaction);
 uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len, uint16_t *msg_id, int *node_id);
@@ -62,7 +62,7 @@ int transaction_delete_expired(transaction_handle_t transaction, transaction_tic
  * @return msg id of the deleted message, -1 if no expired message in the transaction
  */
 int transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout);
-esp_err_t transaction_set_state(transaction_handle_t transaction, int msg_id, pending_state_t pending);
+esp_err_t transaction_set_state(transaction_handle_t transaction, int msg_id, pending_state_t state);
 pending_state_t transaction_item_get_state(transaction_item_handle_t item);
 esp_err_t transaction_item_set_state(transaction_item_handle_t item, pending_state_t state);
 esp_err_t transaction_set_tick(transaction_handle_t transaction, int msg_id, transaction_tick_t tick);

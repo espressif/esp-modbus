@@ -27,40 +27,40 @@ struct mb_port_event_t
 
 mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
 {
-    mb_port_event_t *pevent = NULL;
+    mb_port_event_t *event_obj = NULL;
     mb_err_enum_t ret = MB_EILLSTATE;
     MB_RETURN_ON_FALSE((inst), MB_EILLSTATE, TAG, "mb event creation error.");
-    pevent = (mb_port_event_t *)calloc(1, sizeof(mb_port_event_t));
-    MB_RETURN_ON_FALSE((pevent), MB_EILLSTATE, TAG, "mb event creation error.");
+    event_obj = (mb_port_event_t *)calloc(1, sizeof(mb_port_event_t));
+    MB_RETURN_ON_FALSE((event_obj), MB_EILLSTATE, TAG, "mb event creation error.");
     // Create modbus semaphore (mb resource).
-    pevent->resource_hdl = xSemaphoreCreateBinary();
-    MB_GOTO_ON_FALSE((pevent->resource_hdl), MB_EILLSTATE, error, TAG,
+    event_obj->resource_hdl = xSemaphoreCreateBinary();
+    MB_GOTO_ON_FALSE((event_obj->resource_hdl), MB_EILLSTATE, error, TAG,
                             "%s, mb resource create failure.", inst->descr.parent_name);
-    pevent->event_group_hdl = xEventGroupCreate();
-    MB_GOTO_ON_FALSE((pevent->event_group_hdl), MB_EILLSTATE, error, TAG,
+    event_obj->event_group_hdl = xEventGroupCreate();
+    MB_GOTO_ON_FALSE((event_obj->event_group_hdl), MB_EILLSTATE, error, TAG,
                         "%s, event group create error.", inst->descr.parent_name);
-    pevent->event_hdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(mb_event_t));
-    MB_GOTO_ON_FALSE((pevent->event_hdl), MB_EILLSTATE, error,  TAG, "%s, event queue create error.", inst->descr.parent_name);
-    vQueueAddToRegistry(pevent->event_hdl, TAG);
-    inst->event_obj = pevent;
-    atomic_init(&pevent->curr_err_type, EV_ERROR_INIT);
-    ESP_LOGD(TAG, "initialized object @%p", pevent);
+    event_obj->event_hdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(mb_event_t));
+    MB_GOTO_ON_FALSE((event_obj->event_hdl), MB_EILLSTATE, error,  TAG, "%s, event queue create error.", inst->descr.parent_name);
+    vQueueAddToRegistry(event_obj->event_hdl, TAG);
+    inst->event_obj = event_obj;
+    atomic_init(&event_obj->curr_err_type, EV_ERROR_INIT);
+    ESP_LOGD(TAG, "initialized object @%p", event_obj);
     return MB_ENOERR;
 
 error:
-    if(pevent->event_hdl) {
-        vQueueDelete(pevent->event_hdl);
-        pevent->event_hdl = NULL;
+    if(event_obj->event_hdl) {
+        vQueueDelete(event_obj->event_hdl);
+        event_obj->event_hdl = NULL;
     }
-    if (pevent->event_group_hdl) {
-        vEventGroupDelete(pevent->event_group_hdl);
-        pevent->event_group_hdl = NULL;
+    if (event_obj->event_group_hdl) {
+        vEventGroupDelete(event_obj->event_group_hdl);
+        event_obj->event_group_hdl = NULL;
     }
-    if (pevent->resource_hdl) {
-        vSemaphoreDelete(pevent->resource_hdl);
-        pevent->resource_hdl = NULL;
+    if (event_obj->resource_hdl) {
+        vSemaphoreDelete(event_obj->resource_hdl);
+        event_obj->resource_hdl = NULL;
     }
-    free(inst->event_obj);
+    free(event_obj);
     inst->event_obj = NULL;
     return ret;
 }
@@ -104,40 +104,35 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
         result = xQueueSendFromISR(inst->event_obj->event_hdl, 
                                     (const void*)&temp_event, &high_prio_task_woken);
         // Was the message posted successfully?
-        if (result == pdPASS) {
-            // If high_prio_task_woken is now set to pdTRUE
-            // then a context switch should be requested.
-            if (high_prio_task_woken) {
-                portYIELD_FROM_ISR();
-            }
-            return true;
-        } else {
+        if (result != pdPASS) {
             ESP_EARLY_LOGV(TAG, "%s, post message %x failure .", inst->descr.parent_name, temp_event.event);
             return false;
         }    
+        // If high_prio_task_woken is now set to pdTRUE
+        // then a context switch should be requested.
         if (high_prio_task_woken) {
             portYIELD_FROM_ISR();
         }
-    } else {
-        result = xQueueSend(inst->event_obj->event_hdl, (const void*)&temp_event, MB_EVENT_QUEUE_TIMEOUT_MAX);
-        if (result != pdTRUE) {
-            xQueueReset(inst->event_obj->event_hdl);
-            ESP_LOGE(TAG, "%s, post message failure.", inst->descr.parent_name);
-            return false;
-        }
+        return true;
+    }
+    result = xQueueSend(inst->event_obj->event_hdl, (const void*)&temp_event, MB_EVENT_QUEUE_TIMEOUT_MAX);
+    if (result != pdTRUE) {
+        xQueueReset(inst->event_obj->event_hdl);
+        ESP_LOGE(TAG, "%s, post message failure.", inst->descr.parent_name);
+        return false;
     }
     return true;
 }
 
-bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent)
+bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 {
-    MB_RETURN_ON_FALSE((inst && pevent && inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
+    MB_RETURN_ON_FALSE((inst && event && inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
                             "incorrect object handle.");
     bool event_happened = false;
 
-    if (xQueueReceive(inst->event_obj->event_hdl, pevent, MB_EVENT_QUEUE_TIMEOUT_MAX) == pdTRUE) {
-        pevent->trans_id = atomic_load(&inst->event_obj->curr_trans_id);
-        pevent->get_ts = esp_timer_get_time();
+    if (xQueueReceive(inst->event_obj->event_hdl, event, MB_EVENT_QUEUE_TIMEOUT_MAX) == pdTRUE) {
+        event->trans_id = atomic_load(&inst->event_obj->curr_trans_id);
+        event->get_ts = esp_timer_get_time();
         event_happened = true;
     } else {
         ESP_LOGD(TAG, "%s, get event timeout.", inst->descr.parent_name);
@@ -152,7 +147,7 @@ bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
     BaseType_t status = pdTRUE;
     status = xSemaphoreTake(inst->event_obj->resource_hdl, timeout);
     ESP_LOGD(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
-    return status;
+    return (bool)status;
 }
 
 void mb_port_event_res_release(mb_port_base_t *inst)
@@ -178,11 +173,11 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
                             "incorrect object handle.");
     mb_err_enum_t err_status = MB_ENOERR;
     mb_event_enum_t rcv_event;
-    EventBits_t bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl, // The event group being tested.
-                                                MB_EVENT_REQ_MASK,  // The bits within the event group to wait for.
-                                                pdTRUE,             // Masked bits should be cleared before returning.
-                                                pdFALSE,            // Don't wait for both bits, either bit will do.
-                                                MB_EVENT_QUEUE_TIMEOUT_MAX);    // Wait forever for either bit to be set.
+    EventBits_t bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl,// The event group being tested.
+                                                MB_EVENT_REQ_MASK,          // The bits within the event group to wait for.
+                                                pdTRUE,                     // Masked bits should be cleared before returning.
+                                                pdFALSE,                    // Don't wait for both bits, either bit will do.
+                                                MB_EVENT_QUEUE_TIMEOUT_MAX);// Wait forever for either bit to be set.
     rcv_event = (mb_event_enum_t)(bits);
     if (rcv_event) {
         ESP_LOGD(TAG, "%s, %s: returned event = 0x%x", inst->descr.parent_name, __func__, (int)rcv_event);

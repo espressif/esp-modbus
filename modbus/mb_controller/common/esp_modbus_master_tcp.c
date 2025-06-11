@@ -14,13 +14,13 @@
 /**
  * Initialization of Modbus TCP Master controller interface
  */
-esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void **handler)
+esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void **ctx)
 {
-    void *ctx = NULL;
-    esp_err_t error = mbc_tcp_master_create(config, &ctx);
+    void *obj = NULL;
+    esp_err_t error = mbc_tcp_master_create(config, &obj);
 
-    if ((ctx) && (error == ESP_OK)) {
-        *handler = ctx;
+    if ((obj) && (error == ESP_OK)) {
+        *ctx = obj;
     }
     return  error;
 }

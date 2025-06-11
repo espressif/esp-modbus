@@ -18,13 +18,13 @@ extern "C" {
 #endif
 
 
-typedef enum _mb_comm_mode mb_mode_type_t;
+typedef enum mb_comm_mode_enum mb_mode_type_t;
 typedef struct mb_port_base_t mb_port_base_t;
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
-mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **port_obj);
-bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **pp_ser_frame, uint16_t *p_ser_length);
+mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in_out_obj);
+bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *p_ser_length);
 bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t ser_length);
 void mb_port_ser_enable(mb_port_base_t *inst);
 void mb_port_ser_disable(mb_port_base_t *inst);

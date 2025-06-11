@@ -26,10 +26,10 @@ typedef struct
 /* ----------------------- Function prototypes ------------------------------*/
 static void mbs_tcp_transp_start(mb_trans_base_t *inst);
 static void mbs_tcp_transp_stop(mb_trans_base_t *inst);
-static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr, uint8_t **frame_ptr_buf, uint16_t *pbuf_len);
-static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused, const uint8_t *frame_ptr, uint16_t len);
-static void mbs_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
-static void mbs_tcp_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
+static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr, uint8_t **frame_buf, uint16_t *buf_len);
+static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused, const uint8_t *frame, uint16_t len);
+static void mbs_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
+static void mbs_tcp_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
 bool mbs_tcp_transp_delete(mb_trans_base_t *inst);
 static bool mbs_tcp_transp_timer_expired(void *inst);
 
@@ -119,16 +119,16 @@ static void mbs_tcp_transp_stop(mb_trans_base_t *inst)
     };
 }
 
-static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr, uint8_t **frame_ptr_buf, uint16_t *pbuf_len)
+static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr, uint8_t **frame_buf, uint16_t *buf_len)
 {
-    if (!pbuf_len || !frame_ptr_buf || !pbuf_len) {
+    if (!buf_len || !frame_buf || !buf_len) {
         return MB_EIO;
     }
 
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
 
     uint8_t *frame_ptr = (uint8_t *)transp->recv_buf;
-    uint16_t length = *pbuf_len;
+    uint16_t length = *buf_len;
     mb_err_enum_t status = MB_EIO;
     uint16_t pid;
 
@@ -137,8 +137,8 @@ static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
         pid |= frame_ptr[MB_TCP_PID + 1];
 
         if (pid == MB_TCP_PROTOCOL_ID) {
-            *frame_ptr_buf = &frame_ptr[MB_TCP_FUNC];
-            *pbuf_len = length - MB_TCP_FUNC;
+            *frame_buf = &frame_ptr[MB_TCP_FUNC];
+            *buf_len = length - MB_TCP_FUNC;
             status = MB_ENOERR;
 
             /* Get MBAP UID field if its support is enabled.
@@ -156,10 +156,10 @@ static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
     return status;
 }
 
-static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused, const uint8_t *pframe, uint16_t len)
+static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused, const uint8_t *frame, uint16_t len)
 {
     mb_err_enum_t status = MB_ENOERR;
-    uint8_t *frame_ptr = (uint8_t *)pframe - MB_TCP_FUNC;
+    uint8_t *frame_ptr = (uint8_t *)frame - MB_TCP_FUNC;
     uint16_t tcp_len = len + MB_TCP_FUNC;
 
     /* The MBAP header is already initialized because the caller calls this
@@ -212,19 +212,19 @@ static bool mbs_tcp_transp_timer_expired(void *inst)
     return need_poll;
 }
 
-static void mbs_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbs_tcp_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = transp->recv_buf + MB_TCP_FUNC;
+        *frame_buf = transp->recv_buf + MB_TCP_FUNC;
     }
 }
 
-static void mbs_tcp_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbs_tcp_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = transp->send_buf + MB_TCP_FUNC;
+        *frame_buf = transp->send_buf + MB_TCP_FUNC;
     }
 }
 

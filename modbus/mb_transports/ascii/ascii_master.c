@@ -28,12 +28,12 @@ typedef struct
     volatile mb_timer_mode_enum_t cur_timer_mode;
 } mbm_ascii_trasp_t;
 
-static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr_buf, uint8_t **frame_ptr_buf, uint16_t *len_buf);
+static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *recv_addr, uint8_t **frame_buf, uint16_t *buf_len);
 static mb_err_enum_t mbm_ascii_transp_send(mb_trans_base_t *inst, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
 static void mbm_ascii_transp_start(mb_trans_base_t *inst);
 static void mbm_ascii_transp_stop(mb_trans_base_t *inst);
-static void mbm_ascii_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
-static void mbm_ascii_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
+static void mbm_ascii_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
+static void mbm_ascii_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
 static bool mbm_ascii_transp_timer_expired(void *inst);
 static bool mbm_ascii_transp_rq_is_bcast(mb_trans_base_t *inst);
 
@@ -42,9 +42,11 @@ mb_err_enum_t mbm_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_
     MB_RETURN_ON_FALSE((ser_opts && in_out_inst), MB_EINVAL, TAG, "invalid options for the instance.");
     mb_err_enum_t ret = MB_ENOERR;
     mbm_ascii_trasp_t *transp = NULL;
+    mb_port_base_t *port_obj = NULL;
     transp = (mbm_ascii_trasp_t *)calloc(1, sizeof(mbm_ascii_trasp_t));
+    MB_GOTO_ON_FALSE((transp), MB_EILLSTATE, error, TAG, "no mem for transport instance.");
     transp->pascii_puf = calloc(1, MB_ASCII_SER_PDU_SIZE_MAX);
-    MB_RETURN_ON_FALSE((transp && transp->pascii_puf), MB_EILLSTATE, TAG, "no mem for ascii master transport instance.");
+    MB_GOTO_ON_FALSE((transp->pascii_puf), MB_EILLSTATE, error, TAG, "no mem for ascii master transport instance.");
     CRITICAL_SECTION_INIT(transp->base.lock);
     CRITICAL_SECTION_LOCK(transp->base.lock);
     transp->base.frm_rcv = mbm_ascii_transp_receive;
@@ -57,7 +59,7 @@ mb_err_enum_t mbm_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_
     transp->base.frm_is_bcast = mbm_ascii_transp_rq_is_bcast;
     transp->base.descr = ((mb_port_base_t *)*in_out_inst)->descr;
     transp->base.descr.obj_name = (char *)TAG;
-    mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
+    port_obj = (mb_port_base_t *)*in_out_inst;
     ret = mb_port_ser_create(ser_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "serial port creation, err: %d", ret);
     ret = mb_port_timer_create(port_obj, (MB_ASCII_TIMEOUT_MS * MB_TIMER_TICS_PER_MS));
@@ -81,15 +83,17 @@ mb_err_enum_t mbm_ascii_transp_create(mb_serial_opts_t *ser_opts, void **in_out_
     return MB_ENOERR;
 
 error:
-    free((void *)transp->pascii_puf);
-    transp->pascii_puf = NULL;
+    if (transp) {
+        free((void *)transp->pascii_puf);
+        transp->pascii_puf = NULL;
+        CRITICAL_SECTION_UNLOCK(transp->base.lock);
+        CRITICAL_SECTION_CLOSE(transp->base.lock);
+    }
     if (port_obj) {
         free(port_obj->event_obj);
         free(port_obj->timer_obj);
     }
     free(port_obj);
-    CRITICAL_SECTION_UNLOCK(transp->base.lock);
-    CRITICAL_SECTION_CLOSE(transp->base.lock);
     free(transp);
     return ret;
 }
@@ -129,19 +133,19 @@ static void mbm_ascii_transp_stop(mb_trans_base_t *inst)
     };
 }
 
-static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *prcv_addr, uint8_t **ppframe_buf, uint16_t *pbuf_len)
+static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *recv_addr, uint8_t **frame_buf, uint16_t *buf_len)
 {
     mbm_ascii_trasp_t *transp = __containerof(inst, mbm_ascii_trasp_t, base);
     mb_err_enum_t status = MB_ENOERR;
 
-    if (!pbuf_len) {
+    if (!buf_len) {
         return MB_EIO;
     }
 
-    uint8_t *pbuf = (uint8_t *)transp->rcv_buf;
-    uint16_t length = *pbuf_len;
+    uint8_t *buf = (uint8_t *)transp->rcv_buf;
+    uint16_t length = *buf_len;
 
-    if (mb_port_ser_recv_data(inst->port_obj, &pbuf, &length) == false)
+    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false)
     {
         return MB_EPORTERR;
     }
@@ -149,23 +153,23 @@ static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *pr
     assert(length < MB_ASCII_SER_PDU_SIZE_MAX);
 
     // Convert the received ascii frame buffer to the binary representation
-    int ret = mb_ascii_get_binary_buf(pbuf, length);
+    int ret = mb_ascii_get_binary_buf(buf, length);
 
     /* Check length and LRC checksum */
     if (ret >= MB_ASCII_SER_PDU_SIZE_MIN) {
         /* Save the address field. All frames are passed to the upper layed
          * and the decision if a frame is used is done there.
          */
-        *prcv_addr = pbuf[MB_SER_PDU_ADDR_OFF];
+        *recv_addr = buf[MB_SER_PDU_ADDR_OFF];
 
         /* Total length of Modbus-PDU is Modbus-Serial-Line-PDU minus
          * size of address field and LRC checksum.
          */
-        *pbuf_len = (uint16_t)(ret - MB_SER_PDU_PDU_OFF - MB_SER_PDU_SIZE_LRC);
+        *buf_len = (uint16_t)(ret - MB_SER_PDU_PDU_OFF - MB_SER_PDU_SIZE_LRC);
         transp->rcv_buf_pos = ret;
 
         /* Return the start of the Modbus PDU to the caller. */
-        *ppframe_buf = (uint8_t *)&pbuf[MB_SER_PDU_PDU_OFF];
+        *frame_buf = &buf[MB_SER_PDU_PDU_OFF];
     } else {
         status = MB_EIO;
     }
@@ -191,9 +195,9 @@ static mb_err_enum_t mbm_ascii_transp_send(mb_trans_base_t *inst, uint8_t slv_ad
         transp->snd_buf_cnt += frame_len;
 
         /* Prepare the ASCII buffer and send it to port */
-        int ascii_len = mb_ascii_set_buf(transp->snd_buf_cur, (uint8_t *)transp->pascii_puf, transp->snd_buf_cnt);
+        int ascii_len = mb_ascii_set_buf(transp->snd_buf_cur, transp->pascii_puf, transp->snd_buf_cnt);
         if (ascii_len > MB_ASCII_SER_PDU_SIZE_MIN) {
-            bool ret = mb_port_ser_send_data(inst->port_obj, (uint8_t *)transp->pascii_puf, ascii_len);
+            bool ret = mb_port_ser_send_data(inst->port_obj, transp->pascii_puf, ascii_len);
             if (!ret) {
                 return MB_EPORTERR;
             }
@@ -264,19 +268,19 @@ static bool mbm_ascii_transp_timer_expired(void *inst)
     return need_poll;
 }
 
-static void mbm_ascii_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbm_ascii_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbm_ascii_trasp_t *transp = __containerof(inst, mbm_ascii_trasp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = (uint8_t *)&transp->rcv_buf[MB_PDU_FUNC_OFF];
+        *frame_buf = &transp->rcv_buf[MB_PDU_FUNC_OFF];
     }
 }
 
-static void mbm_ascii_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbm_ascii_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbm_ascii_trasp_t *transp = __containerof(inst, mbm_ascii_trasp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = (uint8_t *)&transp->snd_buf[MB_ASCII_SER_PDU_PDU_OFF];
+        *frame_buf = &transp->snd_buf[MB_ASCII_SER_PDU_PDU_OFF];
     }
 }
 

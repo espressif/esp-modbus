@@ -15,14 +15,14 @@
 /**
  * Initialization of Modbus TCP Slave controller
  */
-esp_err_t mbc_slave_create_tcp(mb_communication_info_t *config, void **handler)
+esp_err_t mbc_slave_create_tcp(mb_communication_info_t *config, void **ctx)
 {
-    void *ctx = NULL;
-    esp_err_t error = mbc_tcp_slave_create(config, &ctx);
+    void *obj = NULL;
+    esp_err_t error = mbc_tcp_slave_create(config, &obj);
 
-    if ((ctx) && (error == ESP_OK)) {
-        mbc_slave_init_iface(ctx);
-        *handler = ctx;
+    if ((obj) && (error == ESP_OK)) {
+        mbc_slave_init_iface(obj);
+        *ctx = obj;
     }
     return  error;
 }

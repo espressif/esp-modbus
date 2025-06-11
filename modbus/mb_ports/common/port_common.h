@@ -30,8 +30,8 @@ extern "C" {
 #define MB_EVENT_QUEUE_TIMEOUT_MAX      (pdMS_TO_TICKS(MB_EVENT_QUEUE_TIMEOUT_MAX_MS))
 #define MB_MS_TO_TICKS(time_ms)         (pdMS_TO_TICKS(time_ms))
 
-int lock_obj(_lock_t *plock);
-void unlock_obj(_lock_t *plock);
+int lock_obj(_lock_t *lock_ptr);
+void unlock_obj(_lock_t *lock_ptr);
 
 #define CRITICAL_SECTION_INIT(lock)   \
     do                                \
@@ -104,9 +104,9 @@ void unlock_obj(_lock_t *plock);
 #define EVENT_2(_1, _2) \
     (mb_event_t) { .event = _1, .length = _2 }
 #define EVENT_3(_1, _2, _3) \
-    (mb_event_t) { .event = _1, .length = _2, .pdata = _3 }
+    (mb_event_t) { .event = _1, .length = _2, .data_ptr = _3 }
 #define EVENT_4(_1, _2, _3, _4) \
-    (mb_event_t) { .event = _1, .length = _2, .pdata = _3, .type = _4 }
+    (mb_event_t) { .event = _1, .length = _2, .data_ptr = _3, .type = _4 }
 
 typedef struct mb_port_base_t mb_port_base_t;
 
@@ -117,7 +117,7 @@ typedef struct
 
 //((mb_port_base_t *)(((mb_common_iface_t *)pctx)->mb_base)->lock);
 
-#define MB_OBJ_GET_LOCK(pctx) (__extension__(                  \
+#define MB_OBJ_GET_LOCK(pctx) (__extension__(              \
 {                                                          \
     assert((pctx));                                        \
     mb_common_iface_t *iface = (mb_common_iface_t *)pctx;  \
@@ -136,14 +136,14 @@ typedef struct
 
 typedef struct mb_port_event_t mb_port_event_t;
 typedef struct mb_port_timer_t mb_port_timer_t;
-typedef struct _obj_descr obj_descr_t;
+typedef struct obj_descr_s obj_descr_t;
 
-typedef struct _frame_queue_entry
+typedef struct frame_queue_entry_s
 {
     uint16_t tid;  /*!< Transaction identifier (TID) for slave */
     uint16_t pid;  /*!< Protocol ID field of MBAP frame */
     uint16_t uid;  /*!< Slave unit ID (UID) field for MBAP frame  */
-    uint8_t *pbuf; /*!< Points to the buffer for the frame */
+    uint8_t *buf;  /*!< Points to the buffer for the frame */
     uint16_t len;  /*!< Length of the frame in the buffer */
     bool check;    /*!< Checked flag */
 } frame_entry_t;
@@ -160,7 +160,7 @@ struct mb_port_base_t
 };
 
 // Port event functions
-mb_err_enum_t mb_port_event_create(mb_port_base_t *port_obj);
+mb_err_enum_t mb_port_event_create(mb_port_base_t *inst);
 bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event);
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
@@ -196,8 +196,8 @@ QueueHandle_t queue_create(int queue_size);
 void queue_delete(QueueHandle_t queue);
 void queue_flush(QueueHandle_t queue);
 bool queue_is_empty(QueueHandle_t queue);
-esp_err_t queue_push(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t *pframe);
-ssize_t queue_pop(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t *pframe);
+esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *frame);
+ssize_t queue_pop(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *frame);
 
 
 #ifdef __cplusplus

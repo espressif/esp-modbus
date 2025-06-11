@@ -32,13 +32,13 @@ typedef struct
 mb_err_enum_t mbm_rtu_transp_create(mb_serial_opts_t *ser_opts, void **in_out_inst);
 static void mbm_rtu_transp_start(mb_trans_base_t *inst);
 static void mbm_rtu_transp_stop(mb_trans_base_t *inst);
-static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr_buf, uint8_t **frame_ptr_buf, uint16_t *len_buf);
+static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_addr_buf, uint8_t **frame_buf, uint16_t *len_buf);
 static mb_err_enum_t mbm_rtu_transp_send(mb_trans_base_t *inst, uint8_t slv_addr, const uint8_t *frame_ptr, uint16_t len);
 static bool mbm_rtu_transp_rcv_fsm(mb_trans_base_t *inst);
 static bool mbm_rtu_transp_snd_fsm(mb_trans_base_t *inst);
 static bool mbm_rtu_transp_timer_expired(void *inst);
-static void mbm_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
-static void mbm_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf);
+static void mbm_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
+static void mbm_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf);
 // static uint16_t mbm_rtu_transp_get_snd_len(mb_trans_base_t *inst);
 static void mbm_rtu_transp_set_snd_len(mb_trans_base_t *inst, uint16_t snd_pdu_len);
 static bool mbm_rtu_transp_rq_is_bcast(mb_trans_base_t *inst);
@@ -133,43 +133,43 @@ static void mbm_rtu_transp_stop(mb_trans_base_t *inst)
     };
 }
 
-static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *prcv_addr, uint8_t **ppframe_buf, uint16_t *pbuf_len)
+static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *recv_addr, uint8_t **frame_buf, uint16_t *buf_len)
 {
     mbm_rtu_transp_t *transp = __containerof(inst, mbm_rtu_transp_t, base);
     
-    if (!pbuf_len || !prcv_addr || !ppframe_buf || !pbuf_len) {
+    if (!buf_len || !recv_addr || !frame_buf || !buf_len) {
         return MB_EIO;
     }
 
     mb_err_enum_t status = MB_ENOERR;
 
-    uint8_t *pbuf = (uint8_t *)transp->rcv_buf;
-    uint16_t length = *pbuf_len;
+    uint8_t *buf = (uint8_t *)transp->rcv_buf;
+    uint16_t length = *buf_len;
 
-    if (mb_port_ser_recv_data(inst->port_obj, &pbuf, &length) == false) {
-        *pbuf_len = 0;
+    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false) {
+        *buf_len = 0;
         return MB_EPORTERR;
     }
 
     assert(length < MB_RTU_SER_PDU_SIZE_MAX);
-    assert(pbuf);
+    assert(buf);
 
     /* Check length and CRC checksum */
     if ((length >= MB_RTU_SER_PDU_SIZE_MIN)
-        && (mb_crc16((uint8_t *)pbuf, length) == 0)) {
+        && (mb_crc16((uint8_t *)buf, length) == 0)) {
         /* Save the address field. All frames are passed to the upper layed
          * and the decision if a frame is used is done there.
          */
-        *prcv_addr = pbuf[MB_SER_PDU_ADDR_OFF];
+        *recv_addr = buf[MB_SER_PDU_ADDR_OFF];
 
         /* Total length of Modbus-PDU is Modbus-Serial-Line-PDU minus
          * size of address field and CRC checksum.
          */
-        *pbuf_len = (uint16_t)(length - MB_SER_PDU_PDU_OFF - MB_SER_PDU_SIZE_CRC);
+        *buf_len = (uint16_t)(length - MB_SER_PDU_PDU_OFF - MB_SER_PDU_SIZE_CRC);
         transp->rcv_buf_pos = length;
 
         /* Return the start of the Modbus PDU to the caller. */
-        *ppframe_buf = (uint8_t *)&pbuf[MB_SER_PDU_PDU_OFF];
+        *frame_buf = (uint8_t *)&buf[MB_SER_PDU_PDU_OFF];
     } else {
         status = MB_EIO;
     }
@@ -266,19 +266,19 @@ static bool mbm_rtu_transp_timer_expired(void *inst)
     return need_poll;
 }
 
-static void mbm_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbm_rtu_transp_get_rcv_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbm_rtu_transp_t *transp = __containerof(inst, mbm_rtu_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = (uint8_t *)&transp->rcv_buf[MB_PDU_FUNC_OFF];
+        *frame_buf = (uint8_t *)&transp->rcv_buf[MB_PDU_FUNC_OFF];
     }
 }
 
-static void mbm_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_ptr_buf)
+static void mbm_rtu_transp_get_snd_buf(mb_trans_base_t *inst, uint8_t **frame_buf)
 {
     mbm_rtu_transp_t *transp = __containerof(inst, mbm_rtu_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
-        *frame_ptr_buf = (uint8_t *)&transp->snd_buf[MB_RTU_SER_PDU_PDU_OFF];
+        *frame_buf = (uint8_t *)&transp->snd_buf[MB_RTU_SER_PDU_PDU_OFF];
     }
 }
 
