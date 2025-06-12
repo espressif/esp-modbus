@@ -22,11 +22,11 @@ mb_err_enum_t mbm_rq_read_discrete_inputs(mb_base_t *inst, uint8_t snd_addr, uin
 mb_err_enum_t mbm_rq_read_coils(mb_base_t *inst, uint8_t snd_addr, uint16_t coil_addr, uint16_t coil_num, uint32_t tout);
 mb_err_enum_t mbm_rq_write_coil(mb_base_t *inst, uint8_t snd_addr, uint16_t coil_addr, uint16_t coil_data, uint32_t tout);
 mb_err_enum_t mbm_rq_write_multi_coils(mb_base_t *inst, uint8_t snd_addr, uint16_t coil_addr, uint16_t coil_num, uint8_t *data_ptr, uint32_t tout);
+mb_err_enum_t mbm_rq_custom(mb_base_t *inst, uint8_t uid, uint8_t fc, uint8_t *buf, uint16_t buf_size, uint32_t tout);
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
 mb_err_enum_t mbm_rq_report_slave_id(mb_base_t *inst, uint8_t slave_addr, uint32_t timeout);
 mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t * pframe, uint16_t *usLen);
-mb_err_enum_t mbm_rq_custom(mb_base_t *inst, uint8_t uid, uint8_t fc, uint8_t *buf, uint16_t buf_size, uint32_t tout);
 
 /*! \ingroup modbus_registers
  * \brief The common callback function used to transfer common data as bytes from command buffer in little endian format.

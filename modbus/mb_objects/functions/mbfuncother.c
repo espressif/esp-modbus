@@ -34,8 +34,6 @@
 #include "mb_slave.h"
 #include "mb_master.h"
 
-#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED && MB_FUNC_OTHER_REP_SLAVEID_BUF
-
 #define MB_PDU_BYTECNT_OFF              (MB_PDU_DATA_OFF + 0)
 #define MB_PDU_FUNC_DATA_OFF            (MB_PDU_DATA_OFF + 1)
 #define MB_CMD_SL_ID_LEN                (1)
@@ -45,13 +43,13 @@
 mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 
 /**
- * This function will request read coil.
+ * This helper function performs the custom request.
  *
  * @param uid slave address
  * @param fc custom function code
  * @param buf additional data to send
  * @param buf_size size of data to send
- * @param timeout timeout (-1 will waiting forever)
+ * @param timeout timeout
  *
  * @return error code (mb_err_enum_t)
  */
@@ -76,6 +74,8 @@ mb_err_enum_t mbm_rq_custom(mb_base_t *inst, uint8_t uid, uint8_t fc, uint8_t *b
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
 }
+
+#if MB_FUNC_OTHER_REP_SLAVEID_ENABLED && MB_FUNC_OTHER_REP_SLAVEID_BUF
 
 mb_err_enum_t mbm_rq_report_slave_id(mb_base_t *inst, uint8_t slave_addr, uint32_t timeout)
 {
