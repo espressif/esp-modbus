@@ -338,11 +338,12 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
+        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
                                                                         request.slave_addr, MB_SOCK_STATE_CONNECTED);
-        MB_RETURN_ON_FALSE((paddr_info), ESP_ERR_NOT_FOUND, TAG,
-                            "mb can not send request for cid #%u with uid = %d.", 
-                            (unsigned)reg_info.cid, (int)request.slave_addr);
+        if (!paddr_info) {
+            ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
+                                (unsigned)reg_info.cid, (int)request.slave_addr);
+        }
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
         pdata = calloc(1, (reg_info.mb_size << 1));
@@ -394,8 +395,10 @@ static esp_err_t mbc_tcp_master_get_parameter_with(void *ctx, uint16_t cid, uint
         // check that the requested uid is connected (call to port iface)
         mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
                                                                         uid, MB_SOCK_STATE_CONNECTED);
-        MB_RETURN_ON_FALSE((paddr_info), ESP_ERR_NOT_FOUND, TAG,
-                            "mb can not send request for cid #%u with uid=%d.", (unsigned)reg_info.cid, (int)uid);
+        if (!paddr_info) {
+            ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
+                                (unsigned)reg_info.cid, (int)request.slave_addr);
+        }
         if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER) {
             ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
                             __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);
@@ -449,11 +452,12 @@ static esp_err_t mbc_tcp_master_set_parameter(void *ctx, uint16_t cid, uint8_t *
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
-        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
+        mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
                                                                         request.slave_addr, MB_SOCK_STATE_CONNECTED);
-        MB_RETURN_ON_FALSE((paddr_info), ESP_ERR_NOT_FOUND, TAG,
-                            "mb can not send request for cid #%u with uid=%d.",
-                            (unsigned)reg_info.cid, (int)request.slave_addr);
+        if (!paddr_info) {
+            ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
+                                (unsigned)reg_info.cid, (int)request.slave_addr);
+        }
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         pdata = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
         if (!pdata) {
@@ -503,9 +507,10 @@ static esp_err_t mbc_tcp_master_set_parameter_with(void *ctx, uint16_t cid, uint
         // check that the requested uid is connected (call to port iface)
         mb_uid_info_t *paddr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj, 
                                                                         uid, MB_SOCK_STATE_CONNECTED);
-        MB_RETURN_ON_FALSE((paddr_info), ESP_ERR_NOT_FOUND, TAG,
-                            "mb can not send request for cid #%d with uid=%d.",
-                            (unsigned)reg_info.cid, (int)uid);
+        if (!paddr_info) {
+            ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
+                                (unsigned)reg_info.cid, (int)request.slave_addr);
+        }
         if (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER) {
             ESP_LOGD(TAG, "%s: override uid %d = %d for cid(%u)",
                             __FUNCTION__, (int)request.slave_addr, (int)uid, (unsigned)reg_info.cid);

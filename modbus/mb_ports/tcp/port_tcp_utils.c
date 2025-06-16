@@ -171,18 +171,18 @@ static int port_get_buf(mb_node_info_t *pinfo, uint8_t *pdst_buf, uint16_t len, 
         if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
             // Read timeout occurred, check the timeout and return
             return 0;
-        } else if (errno == ENOTCONN) {
-            ESP_LOGE(TAG, "socket(#%d)(%s) connection closed, ret=%d, errno=%d.", 
+        } else if ((errno == ENOTCONN) || (errno == ECONNRESET)) {
+            ESP_LOGD(TAG, "socket(#%d)(%s) connection closed, ret=%d, errno=%d.", 
                             pinfo->sock_id, pinfo->addr_info.ip_addr_str, ret, (int)errno);
             // Socket connection closed
             return ERR_CONN;
         } else {
             // Other error occurred during receiving
-            ESP_LOGE(TAG, "Socket(#%d)(%s) receive error, ret = %d, errno = %d(%s)",
+            ESP_LOGD(TAG, "Socket(#%d)(%s) receive error, ret = %d, errno = %d(%s)",
                         pinfo->sock_id, pinfo->addr_info.ip_addr_str, ret, (int)errno, strerror(errno));
             return -1;
         }
-    } 
+    }
     return ret;
 }
 
@@ -217,7 +217,7 @@ int port_read_packet(mb_node_info_t *pinfo)
         // the number of bytes left to complete the current response.
         temp = MB_TCP_MBAP_GET_FIELD(ptemp_buf, MB_TCP_LEN);
         if (temp > MB_TCP_BUFF_MAX_SIZE) {
-            ESP_LOGD("RCV", "Incorrect packet length: %d", temp);
+            ESP_LOGD(TAG, "Incorrect packet length: %d", temp);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_FUNC, ESP_LOG_DEBUG);
             pinfo->recv_err = ERR_BUF;
             temp = MB_TCP_BUFF_MAX_SIZE; // read all remaining data from buffer
@@ -269,10 +269,37 @@ err_t port_set_blocking(mb_node_info_t *pinfo, bool is_blocking)
     return ERR_OK;
 }
 
-void port_keep_alive(mb_node_info_t *pinfo)
+int port_keep_alive(int sock)
 {
     int optval = 1;
-    setsockopt(pinfo->sock_id, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
+    // Enable the Keepalive feature in the LWIP stack
+    int ret = setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Sock %d, set keep alive option fail, err= (%d).", sock, ret);
+        return -1;
+    }
+    //  The interval between the last data packet sent and the first keepalive probe (seconds)
+    optval = 1;
+    ret = setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof(optval));
+    if (ret != 0) {
+        ESP_LOGD(TAG, "Sock %d, set keep idle time fail, err = (%d).", sock, ret);
+        return -1;
+    }
+    // The interval between keepalive probes (send every second)
+    optval = 1;
+    ret = setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &optval, sizeof(optval));
+    if (ret != 0) {
+        ESP_LOGD(TAG, "Sock %d, set keep alive probes interval fail, err = (%d).", sock, ret);
+        return -1;
+    }
+    // Set count of probes before timing out
+    optval = CONFIG_FMB_TCP_CONNECTION_TOUT_SEC;
+    ret = setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof(optval));
+    if (ret != 0) {
+        ESP_LOGD(TAG, "Sock %d, set keep alive probes count fail., err = (%d).", sock, ret);
+        return -1;
+    }
+    return 0;
 }
 
 // Check connection for timeout helper
@@ -393,12 +420,12 @@ err_t port_connect(void *ctx, mb_node_info_t *pinfo)
         err = connect(pinfo->sock_id, (struct sockaddr *)pcur_addr->ai_addr, pcur_addr->ai_addrlen);
         if ((err < 0) && (errno == EINPROGRESS || errno == EALREADY)) {
             // The unblocking connect is pending (check status later) or already connected
-            ESP_LOGV(TAG, "Socket(#%d)(%s) connection is pending, errno %d (%s).",
+            ESP_LOGD(TAG, "Socket(#%d)(%s) connection is pending, errno %d (%s).",
                         pinfo->sock_id, str, (int)errno, strerror(errno));
 
-            // Set keep alive flag in socket options
-            port_keep_alive(pinfo);
-            err = port_check_alive(pinfo, MB_TCP_CONNECTION_TIMEOUT_MS);
+            // Set keepalive option
+            (void)port_keep_alive(pinfo->sock_id);
+            err = port_check_alive(pinfo, MB_TCP_CHECK_ALIVE_TOUT_MS);
             continue;
         } else if ((err < 0) && (errno == EISCONN)) {
             // Socket already connected
@@ -591,7 +618,7 @@ esp_err_t port_start_mdns_service(char **ppdns_name, bool is_master, int uid, vo
         strncpy(temp_str, *ppdns_name, strlen(*ppdns_name));
         *ppdns_name[strlen(*ppdns_name)] = '\0';
     } else {
-        if (snprintf(temp_str, sizeof(temp_str), "%s_%02X", MB_MDNS_INST_NAME(is_master), uid) <= 0) {
+        if (snprintf(temp_str, sizeof(temp_str), "%s_%02x", MB_MDNS_INST_NAME(is_master), uid) <= 0) {
             return ESP_ERR_INVALID_STATE;
         };
     }
@@ -743,7 +770,7 @@ int port_resolve_mdns_host(const char *host_name, char **paddr_str)
             // Try to resolve using AAAA query
             err =  mdns_query_aaaa(host_name, MB_MDNS_QUERY_TIME_MS, &addr.u_addr.ip6);
             if (err == ESP_ERR_NOT_FOUND) {
-                ESP_LOGE(TAG, "Host: %s, was not resolved!", host_name);
+                ESP_LOGE(TAG, "Node: %s, unable to resolve!", host_name);
                 return -1;
             }
             addr.type = ESP_IPADDR_TYPE_V6;
@@ -760,7 +787,7 @@ int port_resolve_mdns_host(const char *host_name, char **paddr_str)
         }
     }
     if (paddr_str) {
-        ESP_LOGD(TAG, "Host: %s, was resolved with IP: %s", host_name, pstr);
+        ESP_LOGD(TAG, "Node: %s, was resolved with IP: %s", host_name, pstr);
         *paddr_str = pstr;
     }
     return strlen(pstr);
@@ -834,6 +861,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
             if (listen(listen_sock_fd, MB_TCP_NET_LISTEN_BACKLOG) != 0)
             {
                 ESP_LOGE(TAG, "Error occurred during listen: errno=%u", (unsigned)errno);
+                shutdown(listen_sock_fd, SHUT_RDWR);
                 close(listen_sock_fd);
                 listen_sock_fd = UNDEF_FD;
                 continue;

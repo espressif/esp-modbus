@@ -358,6 +358,8 @@ MB_EVENT_HANDLER(mbs_on_ready)
     {
         mb_drv_lock(ctx);
         pdrv_ctx->listen_sock_fd = listen_sock;
+        // so, all accepted sockets will inherit the keep-alive feature
+        (void)port_keep_alive(pdrv_ctx->listen_sock_fd);
         mb_drv_unlock(ctx);
         ESP_LOGI(TAG, "%s  %s: fd: %d, bind is done", (char *)base, __func__, (int)pevent_info->opt_fd);
     }
@@ -366,7 +368,6 @@ MB_EVENT_HANDLER(mbs_on_ready)
 MB_EVENT_HANDLER(mbs_on_open)
 {
     mb_event_info_t *pevent_info = (mb_event_info_t *)data;
-    //port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)pevent_info->opt_fd);
 }
 
@@ -380,9 +381,13 @@ MB_EVENT_HANDLER(mbs_on_connect)
         ESP_LOGD(TAG, "%s %s: fd: %d, is closed.", (char *)base, __func__, (int)pevent_info->opt_fd);
         return;
     }
+    (void)port_keep_alive(pnode->sock_id);
     mb_drv_lock(ctx);
     MB_SET_NODE_STATE(pnode, MB_SOCK_STATE_CONNECTED);
     FD_SET(pnode->sock_id, &pdrv_ctx->conn_set);
+    if (pdrv_ctx->node_conn_count < MB_MAX_FDS) {
+        pdrv_ctx->node_conn_count++;
+    }
     mb_drv_unlock(ctx);
 }
 
@@ -532,22 +537,12 @@ MB_EVENT_HANDLER(mbs_on_error)
         ESP_LOGD(TAG, "%s %s: fd: %d, is closed.", (char *)base, __func__, (int)pevent_info->opt_fd);
         return;
     }
-    port_close_connection(pnode);
-    mb_drv_lock(ctx);
-    // Check connection and unregister slave
-    if ((pnode->sock_id > 0) && (FD_ISSET(pnode->sock_id, &pdrv_ctx->conn_set)))
-    {
-        FD_CLR(pnode->sock_id, &pdrv_ctx->conn_set);
-        if (pdrv_ctx->node_conn_count)
-        {
-            pdrv_ctx->node_conn_count--;
-        }
+    // Check if the node is not alive for timeout
+    int ret = mb_drv_check_node_state(pdrv_ctx, (int *)&pevent_info->opt_fd, MB_TCP_EVENT_LOOP_TICK_MS);
+    if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
+        ESP_LOGE(TAG, "Node: #%d is not alive, err= %d", (int)pevent_info->opt_fd, ret);
+        mb_drv_close(pdrv_ctx, pevent_info->opt_fd);
     }
-    if (pnode->index && (FD_ISSET(pnode->index, &pdrv_ctx->open_set))) {
-        FD_CLR(pnode->index, &pdrv_ctx->open_set);
-    }
-    mb_drv_unlock(ctx);
-    mb_drv_close(pdrv_ctx, pevent_info->opt_fd);
 }
 
 MB_EVENT_HANDLER(mbs_on_close)
@@ -555,6 +550,7 @@ MB_EVENT_HANDLER(mbs_on_close)
     mb_event_info_t *pevent_info = (mb_event_info_t *)data;
     ESP_LOGD(TAG, "%s  %s, fd: %d", (char *)base, __func__, (int)pevent_info->opt_fd);
     port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
+    mb_node_info_t *pnode =NULL;
     // if close all sockets event is received
     if (pevent_info->opt_fd < 0)
     {
@@ -565,24 +561,18 @@ MB_EVENT_HANDLER(mbs_on_close)
             if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)
                       && FD_ISSET(pnode->index, &pdrv_ctx->open_set))
             {
-                mb_drv_lock(ctx);
-                // Check connection and unregister slave
-                if ((pnode->sock_id > 0) && (FD_ISSET(pnode->sock_id, &pdrv_ctx->conn_set)))
-                {
-                    FD_CLR(pnode->sock_id, &pdrv_ctx->conn_set);
-                    if (pdrv_ctx->node_conn_count) {
-                        pdrv_ctx->node_conn_count--;
-                    }
-                }
-                FD_CLR(pnode->index, &pdrv_ctx->open_set);
-                mb_drv_unlock(ctx);
-                // close the socket connection, if active
-                (void)port_close_connection(pnode);
-                // change slave state immediately to release from select
-                MB_SET_NODE_STATE(pnode, MB_SOCK_STATE_READY);
+                mb_drv_close(pdrv_ctx, fd);
             }
         }
         (void)mb_drv_set_status_flag(pdrv_ctx, MB_FLAG_DISCONNECTED);
+        mb_drv_check_suspend_shutdown(ctx);
+    } else if (MB_CHECK_FD_RANGE(pevent_info->opt_fd)) {
+        pnode = mb_drv_get_node(pdrv_ctx, pevent_info->opt_fd);
+        if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)) {
+            if ((pnode->sock_id < 0) && FD_ISSET(pnode->sock_id, &pdrv_ctx->open_set)) {
+                mb_drv_close(ctx, pevent_info->opt_fd);
+            }
+        }
         mb_drv_check_suspend_shutdown(ctx);
     }
 }
@@ -590,12 +580,21 @@ MB_EVENT_HANDLER(mbs_on_close)
 MB_EVENT_HANDLER(mbs_on_timeout)
 {
     // Slave timeout triggered
-    mb_event_info_t *pevent_info = (mb_event_info_t *)data;
-    //port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)pevent_info->opt_fd);
-    // Todo: add network diagnostic here (ping)? Keep empty for now.
-    //mb_drv_check_node_state(pdrv_ctx, UNDEF_FD);
+    //mb_event_info_t *pevent_info = (mb_event_info_t *)data;
+    port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
+    static int curr_fd = 0;
+    ESP_LOGD(TAG, "%s  %s: fd: %d, %d", (char *)base, __func__, (int)curr_fd, pdrv_ctx->node_conn_count);
     mb_drv_check_suspend_shutdown(ctx);
+    int ret = mb_drv_check_node_state(pdrv_ctx, &curr_fd, MB_RECONNECT_TIME_MS);
+    if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
+        ESP_LOGE(TAG, "Node: %d, connection lost, err= %d", curr_fd, ret);
+        mb_drv_close(pdrv_ctx, curr_fd);
+    }
+    if ((curr_fd + 1) >= (pdrv_ctx->node_conn_count)) {
+        curr_fd = 0;
+    } else {
+        curr_fd++;
+    }
 }
 
 #endif

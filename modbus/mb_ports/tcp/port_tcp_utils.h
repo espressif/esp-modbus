@@ -92,7 +92,7 @@ int port_enqueue_packet(QueueHandle_t queue, uint8_t *pbuf, uint16_t len);
 int port_dequeue_packet(QueueHandle_t queue, frame_entry_t* pframe_info);
 int port_read_packet(mb_node_info_t* pinfo);
 err_t port_set_blocking(mb_node_info_t* pinfo, bool is_blocking);
-void port_keep_alive(mb_node_info_t* pinfo);
+int port_keep_alive(int sock);
 err_t port_check_alive(mb_node_info_t* pinfo, uint32_t timeout_ms);
 err_t port_connect(void *ctx, mb_node_info_t* pinfo);
 bool port_close_connection(mb_node_info_t* pinfo);

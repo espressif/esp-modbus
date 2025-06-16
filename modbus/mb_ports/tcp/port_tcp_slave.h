@@ -11,14 +11,6 @@
 #include "sys/time.h"
 #include "esp_netif.h"
 
-/* ----------------------- lwIP includes ------------------------------------*/
-// #include "lwip/opt.h"
-// #include "lwip/sys.h"
-// #include "lwip/err.h"
-// #include "lwip/sockets.h"
-// #include "lwip/netdb.h"
-// #include "net/if.h"
-
 #include "mb_common.h"
 #include "mb_frame.h"
 

@@ -36,7 +36,7 @@
 #define MB_REG_HOLDING_START_AREA0          (HOLD_OFFSET(holding_data0))
 #define MB_REG_HOLDING_START_AREA0_SIZE     ((size_t)((HOLD_OFFSET(holding_data4) - HOLD_OFFSET(holding_data0)) << 1))
 #define MB_REG_HOLDING_START_AREA1          (HOLD_OFFSET(holding_data4))
-#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1))
+#define MB_REG_HOLDING_START_AREA1_SIZE     ((size_t)((HOLD_OFFSET(holding_area1_end) - HOLD_OFFSET(holding_data4)) << 1) + 4)
 #define MB_REG_HOLDING_START_AREA2          (HOLD_OFFSET(holding_u8_a))
 #define MB_REG_HOLDING_START_AREA2_SIZE     ((size_t)((HOLD_OFFSET(holding_area2_end) - HOLD_OFFSET(holding_u8_a)) << 1))
 
@@ -327,7 +327,7 @@ static esp_err_t slave_init(mb_communication_info_t *pcomm_info)
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
     reg_area.start_offset = MB_REG_HOLDING_START_AREA1; // Offset of register area in Modbus protocol
     reg_area.address = (void*)&holding_reg_params.holding_data4; // Set pointer to storage instance
-    reg_area.size = sizeof(float) << 2; // Set the size of register storage instance
+    reg_area.size = MB_REG_HOLDING_START_AREA1_SIZE; // Set the size of register storage instance
     reg_area.access = MB_ACCESS_RW;
     err = mbc_slave_set_descriptor(slave_handle, reg_area);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,

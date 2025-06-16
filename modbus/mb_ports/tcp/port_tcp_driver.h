@@ -44,8 +44,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_PORT_TASK_AFFINITY       (CONFIG_FMB_PORT_TASK_AFFINITY)
 
 #define MB_MAX_FDS                  (MB_TCP_PORT_MAX_CONN)
-#define MB_RETRY_MAX                (2)
-#define MB_RECONNECT_TIME_MS        (1000)
+#define MB_RETRY_CNT                (2)
 #define MB_RX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_TX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_EVENT_QUEUE_SZ           (CONFIG_FMB_QUEUE_LENGTH * MB_TCP_PORT_MAX_CONN)
@@ -58,7 +57,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DRIVER_CONFIG_DEFAULT {              \
     .spin_lock = portMUX_INITIALIZER_UNLOCKED,  \
     .listen_sock_fd = UNDEF_FD,                 \
-    .retry_cnt = MB_RETRY_MAX,                  \
+    .retry_cnt = MB_RETRY_CNT,                  \
     .mb_tcp_task_handle = NULL,                 \
     .mb_node_open_count = 0,                    \
     .curr_node_index = 0,                       \
@@ -68,7 +67,6 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
     .mb_nodes = NULL,                           \
     .mb_node_curr = NULL,                       \
     .close_done_sema = NULL,                    \
-    .max_conn_sd = UNDEF_FD,                    \
     .node_conn_count = 0,                       \
     .event_fd = UNDEF_FD,                       \
 }
@@ -243,7 +241,6 @@ typedef struct _port_driver {
     uint16_t curr_node_index;                   /*!< current processing slave index */
     fd_set open_set;                            /*!< file descriptor set for opened nodes */
     fd_set conn_set;                            /*!< file descriptor set for associated nodes */
-    int max_conn_sd;                            /*!< max file descriptor for associated nodes */
     int event_fd;                               /*!< eventfd descriptor for modbus event tracking */
     SemaphoreHandle_t close_done_sema;          /*!< close and done semaphore */
     EventGroupHandle_t status_flags_hdl;        /*!< status bits to control nodes states */
@@ -344,7 +341,7 @@ mb_status_flags_t mb_drv_set_status_flag(void *ctx, mb_status_flags_t mask);
 
 mb_status_flags_t mb_drv_clear_status_flag(void *ctx, mb_status_flags_t mask);
 
-err_t mb_drv_check_node_state(void *ctx, int fd);
+err_t mb_drv_check_node_state(void *ctx, int *fd, uint32_t timeout_ms);
 
 #endif
 

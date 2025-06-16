@@ -16,7 +16,7 @@ menu "Modbus configuration"
 
     config FMB_TCP_PORT_MAX_CONN
         int "Maximum allowed connections for TCP stack"
-        range 1 8
+        range 1 LWIP_MAX_SOCKETS
         default 5
         depends on FMB_COMM_MODE_TCP_EN
         help
@@ -28,7 +28,7 @@ menu "Modbus configuration"
     config FMB_TCP_CONNECTION_TOUT_SEC
         int "Modbus TCP connection timeout"
         range 1 7200
-        default 20
+        default 2
         depends on FMB_COMM_MODE_TCP_EN
         help
                 Modbus TCP connection timeout in seconds.
