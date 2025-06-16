@@ -61,7 +61,6 @@ typedef enum _addr_type_enum {
     MB_IPV6 = 2                     /*!< TCP IPV6 addressing */
 } mb_addr_type_t;
 
-
 struct port_common_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
     uint16_t port;                  /*!< Modbus communication port (UART) number */

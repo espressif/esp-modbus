@@ -9,6 +9,7 @@
 #include <string.h>
 #include "mb_config.h"
 #include "mb_common.h"
+#include "sdkconfig.h" // for KConfig options
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,9 +20,8 @@ extern "C" {
 #define MB_TCP_PORT_MAX_CONN            (CONFIG_FMB_TCP_PORT_MAX_CONN)
 #define MB_TCP_DEFAULT_PORT             (CONFIG_FMB_TCP_PORT_DEFAULT)
 #define MB_FRAME_QUEUE_SZ               (20)
-#define MB_TCP_CONNECTION_TIMEOUT_MS    (20)        // connection timeout in mS
-#define MB_TCP_RECONNECT_TIMEOUT        (5000000)   // reconnection timeout in uS
-
+#define MB_TCP_CHECK_ALIVE_TOUT_MS      (20) // check alive timeout in mS
+#define MB_RECONNECT_TIME_MS            (CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000UL)
 #define MB_EVENT_SEND_RCV_TOUT_MS       (500)
 
 #define MB_TCP_MBAP_GET_FIELD(buffer, field) ((uint16_t)((buffer[field] << 8U) | buffer[field + 1]))

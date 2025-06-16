@@ -547,7 +547,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                 status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbm_obj->master_dst_addr, 
                                                                 mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 if (status != MB_ENOERR) {
-                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RECEIVE_DATA);
+                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
                     (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                     ESP_LOGE(TAG, MB_OBJ_FMT", frame send error. %d", MB_OBJ_PARENT(inst), (int)status);
                 }

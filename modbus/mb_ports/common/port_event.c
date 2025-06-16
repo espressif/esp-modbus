@@ -200,7 +200,7 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
             err_status = MB_EILLFUNC;
         }
     } else {
-        ESP_LOGE(TAG, "%s, %s: incorrect event or timeout, rcv_event = 0x%x", inst->descr.parent_name, __func__, (int)bits);
+        ESP_LOGD(TAG, "%s, %s: incorrect event or timeout, rcv_event = 0x%x", inst->descr.parent_name, __func__, (int)bits);
         err_status = MB_ETIMEDOUT;
     }
     return err_status;

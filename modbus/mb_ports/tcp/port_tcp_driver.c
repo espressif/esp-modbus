@@ -202,18 +202,22 @@ static esp_err_t init_queues(mb_node_info_t *mb_node)
 
 static void delete_queues(mb_node_info_t *pmb_node)
 {
-    if (!queue_is_empty(pmb_node->rx_queue)) 
-    {
-        queue_flush(pmb_node->rx_queue);
+    if (pmb_node) {
+        if (pmb_node->rx_queue) {
+            if (!queue_is_empty(pmb_node->rx_queue)) {
+                queue_flush(pmb_node->rx_queue);
+            }
+            queue_delete(pmb_node->rx_queue);
+            pmb_node->rx_queue = NULL;
+        }
+        if (pmb_node->tx_queue) {
+            if (!queue_is_empty(pmb_node->tx_queue)) {
+                queue_flush(pmb_node->tx_queue);
+            }
+            queue_delete(pmb_node->tx_queue);
+            pmb_node->tx_queue = NULL;
+        }
     }
-    if (!queue_is_empty(pmb_node->tx_queue)) 
-    {
-        queue_flush(pmb_node->tx_queue);
-    }
-    queue_delete(pmb_node->rx_queue);
-    queue_delete(pmb_node->tx_queue);
-    pmb_node->rx_queue = NULL;
-    pmb_node->tx_queue = NULL;
 }
 
 inline void mb_drv_lock(void *ctx)
@@ -287,6 +291,7 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
         pnode_info = pdrv_ctx->mb_nodes[fd];
         if (!pnode_info) {
             pnode_info = calloc(1, sizeof(mb_node_info_t));
+            mb_drv_lock(ctx);
             if (!pnode_info) {
                 goto err;
             }
@@ -297,9 +302,9 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
                 goto err;
             }
             if (pdrv_ctx->mb_node_open_count > MB_MAX_FDS) {
+                ESP_LOGD(TAG, "Exceeded maximum node count: %d", pdrv_ctx->mb_node_open_count);
                 goto err;
             }
-            mb_drv_lock(ctx);
             pdrv_ctx->mb_node_open_count++;
             pnode_info->index = fd;
             pnode_info->fd = fd;
@@ -326,6 +331,7 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
     }
 
 err:
+    delete_queues(pnode_info);
     free(pnode_info);
     pdrv_ctx->mb_nodes[fd] = NULL;
     mb_drv_unlock(ctx);
@@ -409,16 +415,26 @@ int mb_drv_close(void *ctx, int fd)
         errno = EBADF;
         return -1;
     }
-    
+    mb_drv_lock(ctx);
     // stop socket
     if (MB_GET_NODE_STATE(pnode_info) != MB_SOCK_STATE_CLOSED) {
-        MB_SET_NODE_STATE(pnode_info, MB_SOCK_STATE_CLOSED);
         // Do we need to close connection, if the close event is not run
+        if ((pnode_info->sock_id > 0) && (FD_ISSET(pnode_info->sock_id, &pdrv_ctx->conn_set)))
+        {
+            FD_CLR(pnode_info->sock_id, &pdrv_ctx->conn_set);
+            if (pdrv_ctx->node_conn_count)
+            {
+                pdrv_ctx->node_conn_count--;
+            }
+        }
         port_close_connection((mb_node_info_t *)pnode_info);
     }
-    mb_drv_lock(ctx);
+    MB_SET_NODE_STATE(pnode_info, MB_SOCK_STATE_CLOSED);
     FD_CLR(fd, &pdrv_ctx->open_set);
     delete_queues(pnode_info);
+    if (pdrv_ctx->mb_node_open_count) {
+        pdrv_ctx->mb_node_open_count--;
+    }
     if (pnode_info->addr_info.node_name_str != pnode_info->addr_info.ip_addr_str) {
         free((void *)pnode_info->addr_info.ip_addr_str); // node ip addr string shall be freed
     }
@@ -551,30 +567,28 @@ esp_err_t mb_drv_stop_task(void *ctx)
     return err;
 }
 
-// Todo: remove this later
-err_t mb_drv_check_node_state(void *ctx, int fd)
+err_t mb_drv_check_node_state(void *ctx, int *pfd, uint32_t timeout_ms)
 {
     port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *pnode = NULL;
-    err_t err = ERR_ABRT;
-    int curr_fd = (fd >= 0) ? fd : 0;
+    err_t err = ERR_TIMEOUT;
 
-    while(((pnode = mb_drv_get_next_node_from_set(ctx, &curr_fd, &pdrv_ctx->conn_set))
-                            && (curr_fd < MB_MAX_FDS))) {
-        if (FD_ISSET(pnode->sock_id, &pdrv_ctx->conn_set)) {
-            uint64_t last_read_div_us = (esp_timer_get_time() - pnode->recv_time);
-            if (last_read_div_us >= (uint64_t)(MB_RECONNECT_TIME_MS * 1000)) {
-                // ESP_LOGD(TAG, "%p, slave: %d, sock: %d, IP:%s, check connection, time = %" PRId64 ", rcv_time: %" PRId64,
-                //             ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
-                //             (esp_timer_get_time() / 1000), pnode->recv_time / 1000);
-                err = port_check_alive(pnode, 1);
-                if ((err < 0) && (err != ERR_INPROGRESS)) {
-                    ESP_LOGE(TAG, "Node #%d [%s], connection error.", pnode->index, pnode->addr_info.ip_addr_str);
-                } else {
-                    ESP_LOGD(TAG, "Node #%d [%s], connection is ok.", pnode->index, pnode->addr_info.ip_addr_str);
-                }
+    pnode = mb_drv_get_next_node_from_set(ctx, pfd, &pdrv_ctx->conn_set);
+    if (pnode && FD_ISSET(pnode->sock_id, &pdrv_ctx->conn_set)) {
+        uint64_t last_read_div_us = (esp_timer_get_time() - pnode->recv_time);
+        ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection timeout = %" PRId64 ", rcv_time: %" PRId64 " %" PRId32,
+                    ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
+                    (esp_timer_get_time() / 1000), pnode->recv_time / 1000, timeout_ms);
+        if (last_read_div_us >= (uint64_t)(timeout_ms * 1000)) {
+            ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection state, time = %" PRId64 ", rcv_time: %" PRId64,
+                        ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
+                        (esp_timer_get_time() / 1000), pnode->recv_time / 1000);
+            err = port_check_alive(pnode, 1); // minimize blocking time
+            if ((err < 0) && (err != ERR_INPROGRESS)) {
+                ESP_LOGD(TAG, "Node #%d (%s), connection error, err=(%d).", pnode->index, pnode->addr_info.ip_addr_str, (int)err);
+            } if (err == ERR_OK) {
+                ESP_LOGD(TAG, "Node #%d (%s), connection is alive, err=(%d).", pnode->index, pnode->addr_info.ip_addr_str, (int)err);
                 pnode->recv_time = esp_timer_get_time();
-                curr_fd++;
             }
         }
     }
@@ -591,7 +605,6 @@ void mb_drv_tcp_task(void *ctx)
         int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, MB_SELECT_WAIT_MS);
         if (ret == ERR_TIMEOUT) {
             // timeout occured waiting for the vfds
-            // ESP_LOGD(TAG, "%p, task select timeout.", ctx);
             DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
@@ -654,12 +667,13 @@ void mb_drv_tcp_task(void *ctx)
                                         (int)pnode_info->sock_id, pnode_info->addr_info.ip_addr_str);
                         } else {
                             if (ret == ERR_CONN) {
-                                ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)pnode_info->fd,
+                                ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)pnode_info->fd,
                                             (int)pnode_info->sock_id, pnode_info->addr_info.ip_addr_str);
                                 DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode_info->index);
                             } else {
-                                ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", critical error=%d, errno=%u."), ctx, (int)pnode_info->fd,
+                                ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)pnode_info->fd,
                                         (int)pnode_info->sock_id, pnode_info->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
+                                DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode_info->index);
                             }
                         }
                     }
@@ -777,6 +791,12 @@ esp_err_t mb_drv_unregister(void *ctx)
     esp_err_t err = close_event_fd(ctx);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "could not close the eventfd handle, err = %d. Already closed?", err);
+    }
+
+    if (pdrv_ctx->listen_sock_fd) {
+        shutdown(pdrv_ctx->listen_sock_fd, SHUT_RDWR);
+        close(pdrv_ctx->listen_sock_fd);
+        pdrv_ctx->listen_sock_fd = UNDEF_FD;
     }
 
     for (int i = 0; i < MB_MAX_FDS; i++) {
