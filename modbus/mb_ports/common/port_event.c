@@ -178,6 +178,7 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
                             "incorrect object handle.");
     mb_err_enum_t err_status = MB_ENOERR;
     mb_event_enum_t rcv_event;
+    xEventGroupClearBits(inst->event_obj->event_group_hdl, MB_EVENT_REQ_MASK);
     EventBits_t bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl, // The event group being tested.
                                                 MB_EVENT_REQ_MASK,  // The bits within the event group to wait for.
                                                 pdTRUE,             // Masked bits should be cleared before returning.
