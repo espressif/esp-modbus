@@ -78,11 +78,7 @@ typedef enum mb_event_enum {
     EV_EXECUTE = 0x0008,                        /*!< Execute function. */
     EV_FRAME_TRANSMIT = 0x0010,                 /*!< Transmission started . */
     EV_FRAME_SENT = 0x0020,                     /*!< Frame sent. */
-    EV_ERROR_PROCESS = 0x0040,                  /*!< Error process state. */
-    EV_MASTER_ERROR_RESPOND_TIMEOUT = 0x0080,   /*!< Request respond timeout. */
-    EV_MASTER_ERROR_RECEIVE_DATA = 0x0100,      /*!< Request receive data error. */
-    EV_MASTER_ERROR_EXECUTE_FUNCTION = 0x0200,  /*!< Request execute function error. */
-    EV_MASTER_PROCESS_SUCCESS = 0x0400          /*!< Master error process. */
+    EV_ERROR_PROCESS = 0x0040                   /*!< Error process state. */
 } mb_event_enum_t;
 
 /*! \ingroup modbus
@@ -109,11 +105,11 @@ typedef mb_exception_t (*mb_fn_handler_fp)(void *, uint8_t *frame_ptr, uint16_t 
  * \brief Error event type
  */
 typedef enum mb_err_event_enum {
-    EV_ERROR_INIT,             /*!< No error, initial state. */
-    EV_ERROR_RESPOND_TIMEOUT,  /*!< Slave respond timeout. */
-    EV_ERROR_RECEIVE_DATA,     /*!< Receive frame data error. */
-    EV_ERROR_EXECUTE_FUNCTION, /*!< Execute function error. */
-    EV_ERROR_OK                /*!< No error, processing completed. */
+    EV_ERROR_INIT,              /*!< No error, initial state. */
+    EV_ERROR_RESPOND_TIMEOUT,   /*!< Slave respond timeout. */
+    EV_ERROR_RECEIVE_DATA,      /*!< Receive frame data error. */
+    EV_ERROR_EXECUTE_FUNCTION,  /*!< Execute function error. */
+    EV_ERROR_OK                 /*!< No error, processing completed. */
 } mb_err_event_t;
 
 typedef struct mb_event_s {
@@ -150,9 +146,9 @@ typedef enum
  */
 typedef enum
 {
-	MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
-	MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
-	MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast , then delay sometime.*/
+    MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
+    MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
+    MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast , then delay sometime.*/
 } mb_timer_mode_enum_t;
 
 #ifdef __cplusplus

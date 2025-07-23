@@ -117,7 +117,6 @@ void mb_port_timer_us(mb_port_base_t *inst, uint64_t timeout_us)
     atomic_store(&(inst->timer_obj->timer_state), false);
 }
 
-
 inline void mb_port_set_cur_timer_mode(mb_port_base_t *inst, mb_timer_mode_enum_t tmr_mode)
 {
     atomic_store(&(inst->timer_obj->timer_mode), tmr_mode);

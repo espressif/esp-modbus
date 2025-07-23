@@ -77,10 +77,10 @@ void unlock_obj(_lock_t *lock_ptr);
         spinlock_release(&lock); \
     } while (0)
 
-#define MB_EVENT_REQ_MASK (EventBits_t)(EV_MASTER_PROCESS_SUCCESS |       \
-                                        EV_MASTER_ERROR_RESPOND_TIMEOUT | \
-                                        EV_MASTER_ERROR_RECEIVE_DATA |    \
-                                        EV_MASTER_ERROR_EXECUTE_FUNCTION)
+#define MB_EVENT_REQ_MASK (EventBits_t)(EV_ERROR_OK |       \
+                                        EV_ERROR_RESPOND_TIMEOUT | \
+                                        EV_ERROR_RECEIVE_DATA |    \
+                                        EV_ERROR_EXECUTE_FUNCTION)
 
 #define MB_PORT_CHECK_EVENT(event, mask) (event & mask)
 #define MB_PORT_CLEAR_EVENT(event, mask) \
