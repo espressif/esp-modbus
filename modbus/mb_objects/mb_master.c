@@ -497,25 +497,25 @@ static uint8_t mbm_get_dest_addr(mb_base_t *inst)
 
 void mbm_error_cb_respond_timeout(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RESPOND_TIMEOUT);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_ERROR_RESPOND_TIMEOUT);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_receive_data(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_RECEIVE_DATA);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_ERROR_RECEIVE_DATA);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_execute_function(mb_base_t *inst, uint8_t dest_address, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_ERROR_EXECUTE_FUNCTION);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_ERROR_EXECUTE_FUNCTION);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
 void mbm_error_cb_request_success(mb_base_t *inst, uint8_t dest_address, const uint8_t *pdu_data, uint16_t pdu_length)
 {
-    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_MASTER_PROCESS_SUCCESS);
+    mb_port_event_set_resp_flag(MB_BASE2PORT(inst), EV_ERROR_OK);
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
@@ -553,6 +553,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                     mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
                     (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                     ESP_LOGE(TAG, MB_OBJ_FMT", frame send error. %d", MB_OBJ_PARENT(inst), (int)status);
+                } else {
+                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_FRAME_SENT));
                 }
                 // Initialize modbus transaction
                 mbm_obj->curr_trans_id = event.trans_id;

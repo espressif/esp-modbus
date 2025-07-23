@@ -5,7 +5,6 @@
  */
 #pragma once
 
-//#include <sys/queue.h>
 #include <stdatomic.h>
 
 #include "esp_err.h"
@@ -49,6 +48,8 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_TX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_EVENT_QUEUE_SZ           (CONFIG_FMB_QUEUE_LENGTH * MB_TCP_PORT_MAX_CONN)
 
+#define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
+
 #define MB_WAIT_DONE_MS             (5000)
 #define MB_SELECT_WAIT_MS           (200)
 #define MB_TCP_SEND_TIMEOUT_MS      (500)
@@ -90,15 +91,15 @@ typedef struct _port_driver port_driver_t;
 
 #define MB_EVENT_BASE(context) (__extension__(                                      \
 {                                                                                   \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(context);                              \
-    (drv_obj->loop_name) ? (esp_event_base_t)(drv_obj->loop_name) : "UNK_BASE";   \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(context);                               \
+    (drv_obj->loop_name) ? (esp_event_base_t)(drv_obj->loop_name) : "UNK_BASE";     \
 }                                                                                   \
 ))
 
-#define MB_ADD_FD(fd, max_fd, fdset) do {      \
+#define MB_ADD_FD(fd, max_fd, fdset) do {       \
     if (fd) {                                   \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
-        FD_SET(fd, fdset);                     \
+        FD_SET(fd, fdset);                      \
     }                                           \
 } while(0)
 
@@ -106,15 +107,15 @@ typedef struct _port_driver port_driver_t;
 // Macro for atomic operations
 #define MB_ATOMIC_LOAD(ctx, addr) (__extension__(   \
 {                                                   \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);  \
-    (CRITICAL_LOAD(drv_obj->lock, addr));          \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);   \
+    (CRITICAL_LOAD(drv_obj->lock, addr));           \
 }                                                   \
 ))
 
 #define MB_ATOMIC_STORE(ctx, addr, val) (__extension__( \
 {                                                       \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);      \
-    CRITICAL_STORE(drv_obj->lock, addr, val);          \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);       \
+    CRITICAL_STORE(drv_obj->lock, addr, val);           \
 }                                                       \
 ))
 
@@ -122,11 +123,11 @@ typedef struct _port_driver port_driver_t;
 // So, the eventfd value keeps last event and its fd.
 #define DRIVER_SEND_EVENT(ctx, event, fd) (__extension__(                               \
 {                                                                                       \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                      \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
     (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
     (event_info##__FUNCTION__##__LINE__).opt_fd = fd;                                   \
-    ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)         \
+    ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)          \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \
 ))
@@ -196,14 +197,16 @@ typedef struct mb_node_info_s {
 
 typedef enum _mb_sync_event {
     MB_SYNC_EVENT_RECV_OK = 0x0001,
-    MB_SYNC_EVENT_RECV_FAIL = 0x0002,
-    MB_SYNC_EVENT_SEND_OK = 0x0003,
+    MB_SYNC_EVENT_READY = 0x002,
+    MB_SYNC_EVENT_RECV_FAIL = 0x0003,
+    MB_SYNC_EVENT_SEND_OK = 0x0004,
+    MB_SYNC_EVENT_SEND_ERR = 0x0005,
     MB_SYNC_EVENT_TOUT
 } mb_sync_event_t;
 
 typedef enum _mb_status_flags {
     MB_FLAG_BLANK = 0x0000,
-    MB_FLAG_TRANSACTION_DONE = 0x0001,
+    MB_FLAG_TRANSACTION_READY = 0x0001,
     MB_FLAG_DISCONNECTED = 0x0002,
     MB_FLAG_CONNECTED = 0x0004,
     MB_FLAG_SUSPEND = 0x0008,

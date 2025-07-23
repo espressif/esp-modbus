@@ -22,6 +22,7 @@ extern "C" {
 #define MB_FRAME_QUEUE_SZ               (20)
 #define MB_TCP_CHECK_ALIVE_TOUT_MS      (20) // check alive timeout in mS
 #define MB_RECONNECT_TIME_MS            (CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000UL)
+#define MB_TCP_KEEP_ALIVE_TOUT_MS       (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 1000UL)
 #define MB_EVENT_SEND_RCV_TOUT_MS       (500)
 
 #define MB_TCP_MBAP_GET_FIELD(buffer, field) ((uint16_t)((buffer[field] << 8U) | buffer[field + 1]))
