@@ -37,7 +37,7 @@ static void mb_set_pdu_send_length(mb_base_t *inst, uint16_t length);
 static uint16_t mb_get_pdu_send_length(mb_base_t *inst);
 static void mb_set_dest_addr(mb_base_t *inst, uint8_t dest_addr);
 static uint8_t mb_get_dest_addr(mb_base_t *inst);
-static void mb_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf);
+static void mb_get_pdu_send_buf(mb_base_t *inst, uint8_t **buf);
 
 //mb_err_enum_t mb_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
 
@@ -140,16 +140,16 @@ mb_err_enum_t mb_disable(mb_base_t *inst)
     return status;
 }
 
-static void mb_get_pdu_send_buf(mb_base_t *inst, uint8_t **pbuf)
+static void mb_get_pdu_send_buf(mb_base_t *inst, uint8_t **buf)
 {
     mb_object_t *mb_obj = __containerof(inst, mb_object_t, base);
-    if (pbuf) {
-        *pbuf = mb_obj->snd_buf;
+    if (buf) {
+        *buf = mb_obj->snd_buf;
     }
 }
 
 // __attribute__((unused))
-// static void mb_get_pdu_recv_buf(mb_base_t *inst, uint8_t **pbuf)
+// static void mb_get_pdu_recv_buf(mb_base_t *inst, uint8_t **buf)
 // {
 //     //mb_object_t *mb_obj = __containerof(inst, mb_object_t, base);
 // }

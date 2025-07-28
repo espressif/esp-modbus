@@ -68,43 +68,41 @@ extern "C" {
 
 #define SEMA_SECTION(sema, tout) for (int st = (int)xSemaphoreTake(sema, tout); (st > 0); xSemaphoreGive(sema), st = -1)
 
-#define MB_STR_CAT(pref, message) (__extension__(                               \
-{                                                                               \
-    char buf##__FUNCTION__##__LINE__[MB_CAT_BUF_SIZE];                          \
-    strncpy(&(buf##__FUNCTION__##__LINE__)[0], pref, (MB_CAT_BUF_SIZE - 1));    \
-    strncat((buf##__FUNCTION__##__LINE__), message, (MB_CAT_BUF_SIZE - 1));     \
-    (&((buf##__FUNCTION__##__LINE__)[0]));                                      \
-}                                                                               \
+#define MB_PRT_BUF(pref, message, buffer, length, level) (__extension__(            \
+{                                                                                   \
+    assert(buffer);                                                                 \
+    char str_buf##__FUNCTION__##__LINE__[MB_CAT_BUF_SIZE];                          \
+    strncpy(&(str_buf##__FUNCTION__##__LINE__)[0], pref, (MB_CAT_BUF_SIZE - 1));    \
+    strncat((str_buf##__FUNCTION__##__LINE__), message, (MB_CAT_BUF_SIZE - 1));     \
+    ESP_LOG_BUFFER_HEX_LEVEL(&((str_buf##__FUNCTION__##__LINE__)[0]),               \
+                                (void *)buffer, (uint16_t)length, level);           \
+    (&((str_buf##__FUNCTION__##__LINE__)[0]));                                      \
+}                                                                                   \
 ))
 
 #define MB_OBJ_FMT "%p"
 
-#define MB_GET_OBJ_CTX(pinst, type, base) (__extension__(   \
+#define MB_GET_OBJ_CTX(inst, type, base) (__extension__(    \
 {                                                           \
-    assert(pinst);                                          \
-    ((type *)__containerof(pinst, type, base));             \
+    assert(inst);                                           \
+    ((type *)__containerof(inst, type, base));              \
 }                                                           \
 ))
 
-#define MB_OBJ(pinst) (__extension__( \
+#define MB_OBJ(inst) (__extension__( \
 {                                           \
-    assert(pinst);                          \
-    ((typeof(pinst))(pinst));               \
+    assert(inst);                           \
+    ((typeof(inst))(inst));                 \
 }                                           \
 ))
 
-#define MB_OBJ_PARENT(pinst) (__extension__(    \
-{                                               \
-    assert(pinst);                              \
-    (((obj_descr_t*)(pinst))->parent);          \
-}                                               \
-))
+#define MB_OBJ_PARENT(inst) (((obj_descr_t*)(inst))->parent)
 
-#define MB_BASE2PORT(pinst) (__extension__(     \
+#define MB_BASE2PORT(inst) (__extension__(      \
 {                                               \
-    assert(pinst);                              \
-    assert(((mb_base_t *)pinst)->port_obj);     \
-    (((mb_base_t *)pinst)->port_obj);           \
+    assert(inst);                               \
+    assert(((mb_base_t *)inst)->port_obj);      \
+    (((mb_base_t *)inst)->port_obj);            \
 }                                               \
 ))
 
@@ -129,7 +127,7 @@ typedef struct mb_handler_descriptor_s {
 typedef struct mb_base_t mb_base_t;
 typedef struct mb_trans_base_t mb_trans_base_t;
 typedef struct mb_port_base_t mb_port_base_t;
-typedef struct _obj_descr obj_descr_t;
+typedef struct obj_descr_s obj_descr_t;
 
 typedef mb_err_enum_t (*mb_delete_fp)(mb_base_t *inst);
 typedef mb_err_enum_t (*mb_enable_fp)(mb_base_t *inst);
@@ -139,7 +137,7 @@ typedef void (*mb_set_addr_fp)(mb_base_t *inst, uint8_t dest_addr);
 typedef uint8_t (*mb_get_addr_fp)(mb_base_t *inst);
 typedef void (*mb_set_send_len_fp)(mb_base_t *inst, uint16_t len);
 typedef uint16_t (*mb_get_send_len_fp)(mb_base_t *inst);
-typedef void (*mb_get_send_buf_fp)(mb_base_t *inst, uint8_t **pbuf);
+typedef void (*mb_get_send_buf_fp)(mb_base_t *inst, uint8_t **buf);
 
 typedef enum
 {
@@ -156,7 +154,7 @@ struct mb_base_t
     mb_port_base_t  *port_obj;
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    uint8_t *pobj_id;
+    uint8_t *obj_id;
     uint16_t obj_id_len;
     uint8_t obj_id_chunks;
 #endif
@@ -175,10 +173,10 @@ struct mb_base_t
 };
 
 // Helper functions for command handlers registration
-mb_err_enum_t mb_set_handler(handler_descriptor_t *pdescriptor, uint8_t func_code, mb_fn_handler_fp phandler);
-mb_err_enum_t mb_get_handler(handler_descriptor_t *pdescriptor, uint8_t func_code, mb_fn_handler_fp *phandler);
-mb_err_enum_t mb_delete_handler(handler_descriptor_t *pdescriptor, uint8_t func_code);
-mb_err_enum_t mb_delete_command_handlers(handler_descriptor_t *pdescriptor);
+mb_err_enum_t mb_set_handler(handler_descriptor_t *descriptor, uint8_t func_code, mb_fn_handler_fp handler);
+mb_err_enum_t mb_get_handler(handler_descriptor_t *descriptor, uint8_t func_code, mb_fn_handler_fp *handler);
+mb_err_enum_t mb_delete_handler(handler_descriptor_t *descriptor, uint8_t func_code);
+mb_err_enum_t mb_delete_command_handlers(handler_descriptor_t *descriptor);
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 

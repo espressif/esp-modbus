@@ -46,24 +46,24 @@ mb_err_enum_t mbs_disable(mb_base_t *inst);
 mb_err_enum_t mbs_poll(mb_base_t *inst);
 
 // The helper function to register custom function handler for slave
-mb_err_enum_t mbs_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp phandler)
+mb_err_enum_t mbs_set_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp handler)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_err_enum_t status = MB_EINVAL;
     SEMA_SECTION(mbs_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        status = mb_set_handler(&mbs_obj->handler_descriptor, func_code, phandler);
+        status = mb_set_handler(&mbs_obj->handler_descriptor, func_code, handler);
     }
     return status;
 }
 
 // The helper function to register custom function handler for slave
-mb_err_enum_t mbs_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *phandler)
+mb_err_enum_t mbs_get_handler(mb_base_t *inst, uint8_t func_code, mb_fn_handler_fp *handler)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_err_enum_t status = MB_EINVAL;
-    if (phandler) {
+    if (handler) {
         SEMA_SECTION(mbs_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-            status = mb_get_handler(&mbs_obj->handler_descriptor, func_code, phandler);
+            status = mb_get_handler(&mbs_obj->handler_descriptor, func_code, handler);
         }
     }
     return status;
@@ -79,17 +79,17 @@ mb_err_enum_t mbs_delete_handler(mb_base_t *inst, uint8_t func_code)
     return status;
 }
 
-mb_err_enum_t mbs_get_handler_count(mb_base_t *inst, uint16_t *pcount)
+mb_err_enum_t mbs_get_handler_count(mb_base_t *inst, uint16_t *count)
 {
-    MB_RETURN_ON_FALSE((pcount && inst), MB_EINVAL, TAG, "get handler count wrong arguments");
+    MB_RETURN_ON_FALSE((count && inst), MB_EINVAL, TAG, "get handler count wrong arguments");
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     SEMA_SECTION(mbs_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        *pcount = mbs_obj->handler_descriptor.count;
+        *count = mbs_obj->handler_descriptor.count;
     }
     return MB_ENOERR;
 }
 
-static mb_exception_t mbs_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *pbuf, uint16_t *plen)
+static mb_exception_t mbs_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *buf, uint16_t *len)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_exception_t exception = MB_EX_ILLEGAL_FUNCTION;
@@ -97,11 +97,11 @@ static mb_exception_t mbs_check_invoke_handler(mb_base_t *inst, uint8_t func_cod
         return MB_EX_ILLEGAL_FUNCTION;
     }
     SEMA_SECTION(mbs_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {
-        mb_fn_handler_fp phandler = NULL;
-        mb_err_enum_t status = mb_get_handler(&mbs_obj->handler_descriptor, func_code, &phandler);
-        if ((status == MB_ENOERR) && phandler) {
-            exception = phandler(inst, pbuf, plen);
-            ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler %p.", MB_OBJ_PARENT(inst), (int)func_code, phandler);
+        mb_fn_handler_fp handler = NULL;
+        mb_err_enum_t status = mb_get_handler(&mbs_obj->handler_descriptor, func_code, &handler);
+        if ((status == MB_ENOERR) && handler) {
+            exception = handler(inst, buf, len);
+            ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler %p.", MB_OBJ_PARENT(inst), (int)func_code, handler);
         }
     }
     return exception;
@@ -114,7 +114,7 @@ static mb_err_enum_t mbs_register_default_handlers(mb_base_t *inst)
     LIST_INIT(&mbs_obj->handler_descriptor.head);
     mbs_obj->handler_descriptor.sema = xSemaphoreCreateBinary();
     (void)xSemaphoreGive(mbs_obj->handler_descriptor.sema);
-    mbs_obj->handler_descriptor.instance = (void *)inst->descr.parent;
+    mbs_obj->handler_descriptor.instance = inst->descr.parent;
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
         err = mbs_set_handler(inst, MB_FUNC_OTHER_REPORT_SLAVEID, (void *)mbs_fn_report_slave_id);
         MB_RETURN_ON_FALSE((err == MB_ENOERR), err, TAG, "handler registration error = (0x%x).", (int)err);
@@ -178,6 +178,7 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE(ser_opts, MB_EINVAL, TAG, "invalid options for the instance.");
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_RTU), MB_EILLSTATE, TAG, "incorrect mode != RTU.");
     mbs_object_t *mbs_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbs_obj = (mbs_object_t*)calloc(1, sizeof(mbs_object_t));
     MB_GOTO_ON_FALSE((mbs_obj), MB_EILLSTATE, error, TAG, "no mem for mb slave instance.");
     CRITICAL_SECTION_INIT(mbs_obj->base.lock);
@@ -191,14 +192,14 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id = NULL;
     mbs_obj->base.obj_id_len = 0;
     mbs_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_rtu@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbs_obj;
+    transp_obj = (mb_trans_base_t *)mbs_obj;
     ret = mbs_rtu_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                                 TAG, "transport creation, err: %d", (int)ret);
@@ -208,7 +209,7 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->cur_mode = ser_opts->mode;
     mbs_obj->mb_address = ser_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbs_obj->frame);
+    transp_obj->get_tx_frm(transp_obj, &mbs_obj->frame);
     mbs_obj->base.port_obj = transp_obj->port_obj;
     mbs_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbs_obj->base);
@@ -237,6 +238,7 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE(ser_opts, MB_EINVAL, TAG, "invalid options for %s instance.", TAG);
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_ASCII), MB_EILLSTATE, TAG, "incorrect mode != ASCII.");
     mbs_object_t *mbs_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbs_obj = (mbs_object_t*)calloc(1, sizeof(mbs_object_t));
     MB_GOTO_ON_FALSE((mbs_obj), MB_EILLSTATE, error, TAG, "no mem for mb slave instance.");
     CRITICAL_SECTION_INIT(mbs_obj->base.lock);
@@ -249,14 +251,14 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id = NULL;
     mbs_obj->base.obj_id_len = 0;
     mbs_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_ascii@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbs_obj;
+    transp_obj = (mb_trans_base_t *)mbs_obj;
     ret = mbs_ascii_transp_create(ser_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                         TAG, "transport creation, err: %d", (int)ret);
@@ -266,7 +268,7 @@ mb_err_enum_t mbs_ascii_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     mbs_obj->cur_mode = ser_opts->mode;
     mbs_obj->mb_address = ser_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbs_obj->frame);
+    transp_obj->get_tx_frm(transp_obj, &mbs_obj->frame);
     mbs_obj->base.port_obj = transp_obj->port_obj;
     mbs_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbs_obj->base);
@@ -295,6 +297,7 @@ mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     MB_RETURN_ON_FALSE(tcp_opts, MB_EINVAL, TAG, "invalid options for the instance.");
     MB_RETURN_ON_FALSE((tcp_opts->mode == MB_TCP), MB_EILLSTATE, TAG, "incorrect mode != TCP.");
     mbs_object_t *mbs_obj = NULL;
+    mb_trans_base_t *transp_obj = NULL;
     mbs_obj = (mbs_object_t*)calloc(1, sizeof(mbs_object_t));
     MB_GOTO_ON_FALSE((mbs_obj), MB_EILLSTATE, error, TAG, "no mem for mb slave instance.");
     CRITICAL_SECTION_INIT(mbs_obj->base.lock);
@@ -308,14 +311,14 @@ mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     mbs_obj->base.descr.obj_name = (char *)TAG;
     mbs_obj->base.descr.inst_index = mb_port_get_inst_counter_inc();
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
-    mbs_obj->base.pobj_id = NULL;
+    mbs_obj->base.obj_id = NULL;
     mbs_obj->base.obj_id_len = 0;
     mbs_obj->base.obj_id_chunks = 0;
 #endif
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_tcp@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    mb_trans_base_t *transp_obj = (mb_trans_base_t *)mbs_obj;
+    transp_obj = (mb_trans_base_t *)mbs_obj;
     ret = mbs_tcp_transp_create(tcp_opts, (void **)&transp_obj);
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error, 
                                 TAG, "transport creation, err: %d", (int)ret);
@@ -325,7 +328,7 @@ mb_err_enum_t mbs_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj)
     mbs_obj->cur_mode = tcp_opts->mode;
     mbs_obj->mb_address = tcp_opts->uid;
     mbs_obj->cur_state = STATE_DISABLED;
-    transp_obj->get_tx_frm(transp_obj, (uint8_t **)&mbs_obj->frame);
+    transp_obj->get_tx_frm(transp_obj, &mbs_obj->frame);
     mbs_obj->base.port_obj = transp_obj->port_obj;
     mbs_obj->base.transp_obj = transp_obj;
     *in_out_obj = (void *)&(mbs_obj->base);
@@ -357,9 +360,9 @@ mb_err_enum_t mbs_delete(mb_base_t *inst)
         }
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
         // delete allocated slave ID
-        if (mbs_obj->base.pobj_id) {
-            free(mbs_obj->base.pobj_id);
-            mbs_obj->base.pobj_id = NULL;
+        if (mbs_obj->base.obj_id) {
+            free(mbs_obj->base.obj_id);
+            mbs_obj->base.obj_id = NULL;
             mbs_obj->base.obj_id_len = 0;
             mbs_obj->base.obj_id_chunks = 0;
         }
@@ -452,8 +455,8 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                             || (mbs_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS)) {
                         mbs_obj->curr_trans_id = event.get_ts;
                         (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE | EV_TRANS_START));
-                        ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_RECV"), &mbs_obj->frame[MB_PDU_FUNC_OFF], 
-                                                    (uint16_t)mbs_obj->length, ESP_LOG_DEBUG);
+                        MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",
+                                    &mbs_obj->frame[MB_PDU_FUNC_OFF], mbs_obj->length, ESP_LOG_DEBUG);
                     }
                 }
                 break;
@@ -474,7 +477,8 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                     if ((mbs_obj->cur_mode == MB_ASCII) && MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS) {
                         mb_port_timer_delay(MB_OBJ(inst->port_obj), MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS);
                     }
-                    ESP_LOG_BUFFER_HEX_LEVEL(MB_STR_CAT(inst->descr.parent_name, ":MB_SEND"), (void *)mbs_obj->frame, mbs_obj->length, ESP_LOG_DEBUG);
+                    MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,
+                                                    (uint16_t)mbs_obj->length, ESP_LOG_DEBUG);
                     status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbs_obj->rcv_addr, mbs_obj->frame, mbs_obj->length);
                     if (status != MB_ENOERR) {
                         ESP_LOGE(TAG, MB_OBJ_FMT":frame send error. %d", MB_OBJ_PARENT(inst), (int)status);

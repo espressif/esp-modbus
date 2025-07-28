@@ -80,48 +80,48 @@ extern "C" {
 } \
 ))
 
-typedef struct _frame_queue_entry frame_entry_t;
-typedef struct _mb_node_info mb_node_info_t;
-typedef enum _addr_type_enum mb_tcp_addr_type_t;
+typedef struct frame_queue_entry_s frame_entry_t;
+typedef struct mb_node_info_s mb_node_info_t;
+typedef enum addr_type_enum mb_tcp_addr_type_t;
 
 bool port_check_host_addr(const char *host_str, ip_addr_t* host_addr);
 mb_node_info_t* port_get_current_info(void *ctx);
 void port_check_shutdown(void *ctx);
-int64_t port_get_resp_time_left(mb_node_info_t* pinfo);
-int port_enqueue_packet(QueueHandle_t queue, uint8_t *pbuf, uint16_t len);
-int port_dequeue_packet(QueueHandle_t queue, frame_entry_t* pframe_info);
-int port_read_packet(mb_node_info_t* pinfo);
-err_t port_set_blocking(mb_node_info_t* pinfo, bool is_blocking);
+int64_t port_get_resp_time_left(mb_node_info_t* info_ptr);
+int port_enqueue_packet(QueueHandle_t queue, uint8_t *buf, uint16_t len);
+int port_dequeue_packet(QueueHandle_t queue, frame_entry_t* frame_info);
+int port_read_packet(mb_node_info_t* info_ptr);
+err_t port_set_blocking(mb_node_info_t* info_ptr, bool is_blocking);
 int port_keep_alive(int sock);
-err_t port_check_alive(mb_node_info_t* pinfo, uint32_t timeout_ms);
-err_t port_connect(void *ctx, mb_node_info_t* pinfo);
-bool port_close_connection(mb_node_info_t* pinfo);
-int port_write_poll(mb_node_info_t* pinfo, const uint8_t *pframe, uint16_t frame_len, uint32_t timeout);
+err_t port_check_alive(mb_node_info_t* info_ptr, uint32_t timeout_ms);
+err_t port_connect(void *ctx, mb_node_info_t* info_ptr);
+bool port_close_connection(mb_node_info_t* info_ptr);
+int port_write_poll(mb_node_info_t* info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout);
 int64_t port_get_timestamp(void);
 
-typedef struct _uid_info mb_uid_info_t;
+typedef struct uid_info_s mb_uid_info_t;
 
-int port_scan_addr_string(char *buffer, mb_uid_info_t *pnode_info);
+int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr);
 
 #if MB_MDNS_IS_INCLUDED
 
 // Init mdns service
-esp_err_t port_start_mdns_service(char **ppdns_name, bool is_master, int uid, void *pnode_netif);
-void port_stop_mdns_service(char **ppdns_name);
+esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void *node_netif);
+void port_stop_mdns_service(char **dns_name);
 
 typedef struct mdns_ip_addr_s mdns_ip_addr_t;
 typedef struct mdns_result_s mdns_result_t;
 
 char *port_get_node_ip_str(mdns_ip_addr_t *address, mb_addr_type_t addr_type);
 esp_err_t port_resolve_slave(uint8_t short_addr, mdns_result_t *result, char **resolved_ip, mb_addr_type_t addr_type);
-int port_resolve_mdns_host(const char *host_name, char **paddr_str);
+int port_resolve_mdns_host(const char *host_name, char **addr_str);
 
 #endif
 
 // Modbus slave utility functions
 
 int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port);
-int port_accept_connection(int listen_sock_id, mb_uid_info_t *pnode_info);
+int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr);
 
 #ifdef __cplusplus
 }

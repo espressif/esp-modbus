@@ -104,51 +104,51 @@ static void test_slave_check_descriptor(int par_index)
     };
 
     void *mbs_handle = NULL;
-    mb_base_t *pmb_base = NULL; // fake mb_base handle
+    mb_base_t *mb_base = NULL; // fake mb_base handle
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&pmb_base));
-    pmb_base->port_obj = (mb_port_base_t *)0x44556677;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&mb_base));
+    mb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbs_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
 
     TEST_ESP_OK(mbc_slave_create_serial(&slave_config, &mbs_handle));
     TEST_ASSERT(mbs_handle);
 
     mbs_controller_iface_t *mbs_iface = (mbs_controller_iface_t *)mbs_handle;
     //mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(mbs_iface);
-    TEST_ASSERT_EQUAL_HEX32(mbs_iface->mb_base, pmb_base);
+    TEST_ASSERT_EQUAL_HEX32(mbs_iface->mb_base, mb_base);
 
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_input_cb, mbc_reg_input_slave_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_holding_cb, mbc_reg_holding_slave_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_coils_cb, mbc_reg_coils_slave_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_discrete_cb, mbc_reg_discrete_slave_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_input_cb, mbc_reg_input_slave_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_holding_cb, mbc_reg_holding_slave_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_coils_cb, mbc_reg_coils_slave_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_discrete_cb, mbc_reg_discrete_slave_cb);
 
-    mb_parameter_descriptor_t *pdescr = (mb_parameter_descriptor_t *)&descriptors[par_index];
+    mb_parameter_descriptor_t *descr = (mb_parameter_descriptor_t *)&descriptors[par_index];
     mb_register_area_descriptor_t reg_area;
-    ESP_LOGI(TAG, "Test CID #%d, %s, %s", pdescr->cid, pdescr->param_key, pdescr->param_units);
+    ESP_LOGI(TAG, "Test CID #%d, %s, %s", descr->cid, descr->param_key, descr->param_units);
 
-    uint16_t n_bytes = ((pdescr->mb_param_type == MB_PARAM_INPUT) || (pdescr->mb_param_type == MB_PARAM_HOLDING))
-                                ? (pdescr->mb_size << 1) : ((pdescr->mb_size >> 3) + 1);
+    uint16_t n_bytes = ((descr->mb_param_type == MB_PARAM_INPUT) || (descr->mb_param_type == MB_PARAM_HOLDING))
+                                ? (descr->mb_size << 1) : ((descr->mb_size >> 3) + 1);
 
     // First define the correct area
-    reg_area.type = pdescr->mb_param_type;
-    reg_area.start_offset = pdescr->mb_reg_start;
-    reg_area.address = (void *)pdescr->param_offset;
+    reg_area.type = descr->mb_param_type;
+    reg_area.start_offset = descr->mb_reg_start;
+    reg_area.address = (void *)descr->param_offset;
     reg_area.size = n_bytes;
     ESP_LOGI(TAG, "Area (type, reg_start, address, size): %d, %u, 0x%" PRIx32 ", %d, is defined.",
                         (int)reg_area.type, (unsigned)reg_area.start_offset, (uint32_t)reg_area.address, (int)reg_area.size);
     TEST_ESP_OK(mbc_slave_set_descriptor(mbs_handle, reg_area));
 
     // Check additional area overlapped 
-    reg_area.start_offset = (pdescr->mb_reg_start + pdescr->mb_size - 2);
+    reg_area.start_offset = (descr->mb_reg_start + descr->mb_size - 2);
     reg_area.size = 2;
     ESP_LOGI(TAG, "Area overlapped (type, reg_start, address, size): %d, %u, 0x%" PRIx32 ", %d.",
                         (int)reg_area.type, (unsigned)reg_area.start_offset, (uint32_t)reg_area.address, (int)reg_area.size);
     TEST_ESP_ERR(ESP_ERR_INVALID_ARG, mbc_slave_set_descriptor(mbs_handle, reg_area));
     
-    reg_area.start_offset = pdescr->mb_reg_start;
+    reg_area.start_offset = descr->mb_reg_start;
     reg_area.size = n_bytes;
-    reg_area.address = (void *)pdescr->param_offset - 2;
+    reg_area.address = (void *)descr->param_offset - 2;
     ESP_LOGI(TAG, "Area redefine (type, reg_start, address, size): %d, %u, 0x%" PRIx32 ", %d.",
                         (int)reg_area.type, (unsigned)reg_area.start_offset, (uint32_t)reg_area.address, (int)reg_area.size);
     TEST_ESP_ERR(ESP_ERR_INVALID_ARG, mbc_slave_set_descriptor(mbs_handle, reg_area));
@@ -170,24 +170,24 @@ static esp_err_t test_master_read_req(int par_index, mb_err_enum_t mb_err)
         .ser_opts.parity = UART_PARITY_DISABLE,
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US};
-    mb_base_t *pmb_base = NULL; // fake mb_base handle
+    mb_base_t *mb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
-    pmb_base->port_obj = (mb_port_base_t *)0x44556677;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
+    mb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
-    mb_port_event_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
+    mb_port_event_post_ExpectAndReturn(mb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
     TEST_ESP_OK(mbc_master_start(mbm_handle));
-    mb_port_event_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
+    mb_port_event_wait_req_finish_ExpectAndReturn(mb_base->port_obj, mb_err);
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
     TEST_ESP_OK(mbc_master_get_cid_info(mbm_handle, par_index, &param_descriptor));
     TEST_ASSERT_EQUAL_HEX32(&descriptors[par_index], param_descriptor);
     uint8_t type = 0; // type of parameter from dictionary
-    uint8_t pdata[100] = {0};
+    uint8_t data_ptr[100] = {0};
     ESP_LOGI(TAG, "Test CID #%d, %s, %s", param_descriptor->cid, param_descriptor->param_key, param_descriptor->param_units);
     mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
     mb_port_event_res_release_ExpectAnyArgs();
@@ -195,12 +195,12 @@ static esp_err_t test_master_read_req(int par_index, mb_err_enum_t mb_err)
     mb_port_event_res_release_ExpectAnyArgs();
 
     // Call the read method of modbus controller
-    esp_err_t err = mbc_master_get_parameter(mbm_handle, par_index, pdata, &type);
+    esp_err_t err = mbc_master_get_parameter(mbm_handle, par_index, data_ptr, &type);
     uint8_t *mb_frame_ptr = NULL;
     // get send buffer back using the fake mb_object
-    pmb_base->get_send_buf(pmb_base, &mb_frame_ptr);
-    TEST_ASSERT_EQUAL_HEX8(pmb_base->get_dest_addr(pmb_base), param_descriptor->mb_slave_addr);
-    uint8_t send_len = pmb_base->get_send_len(pmb_base);
+    mb_base->get_send_buf(mb_base, &mb_frame_ptr);
+    TEST_ASSERT_EQUAL_HEX8(mb_base->get_dest_addr(mb_base), param_descriptor->mb_slave_addr);
+    uint8_t send_len = mb_base->get_send_len(mb_base);
     TEST_ASSERT_EQUAL_HEX8(send_len, (MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
     // Check that request function forms correct buffer
     switch (param_descriptor->mb_param_type)
@@ -261,17 +261,17 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
         .ser_opts.parity = UART_PARITY_DISABLE,
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US};
-    mb_base_t *pmb_base = NULL; // fake mb_base handle
+    mb_base_t *mb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
-    pmb_base->port_obj = (mb_port_base_t *)0x44556677;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
+    mb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
-    mb_port_event_post_ExpectAndReturn(pmb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
-    mb_port_event_wait_req_finish_ExpectAndReturn(pmb_base->port_obj, mb_err);
+    mb_port_event_post_ExpectAndReturn(mb_base->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START), true);
+    mb_port_event_wait_req_finish_ExpectAndReturn(mb_base->port_obj, mb_err);
     TEST_ESP_OK(mbc_master_start(mbm_handle));
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
@@ -289,9 +289,9 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
     esp_err_t err = mbc_master_set_parameter(mbm_handle, par_index, reg_data, &type);
     uint8_t *mb_frame_ptr = NULL;
     // get send buffer back using the fake mb_object
-    pmb_base->get_send_buf(pmb_base, &mb_frame_ptr);
-    TEST_ASSERT_EQUAL_HEX8(pmb_base->get_dest_addr(pmb_base), param_descriptor->mb_slave_addr);
-    uint8_t send_len = pmb_base->get_send_len(pmb_base);
+    mb_base->get_send_buf(mb_base, &mb_frame_ptr);
+    TEST_ASSERT_EQUAL_HEX8(mb_base->get_dest_addr(mb_base), param_descriptor->mb_slave_addr);
+    uint8_t send_len = mb_base->get_send_len(mb_base);
     // Check that request function forms correct buffer
     switch (param_descriptor->mb_param_type)
     {
@@ -310,7 +310,7 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
                 TEST_ASSERT_EQUAL_HEX8(reg_data[1], mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_VALUES_OFF]);
             }
             ESP_LOG_BUFFER_HEX_LEVEL(TAG, (void *)mb_frame_ptr, send_len, ESP_LOG_INFO);
-            // TEST_ESP_ERR(MB_ENOERR, mbs_fn_write_holding_reg(pmb_base, mb_frame_ptr, &send_len));
+            // TEST_ESP_ERR(MB_ENOERR, mbs_fn_write_holding_reg(mb_base, mb_frame_ptr, &send_len));
             break;
         case MB_PARAM_COIL:
             TEST_ASSERT_EQUAL_HEX8(mb_frame_ptr[MB_PDU_FUNC_OFF], MB_FUNC_WRITE_MULTIPLE_COILS);
@@ -347,23 +347,23 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
         .ser_opts.parity = UART_PARITY_DISABLE,
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US};
-    mb_base_t *pmb_base = NULL; // fake mb_base handle
+    mb_base_t *mb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
-    pmb_base->port_obj = (mb_port_base_t *)0x44556677;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
+    mb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
     mbm_controller_iface_t *mbm_controller_iface = (mbm_controller_iface_t *)mbm_handle;
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(mbm_controller_iface);
-    TEST_ASSERT_EQUAL_HEX32(mbm_controller_iface->mb_base, pmb_base);
+    TEST_ASSERT_EQUAL_HEX32(mbm_controller_iface->mb_base, mb_base);
 
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_input_cb, mbc_reg_input_master_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_holding_cb, mbc_reg_holding_master_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_coils_cb, mbc_reg_coils_master_cb);
-    TEST_ASSERT_EQUAL_HEX32(pmb_base->rw_cbs.reg_discrete_cb, mbc_reg_discrete_master_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_input_cb, mbc_reg_input_master_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_holding_cb, mbc_reg_holding_master_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_coils_cb, mbc_reg_coils_master_cb);
+    TEST_ASSERT_EQUAL_HEX32(mb_base->rw_cbs.reg_discrete_cb, mbc_reg_discrete_master_cb);
 
     TEST_ESP_OK(mbc_master_start(mbm_handle));
 
@@ -380,7 +380,7 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
     switch (param_descriptor->mb_param_type)
     {
         case MB_PARAM_HOLDING:
-            err = mbc_reg_holding_master_cb(pmb_base, reg_data_in, param_descriptor->mb_reg_start,
+            err = mbc_reg_holding_master_cb(mb_base, reg_data_in, param_descriptor->mb_reg_start,
                                             param_descriptor->mb_size, MB_REG_READ);
             for (int i = 0; (i < param_descriptor->mb_size); i++)
             {
@@ -392,7 +392,7 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
             break;
 
         case MB_PARAM_INPUT:
-            err = mbc_reg_input_master_cb(pmb_base, reg_data_in, param_descriptor->mb_reg_start,
+            err = mbc_reg_input_master_cb(mb_base, reg_data_in, param_descriptor->mb_reg_start,
                                         param_descriptor->mb_size);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG ", INPUT_BUFF", (void *)reg_data_in, (param_descriptor->mb_size << 1), ESP_LOG_INFO);
             for (int i = 0; (i < param_descriptor->mb_size); i++)
@@ -406,7 +406,7 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
         case MB_PARAM_COIL:
             reg_data_in[0] = 0xFF;
             reg_data_in[1] = 0xFF;
-            err = mbc_reg_coils_master_cb(pmb_base, reg_data_in, param_descriptor->mb_reg_start, param_descriptor->mb_size, MB_REG_READ);
+            err = mbc_reg_coils_master_cb(mb_base, reg_data_in, param_descriptor->mb_reg_start, param_descriptor->mb_size, MB_REG_READ);
             byte_cnt = (param_descriptor->mb_size & 0x0007) ? ((param_descriptor->mb_size >> 3) + 1) : (param_descriptor->mb_size >> 3);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG ", INPUT_BUFF", (void *)reg_data_in, byte_cnt, ESP_LOG_INFO);
             TEST_ASSERT_EQUAL_HEX8((reg_data_out[0] & param_descriptor->param_opts.opt1), param_descriptor->param_opts.opt1);
@@ -417,7 +417,7 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
         case MB_PARAM_DISCRETE:
             reg_data_in[0] = 0xFF;
             reg_data_in[1] = 0xFF;
-            err = mbc_reg_discrete_master_cb(pmb_base, reg_data_in, param_descriptor->mb_reg_start, param_descriptor->mb_size);
+            err = mbc_reg_discrete_master_cb(mb_base, reg_data_in, param_descriptor->mb_reg_start, param_descriptor->mb_size);
             byte_cnt = (param_descriptor->mb_size & 0x0007) ? ((param_descriptor->mb_size >> 3) + 1) : (param_descriptor->mb_size >> 3);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG ", INPUT_BUFF", (void *)reg_data_in, byte_cnt, ESP_LOG_INFO);
             TEST_ASSERT_EQUAL_HEX8((reg_data_out[0] & param_descriptor->param_opts.opt1), param_descriptor->param_opts.opt1);

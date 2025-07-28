@@ -15,6 +15,6 @@
 /* ----------------------- Static functions ---------------------------------*/
 uint8_t mb_char2bin(uint8_t char_val);
 uint8_t mb_bin2char(uint8_t byte_val);
-uint8_t mb_lrc(uint8_t *frame_ptr, uint16_t len_buf);
-int mb_ascii_get_binary_buf(uint8_t *pdata, int length);
-int mb_ascii_set_buf(const uint8_t *pdata, uint8_t *pbuf, int bin_length);
+uint8_t mb_lrc(uint8_t *frame, uint16_t length);
+int mb_ascii_get_binary_buf(uint8_t *data_ptr, int length);
+int mb_ascii_set_buf(const uint8_t *data_ptr, uint8_t *buf, int bin_length);

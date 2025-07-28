@@ -49,14 +49,14 @@ void __wrap_mb_port_ser_delete(mb_port_base_t *inst)
     mb_port_adapter_delete(inst);
 }
 
-bool __wrap_mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength)
+bool __wrap_mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
 {
-    return mb_port_adapter_recv_data(inst, ppframe, plength);
+    return mb_port_adapter_recv_data(inst, frame, length);
 }
 
-bool __wrap_mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *pframe, uint16_t length)
+bool __wrap_mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t length)
 {
-    return mb_port_adapter_send_data(inst, 0, pframe, length);
+    return mb_port_adapter_send_data(inst, 0, frame, length);
 }
 
 void __wrap_mb_port_ser_enable(mb_port_base_t *inst)
@@ -72,10 +72,10 @@ void __wrap_mb_port_ser_disable(mb_port_base_t *inst)
 #endif
 
 IRAM_ATTR
-bool __wrap_mb_port_event_get(mb_port_base_t *inst, mb_event_t *pevent)
+bool __wrap_mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 {
-    bool result = __real_mb_port_event_get(inst, pevent);
-    ESP_LOGD(TAG, "%s, get event:%x.", inst->descr.parent_name, pevent->event);
+    bool result = __real_mb_port_event_get(inst, event);
+    ESP_LOGD(TAG, "%s, get event:%x.", inst->descr.parent_name, event->event);
     return result;
 }
 
@@ -95,14 +95,14 @@ mb_err_enum_t __wrap_mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t
     return mb_port_adapter_tcp_create(tcp_opts, in_out_obj);
 }
 
-bool __wrap_mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength)
+bool __wrap_mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
 {
-    return mb_port_adapter_recv_data(inst, ppframe, plength);
+    return mb_port_adapter_recv_data(inst, frame, length);
 }
 
-bool __wrap_mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *pframe, uint16_t length)
+bool __wrap_mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *frame, uint16_t length)
 {
-    return mb_port_adapter_send_data(inst, address, pframe, length);
+    return mb_port_adapter_send_data(inst, address, frame, length);
 }
 
 void __wrap_mbm_port_tcp_delete(mb_port_base_t *inst)
@@ -140,14 +140,14 @@ mb_err_enum_t __wrap_mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t
     return mb_port_adapter_tcp_create(tcp_opts, in_out_obj);
 }
 
-bool __wrap_mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **ppframe, uint16_t *plength)
+bool __wrap_mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
 {
-    return mb_port_adapter_recv_data(inst, ppframe, plength);
+    return mb_port_adapter_recv_data(inst, frame, length);
 }
 
-bool __wrap_mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *pframe, uint16_t length)
+bool __wrap_mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t length)
 {
-    return mb_port_adapter_send_data(inst, 0, pframe, length);
+    return mb_port_adapter_send_data(inst, 0, frame, length);
 }
 
 void __wrap_mbs_port_tcp_delete(mb_port_base_t *inst)

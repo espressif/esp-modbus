@@ -14,15 +14,15 @@
 static _Atomic(uint32_t) inst_counter = 0;
 
 /* ----------------------- Start implementation -----------------------------*/
-int lock_obj(_lock_t *plock)
+int lock_obj(_lock_t *lock_ptr)
 {
-    _lock_acquire(plock);
+    _lock_acquire(lock_ptr);
     return 1;
 }
 
-void unlock_obj(_lock_t *plock)
+void unlock_obj(_lock_t *lock_ptr)
 {
-    _lock_release(plock);
+    _lock_release(lock_ptr);
 }
 
 __attribute__((unused))
@@ -58,27 +58,27 @@ void queue_delete(QueueHandle_t queue)
     vQueueDelete(queue);
 }
 
-esp_err_t queue_push(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t *pframe)
+esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *frame)
 {
     frame_entry_t frame_info = {0};
 
-    if (!queue) { // || !pbuf || (len <= 0)
+    if (!queue) { // || !buf || (len <= 0)
         return -1;
     }
 
-    if (pframe) {
-        frame_info = *pframe;
+    if (frame) {
+        frame_info = *frame;
     }
 
-    if (pbuf && (len > 0)) {
-        if (!frame_info.pbuf) {
-            frame_info.pbuf = calloc(1, len);
+    if (buf && (len > 0)) {
+        if (!frame_info.buf) {
+            frame_info.buf = calloc(1, len);
         }
-        if (!frame_info.pbuf) {
+        if (!frame_info.buf) {
             return ESP_ERR_NO_MEM;
         }
         frame_info.len = len;
-        memcpy(frame_info.pbuf, pbuf, len);
+        memcpy(frame_info.buf, buf, len);
     }
 
     // try send to queue and check if the queue is full
@@ -88,25 +88,25 @@ esp_err_t queue_push(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t 
     return ESP_OK;
 }
 
-ssize_t queue_pop(QueueHandle_t queue, void *pbuf, size_t len, frame_entry_t *pframe)
+ssize_t queue_pop(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *frame)
 {
     TickType_t timeout = portMAX_DELAY;
 
     frame_entry_t frame_info = {0};
 
     if (xQueueReceive(queue, &frame_info, timeout) == pdTRUE) {
-        if (pframe) {
-            *pframe = frame_info;
+        if (frame) {
+            *frame = frame_info;
         }
         if (len > frame_info.len) {
             len = frame_info.len;
         }
         // if the input buffer pointer is defined copy the data and free queued buffer,
         // otherwise just return the frame entry
-        if (frame_info.pbuf && pbuf) {
-            memcpy(pbuf, frame_info.pbuf, len);
-            if (!pframe) {
-                free(frame_info.pbuf); // must free the buffer manually!
+        if (frame_info.buf && buf) {
+            memcpy(buf, frame_info.buf, len);
+            if (!frame) {
+                free(frame_info.buf); // must free the buffer manually!
             }
         }
     } else {
@@ -126,8 +126,8 @@ void queue_flush(QueueHandle_t queue)
 {
     frame_entry_t frame_info;
     while (xQueueReceive(queue, &frame_info, 0) == pdTRUE) {
-        if ((frame_info.len > 0) && frame_info.pbuf) {
-            free(frame_info.pbuf);
+        if ((frame_info.len > 0) && frame_info.buf) {
+            free(frame_info.buf);
         }
     }
 }

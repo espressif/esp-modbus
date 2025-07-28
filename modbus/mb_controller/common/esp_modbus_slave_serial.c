@@ -17,23 +17,23 @@
 /**
  * Initialization of Modbus Serial slave controller
  */
-esp_err_t mbc_slave_create_serial(mb_communication_info_t *config, void **handler)
+esp_err_t mbc_slave_create_serial(mb_communication_info_t *config, void **ctx)
 {
-    void *ctx = NULL;
+    void *obj = NULL;
     esp_err_t error = ESP_ERR_NOT_SUPPORTED;
     switch(config->mode)
 {
         case MB_RTU:
         case MB_ASCII:
             // Call constructor function of actual port implementation
-            error = mbc_serial_slave_create(config, &ctx);
+            error = mbc_serial_slave_create(config, &obj);
             break;
         default:
             return ESP_ERR_NOT_SUPPORTED;
     }
-    if ((ctx) && (error == ESP_OK)) {
-        mbc_slave_init_iface(ctx);
-        *handler = ctx;
+    if ((obj) && (error == ESP_OK)) {
+        mbc_slave_init_iface(obj);
+        *ctx = obj;
     }
     return error;
 }

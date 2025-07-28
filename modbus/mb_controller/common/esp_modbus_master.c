@@ -40,10 +40,10 @@ esp_err_t mbc_master_lock(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                             "Master interface is not correctly initialized.");
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbm_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
+    mb_base_t *mb_obj = mbm_controller->mb_base;
+    MB_RETURN_ON_FALSE((mb_obj && mb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
                             "Master interface is not correctly initialized.");
-    CRITICAL_SECTION_LOCK(pmb_obj->lock);
+    CRITICAL_SECTION_LOCK(mb_obj->lock);
     return ESP_OK;
 }
 
@@ -55,10 +55,10 @@ esp_err_t mbc_master_unlock(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                             "Master interface is not correctly initialized.");
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbm_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
+    mb_base_t *mb_obj = mbm_controller->mb_base;
+    MB_RETURN_ON_FALSE((mb_obj && mb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
                             "Master interface is not correctly initialized.");
-    CRITICAL_SECTION_UNLOCK(pmb_obj->lock);
+    CRITICAL_SECTION_UNLOCK(mb_obj->lock);
     return ESP_OK;
 }
 
@@ -231,17 +231,17 @@ esp_err_t mbc_master_stop(void *ctx)
 /* ----------------------- Callback functions for Modbus stack ---------------------------------*/
 // These are executed by modbus stack to read appropriate type of registers.
 
-mb_err_enum_t mbc_reg_common_cb(mb_base_t *inst, uint8_t *pdata, uint16_t address, uint16_t bytes)
+mb_err_enum_t mbc_reg_common_cb(mb_base_t *inst, uint8_t *data_ptr, uint16_t address, uint16_t bytes)
 {
-    MB_RETURN_ON_FALSE((pdata), MB_EINVAL, TAG, "incorrect parameters provided.");
+    MB_RETURN_ON_FALSE((data_ptr), MB_EINVAL, TAG, "incorrect parameters provided.");
 
-    mb_master_options_t *popts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
-    uint16_t reg_len = popts->reg_buffer_size;
-    uint8_t *ppar_buffer = (uint8_t *)popts->reg_buffer_ptr; // Get instance address
+    mb_master_options_t *opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
+    uint16_t reg_len = opts->reg_buffer_size;
+    uint8_t *par_buffer = opts->reg_buffer_ptr; // Get instance address
     mb_err_enum_t status = MB_ENOERR;
-    if (ppar_buffer && !address && (bytes >= 2) && (((reg_len << 1) >= bytes))){
+    if (par_buffer&& !address && (bytes >= 2) && (((reg_len << 1) >= bytes))){
         CRITICAL_SECTION(inst->lock) {
-            memmove(ppar_buffer, pdata, bytes);
+            memmove(par_buffer, data_ptr, bytes);
         }
     } else {
         status = MB_ENORES;
@@ -267,8 +267,8 @@ mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
                        "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
     // Number of input registers to be transferred
-    uint16_t num_input_regs = (uint16_t)mbm_opts->reg_buffer_size;
-    uint8_t *input_reg_buf = (uint8_t *)mbm_opts->reg_buffer_ptr; // Get instance address
+    uint16_t num_input_regs = mbm_opts->reg_buffer_size;
+    uint8_t *input_reg_buf = mbm_opts->reg_buffer_ptr; // Get instance address
     uint16_t regs_cnt = num_regs;
     mb_err_enum_t status = MB_ENOERR;
     // If input or configuration parameters are incorrect then return an error to stack layer
@@ -309,8 +309,8 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
 {
     MB_RETURN_ON_FALSE((reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
-    uint16_t num_hold_regs = (uint16_t)mbm_opts->reg_buffer_size;
-    uint8_t *holding_buf = (uint8_t *)mbm_opts->reg_buffer_ptr;
+    uint16_t num_hold_regs = mbm_opts->reg_buffer_size;
+    uint8_t *holding_buf = mbm_opts->reg_buffer_ptr;
     mb_err_enum_t status = MB_ENOERR;
     uint16_t regs_cnt = num_regs;
     // Check input and configuration parameters for correctness
@@ -349,7 +349,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
 }
 
 /**
- * Modbus master coils callback function.
+ * @brief Modbus master coils read callback function.
  *
  * @param inst interface context pointer
  * @param reg_buffer coils buffer
@@ -359,15 +359,13 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
  *
  * @return result
  */
-// Callback function for reading of MB Coils Registers
-// mbm_reg_coils_cb_serial
 mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_addr,
                                       uint16_t ncoils, mb_reg_mode_enum_t mode)
 {
     MB_RETURN_ON_FALSE((reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
-    uint16_t num_coil_regs = (uint16_t)mbm_opts->reg_buffer_size;
-    uint8_t *coils_buf = (uint8_t *)mbm_opts->reg_buffer_ptr;
+    uint16_t num_coil_regs = mbm_opts->reg_buffer_size;
+    uint8_t *coils_buf = mbm_opts->reg_buffer_ptr;
     mb_err_enum_t status = MB_ENOERR;
     uint16_t reg_index;
     uint16_t coils_cnt = ncoils;
@@ -382,7 +380,7 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
             {
                 while (coils_cnt > 0)
                 {
-                    uint8_t result = mb_util_get_bits((uint8_t *)coils_buf, reg_index - (reg_addr % 8), 1);
+                    uint8_t result = mb_util_get_bits(coils_buf, reg_index - (reg_addr % 8), 1);
                     mb_util_set_bits(reg_buffer, reg_index - (reg_addr % 8), 1, result);
                     reg_index++;
                     coils_cnt--;
@@ -395,7 +393,7 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
                 while (coils_cnt > 0)
                 {
                     uint8_t result = mb_util_get_bits(reg_buffer, reg_index - (reg_addr % 8), 1);
-                    mb_util_set_bits((uint8_t *)coils_buf, reg_index - (reg_addr % 8), 1, result);
+                    mb_util_set_bits(coils_buf, reg_index - (reg_addr % 8), 1, result);
                     reg_index++;
                     coils_cnt--;
                 }
@@ -428,18 +426,18 @@ mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, u
 {
     MB_RETURN_ON_FALSE((reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
-    uint16_t num_discr_regs = (uint16_t)mbm_opts->reg_buffer_size;
-    uint8_t *discr_buf = (uint8_t *)mbm_opts->reg_buffer_ptr;
+    uint16_t num_discr_regs = mbm_opts->reg_buffer_size;
+    uint8_t *discr_buf = mbm_opts->reg_buffer_ptr;
     mb_err_enum_t status = MB_ENOERR;
     uint16_t bit_index, num_reg;
     uint8_t *temp_discr_buf;
     num_reg = n_discrete;
-    temp_discr_buf = (uint8_t *)discr_buf;
+    temp_discr_buf = discr_buf;
     // It is already plus one in Modbus function method.
     reg_addr--;
     if ((num_discr_regs >= 1) && (discr_buf) && (n_discrete >= 1) && (n_discrete == num_discr_regs))
     {
-        bit_index = (uint16_t)(reg_addr) % 8; // Get bit index
+        bit_index = (reg_addr) % 8; // Get bit index
         CRITICAL_SECTION(inst->lock)
         {
             while (num_reg > 0)
@@ -464,265 +462,265 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
     esp_err_t err = ESP_OK;
     MB_RETURN_ON_FALSE((src), ESP_ERR_INVALID_STATE, TAG,"incorrect data pointer.");
     MB_RETURN_ON_FALSE((dest), ESP_ERR_INVALID_STATE, TAG,"incorrect data pointer.");
-    void *pdest = dest;
-    void *psrc = src;
+    void *dest_ptr = dest;
+    void *src_ptr = src;
 
     // Transfer parameter data into value of characteristic
     switch(param_type)
     {
         case PARAM_TYPE_U8:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U8) {
-                *((uint8_t *)pdest) = *((uint8_t*)psrc);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U8) {
+                *((uint8_t *)dest_ptr) = *((uint8_t*)src_ptr);
             }
             break;
 
         case PARAM_TYPE_U16:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U16) {
-                *((uint16_t *)pdest) = *((uint16_t*)psrc);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U16) {
+                *((uint16_t *)dest_ptr) = *((uint16_t*)src_ptr);
             }
             break;
 
         case PARAM_TYPE_U32:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U32) {
-                *((uint32_t *)pdest) = *((uint32_t*)psrc);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U32) {
+                *((uint32_t *)dest_ptr) = *((uint32_t*)src_ptr);
             }
             break;
 
         case PARAM_TYPE_FLOAT:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_FLOAT) {
-                *((float *)pdest) = *(float*)psrc;
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_FLOAT) {
+                *((float *)dest_ptr) = *(float*)src_ptr;
             }
             break;
 
         case PARAM_TYPE_ASCII:
         case PARAM_TYPE_BIN:
-            memcpy((void *)dest, (void*)src, (size_t)param_size);
+            memcpy(dest, src, param_size);
             break;
 
 #if CONFIG_FMB_EXT_TYPE_SUPPORT
 
         case PARAM_TYPE_I8_A:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U8_REG) {
-                mb_set_int8_a((val_16_arr *)pdest, (*(int8_t*)psrc));
-                ESP_LOGV(TAG, "Convert uint8 B[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U8_REG) {
+                mb_set_int8_a((val_16_arr *)dest_ptr, (*(int8_t*)src_ptr));
+                ESP_LOGV(TAG, "Convert uint8 B[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I8_B:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U8_REG) {
-                mb_set_int8_b((val_16_arr *)pdest, (int8_t)((*(uint16_t*)psrc) >> 8));
-                ESP_LOGV(TAG, "Convert int8 A[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U8_REG) {
+                mb_set_int8_b((val_16_arr *)dest_ptr, (int8_t)((*(uint16_t*)src_ptr) >> 8));
+                ESP_LOGV(TAG, "Convert int8 A[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U8_A:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U8_REG) {
-                mb_set_uint8_a((val_16_arr *)pdest, (*(uint8_t*)psrc));
-                ESP_LOGV(TAG, "Convert uint8 A[%d] 0x%02" PRIx16 " = %02" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U8_REG) {
+                mb_set_uint8_a((val_16_arr *)dest_ptr, (*(uint8_t*)src_ptr));
+                ESP_LOGV(TAG, "Convert uint8 A[%d] 0x%02" PRIx16 " = %02" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U8_B:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U8_REG) {
-                uint8_t data = (uint8_t)((*(uint16_t*)psrc) >> 8);
-                mb_set_uint8_b((val_16_arr *)pdest, data);
-                ESP_LOGV(TAG, "Convert uint8 B[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U8_REG) {
+                uint8_t data = (uint8_t)((*(uint16_t*)src_ptr) >> 8);
+                mb_set_uint8_b((val_16_arr *)dest_ptr, data);
+                ESP_LOGV(TAG, "Convert uint8 B[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I16_AB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I16) {
-                mb_set_int16_ab((val_16_arr *)pdest, *(int16_t*)psrc);
-                ESP_LOGV(TAG, "Convert int16 AB[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I16) {
+                mb_set_int16_ab((val_16_arr *)dest_ptr, *(int16_t*)src_ptr);
+                ESP_LOGV(TAG, "Convert int16 AB[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I16_BA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I16) {
-                mb_set_int16_ba((val_16_arr *)pdest, *(int16_t*)psrc);
-                ESP_LOGV(TAG, "Convert int16 BA[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I16) {
+                mb_set_int16_ba((val_16_arr *)dest_ptr, *(int16_t*)src_ptr);
+                ESP_LOGV(TAG, "Convert int16 BA[%d] 0x%04" PRIx16 " = 0x%04" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U16_AB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U16) {
-                mb_set_uint16_ab((val_16_arr *)pdest, *(uint16_t*)psrc);
-                ESP_LOGV(TAG, "Convert uint16 AB[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U16) {
+                mb_set_uint16_ab((val_16_arr *)dest_ptr, *(uint16_t*)src_ptr);
+                ESP_LOGV(TAG, "Convert uint16 AB[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U16_BA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U16) {
-                mb_set_uint16_ba((val_16_arr *)pdest, *(uint16_t*)psrc);
-                ESP_LOGV(TAG, "Convert uint16 BA[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)psrc, *(uint16_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U16) {
+                mb_set_uint16_ba((val_16_arr *)dest_ptr, *(uint16_t*)src_ptr);
+                ESP_LOGV(TAG, "Convert uint16 BA[%d] 0x%02" PRIx16 " = 0x%02" PRIx16, i, *(uint16_t *)src_ptr, *(uint16_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I32_ABCD:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I32) {
-                mb_set_int32_abcd((val_32_arr *)pdest, *(int32_t *)psrc);
-                ESP_LOGV(TAG, "Convert int32 ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I32) {
+                mb_set_int32_abcd((val_32_arr *)dest_ptr, *(int32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int32 ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U32_ABCD:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U32) {
-                mb_set_uint32_abcd((val_32_arr *)pdest, *(uint32_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint32 ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U32) {
+                mb_set_uint32_abcd((val_32_arr *)dest_ptr, *(uint32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint32 ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_FLOAT_ABCD:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_FLOAT) {
-                mb_set_float_abcd((val_32_arr *)pdest, *(float *)psrc);
-                ESP_LOGV(TAG, "Convert float ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_FLOAT) {
+                mb_set_float_abcd((val_32_arr *)dest_ptr, *(float *)src_ptr);
+                ESP_LOGV(TAG, "Convert float ABCD[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I32_CDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I32) {
-                mb_set_int32_cdab((val_32_arr *)pdest, *(int32_t *)psrc);
-                ESP_LOGV(TAG, "Convert int32 CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I32) {
+                mb_set_int32_cdab((val_32_arr *)dest_ptr, *(int32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int32 CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U32_CDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U32) {
-                mb_set_uint32_cdab((val_32_arr *)pdest, *(uint32_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint32 CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U32) {
+                mb_set_uint32_cdab((val_32_arr *)dest_ptr, *(uint32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint32 CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_FLOAT_CDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_FLOAT) {
-                mb_set_float_cdab((val_32_arr *)pdest, *(float *)psrc);
-                ESP_LOGV(TAG, "Convert float CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_FLOAT) {
+                mb_set_float_cdab((val_32_arr *)dest_ptr, *(float *)src_ptr);
+                ESP_LOGV(TAG, "Convert float CDAB[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I32_BADC:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I32) {
-                mb_set_int32_badc((val_32_arr *)pdest, *(int32_t *)psrc);
-                ESP_LOGV(TAG, "Convert int32 BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I32) {
+                mb_set_int32_badc((val_32_arr *)dest_ptr, *(int32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int32 BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U32_BADC:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U32) {
-                mb_set_uint32_badc((val_32_arr *)pdest, *(uint32_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint32 BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U32) {
+                mb_set_uint32_badc((val_32_arr *)dest_ptr, *(uint32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint32 BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_FLOAT_BADC:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_FLOAT) {
-                mb_set_float_badc((val_32_arr *)pdest, *(float *)psrc);
-                ESP_LOGV(TAG, "Convert float BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_FLOAT) {
+                mb_set_float_badc((val_32_arr *)dest_ptr, *(float *)src_ptr);
+                ESP_LOGV(TAG, "Convert float BADC[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I32_DCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I32) {
-                mb_set_int32_dcba((val_32_arr *)pdest, *(int32_t *)psrc);
-                ESP_LOGV(TAG, "Convert int32 DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I32) {
+                mb_set_int32_dcba((val_32_arr *)dest_ptr, *(int32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int32 DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U32_DCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U32) {
-                mb_set_uint32_dcba((val_32_arr *)pdest, *(uint32_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint32 DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U32) {
+                mb_set_uint32_dcba((val_32_arr *)dest_ptr, *(uint32_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint32 DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_FLOAT_DCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_FLOAT) {
-                mb_set_float_dcba((val_32_arr *)pdest, *(float *)psrc);
-                ESP_LOGV(TAG, "Convert float DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)psrc, *(uint32_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_FLOAT) {
+                mb_set_float_dcba((val_32_arr *)dest_ptr, *(float *)src_ptr);
+                ESP_LOGV(TAG, "Convert float DCBA[%d] 0x%04" PRIx32 " = 0x%04" PRIx32, i, *(uint32_t *)src_ptr, *(uint32_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I64_ABCDEFGH:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I64) {
-                mb_set_int64_abcdefgh((val_64_arr *)pdest, *(int64_t *)psrc);
-                ESP_LOGV(TAG, "Convert int64 ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I64) {
+                mb_set_int64_abcdefgh((val_64_arr *)dest_ptr, *(int64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int64 ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U64_ABCDEFGH:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U64) {
-                mb_set_uint64_abcdefgh((val_64_arr *)pdest, *(uint64_t *)psrc);
-                ESP_LOGV(TAG, "Convert double ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U64) {
+                mb_set_uint64_abcdefgh((val_64_arr *)dest_ptr, *(uint64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert double ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_DOUBLE_ABCDEFGH:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_DOUBLE) {
-                mb_set_double_abcdefgh((val_64_arr *)pdest, *(double *)psrc);
-                ESP_LOGV(TAG, "Convert double ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_DOUBLE) {
+                mb_set_double_abcdefgh((val_64_arr *)dest_ptr, *(double *)src_ptr);
+                ESP_LOGV(TAG, "Convert double ABCDEFGH[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I64_HGFEDCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I64) {
-                mb_set_int64_hgfedcba((val_64_arr *)pdest, *(int64_t *)psrc);
-                ESP_LOGV(TAG, "Convert int64 HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I64) {
+                mb_set_int64_hgfedcba((val_64_arr *)dest_ptr, *(int64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int64 HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U64_HGFEDCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U64) {
-                mb_set_uint64_hgfedcba((val_64_arr *)pdest, *(uint64_t *)psrc);
-                ESP_LOGV(TAG, "Convert double HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U64) {
+                mb_set_uint64_hgfedcba((val_64_arr *)dest_ptr, *(uint64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert double HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_DOUBLE_HGFEDCBA:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_DOUBLE) {
-                mb_set_double_hgfedcba((val_64_arr *)pdest, *(double *)psrc);
-                ESP_LOGV(TAG, "Convert double HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_DOUBLE) {
+                mb_set_double_hgfedcba((val_64_arr *)dest_ptr, *(double *)src_ptr);
+                ESP_LOGV(TAG, "Convert double HGFEDCBA[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I64_GHEFCDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I64) {
-                mb_set_int64_ghefcdab((val_64_arr *)pdest, *(int64_t *)psrc);
-                ESP_LOGV(TAG, "Convert int64 GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I64) {
+                mb_set_int64_ghefcdab((val_64_arr *)dest_ptr, *(int64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int64 GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U64_GHEFCDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U64) {
-                mb_set_uint64_ghefcdab((val_64_arr *)pdest, *(uint64_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint64 GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U64) {
+                mb_set_uint64_ghefcdab((val_64_arr *)dest_ptr, *(uint64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint64 GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_DOUBLE_GHEFCDAB:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_DOUBLE) {
-                mb_set_double_ghefcdab((val_64_arr *)pdest, *(double *)psrc);
-                ESP_LOGV(TAG, "Convert double GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_DOUBLE) {
+                mb_set_double_ghefcdab((val_64_arr *)dest_ptr, *(double *)src_ptr);
+                ESP_LOGV(TAG, "Convert double GHEFCDAB[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_I64_BADCFEHG:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_I64) {
-                mb_set_int64_badcfehg((val_64_arr *)pdest, *(int64_t *)psrc);
-                ESP_LOGV(TAG, "Convert int64 BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_I64) {
+                mb_set_int64_badcfehg((val_64_arr *)dest_ptr, *(int64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert int64 BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_U64_BADCFEHG:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_U64) {
-                mb_set_uint64_badcfehg((val_64_arr *)pdest, *(uint64_t *)psrc);
-                ESP_LOGV(TAG, "Convert uint64 BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_U64) {
+                mb_set_uint64_badcfehg((val_64_arr *)dest_ptr, *(uint64_t *)src_ptr);
+                ESP_LOGV(TAG, "Convert uint64 BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
         case PARAM_TYPE_DOUBLE_BADCFEHG:
-            for MB_EACH_ELEM(psrc, pdest, param_size, PARAM_SIZE_DOUBLE) {
-                mb_set_double_badcfehg((val_64_arr *)pdest, *(double *)psrc);
-                ESP_LOGV(TAG, "Convert double BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)psrc, *(uint64_t *)pdest);
+            for MB_EACH_ELEM(src_ptr, dest_ptr, param_size, PARAM_SIZE_DOUBLE) {
+                mb_set_double_badcfehg((val_64_arr *)dest_ptr, *(double *)src_ptr);
+                ESP_LOGV(TAG, "Convert double BADCFEHG[%d] 0x%" PRIx64 " = 0x%" PRIx64, i, *(uint64_t *)src_ptr, *(uint64_t *)dest_ptr);
             }
             break;
 
@@ -740,34 +738,34 @@ esp_err_t mbc_master_set_param_data(void* dest, void* src, mb_descr_type_t param
 // Supports custom command options using the PAR_PERMS_CUST_CMD permission.
 // The MB_PARAM_CUSTOM register type mimics the custom commands specificly handled with
 // custom command handlers which have to be defined in command handling table.
-uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *pdescr, mb_param_mode_t mode)
+uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *descr, mb_param_mode_t mode)
 {
-    MB_RETURN_ON_FALSE((pdescr), 0, TAG, "incorrect data pointer.");
+    MB_RETURN_ON_FALSE((descr), 0, TAG, "incorrect data pointer.");
     uint8_t command = 0;
-    switch(pdescr->mb_param_type)
+    switch(descr->mb_param_type)
     {
         case MB_PARAM_HOLDING:
-            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_HOLDING_REGISTER, MB_FUNC_WRITE_MULTIPLE_REGISTERS);
+            command = GET_CMD(mode, descr->access, MB_FUNC_READ_HOLDING_REGISTER, MB_FUNC_WRITE_MULTIPLE_REGISTERS);
             break;
         case MB_PARAM_INPUT:
-            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_INPUT_REGISTER, 0);
+            command = GET_CMD(mode, descr->access, MB_FUNC_READ_INPUT_REGISTER, 0);
             break;
         case MB_PARAM_COIL:
-            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_COILS, MB_FUNC_WRITE_MULTIPLE_COILS);
+            command = GET_CMD(mode, descr->access, MB_FUNC_READ_COILS, MB_FUNC_WRITE_MULTIPLE_COILS);
             break;
         case MB_PARAM_DISCRETE:
-            command = GET_CMD(mode, pdescr->access, MB_FUNC_READ_DISCRETE_INPUTS, 0);
+            command = GET_CMD(mode, descr->access, MB_FUNC_READ_DISCRETE_INPUTS, 0);
             break;
         case MB_PARAM_CUSTOM:
-            if (pdescr->access & PAR_PERMS_CUST_CMD) {
+            if (descr->access & PAR_PERMS_CUST_CMD) {
                 // Use custom command in the request for read or write
-                command = GET_CMD(mode, pdescr->access, (uint8_t)pdescr->param_opts.cust_cmd_read, (uint8_t)pdescr->param_opts.cust_cmd_write);
+                command = GET_CMD(mode, descr->access, (uint8_t)descr->param_opts.cust_cmd_read, (uint8_t)descr->param_opts.cust_cmd_write);
             } else {
                 command = 0;
             }
             break;
         default:
-            ESP_LOGE(TAG, "%s: Incorrect param type (%u)", __FUNCTION__, (unsigned)pdescr->mb_param_type);
+            ESP_LOGE(TAG, "%s: Incorrect param type (%u)", __FUNCTION__, (unsigned)descr->mb_param_type);
             break;
     }
     return command;

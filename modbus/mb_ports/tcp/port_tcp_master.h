@@ -23,8 +23,8 @@ extern "C" {
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-typedef enum _mb_sock_state mb_sock_state_t;
-typedef struct _uid_info mb_uid_info_t;
+typedef enum mb_sock_state_enum mb_sock_state_t;
+typedef struct uid_info_s mb_uid_info_t;
 
 void mbm_port_tcp_set_conn_cb(mb_port_base_t *inst, void *conn_fp, void *arg);
 mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb_sock_state_t exp_state);

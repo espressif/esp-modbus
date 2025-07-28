@@ -232,4 +232,13 @@ menu "Modbus configuration"
                 This option defines the maximum number of Modbus command handlers for Modbus master and slave.
                 The option can be useful to register additional commands and its handlers.
 
+    config FMB_COMPILER_STATIC_ANALYZER_ENABLE
+        bool "Enable compiler static analyzer for Modbus library"
+        default "n"
+        depends on IDF_TOOLCHAIN_GCC
+        help
+            Enable compiler static analyzer for Modbus library. 
+            This is workaround to avoid false-positives for some IDF related components.
+            When enabled, the library files will be analysed with GCC static analyzer.
+
 endmenu

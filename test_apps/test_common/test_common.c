@@ -120,7 +120,7 @@ static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_
     return (is_done);
 }
 
-static void test_task_add_entry(TaskHandle_t task_handle, void *pinst)
+static void test_task_add_entry(TaskHandle_t task_handle, void *inst)
 {
     TEST_ASSERT_TRUE(task_handle);
     task_entry_t *new_entry = (task_entry_t*) calloc(1, sizeof(task_entry_t));
@@ -128,7 +128,7 @@ static void test_task_add_entry(TaskHandle_t task_handle, void *pinst)
     portENTER_CRITICAL(&s_list_spinlock);
     new_entry->task_handle = task_handle;
     new_entry->task_sema_handle = xSemaphoreCreateBinary();
-    new_entry->inst_handle = pinst;
+    new_entry->inst_handle = inst;
     LIST_INSERT_HEAD(&s_task_list, new_entry, entries);
     portEXIT_CRITICAL(&s_list_spinlock);
     xSemaphoreTake(new_entry->task_sema_handle, 1);
@@ -561,10 +561,10 @@ void test_common_slave_setup_start(void *mbs_handle)
 
 TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,
                                                 uint32_t priority, 
-                                                const mb_parameter_descriptor_t *pdescr,
+                                                const mb_parameter_descriptor_t *descr,
                                                 uint16_t descr_size)
 {
-    if (!pconfig || !pdescr) {
+    if (!pconfig || !descr) {
         ESP_LOGI(TAG, "invalid master configuration.");
     }
 
@@ -574,7 +574,7 @@ TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,
     TEST_ESP_OK(mbc_master_create_serial(pconfig, &mbm_handle));
     mbm_controller_iface_t *pbase = mbm_handle;
 
-    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, pdescr, descr_size));
+    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, descr, descr_size));
     ESP_LOGI(TAG, "%p, modbus master stack is initialized", mbm_handle);
 
     TEST_ESP_OK(mbc_master_start(mbm_handle));
@@ -624,9 +624,9 @@ TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, u
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *pdescr, uint16_t descr_size)
+TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size)
 {
-    if (!pconfig || !pdescr) {
+    if (!pconfig || !descr) {
         ESP_LOGI(TAG, "invalid master configuration.");
     }
 
@@ -636,7 +636,7 @@ TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uin
     TEST_ESP_OK(mbc_master_create_tcp(pconfig, &mbm_handle));
     mbm_controller_iface_t *pbase = mbm_handle;
 
-    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, pdescr, descr_size));
+    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, descr, descr_size));
     ESP_LOGI(TAG, "%p, modbus master stack is initialized", mbm_handle);
     
     TEST_ESP_OK(mbc_master_start(mbm_handle));

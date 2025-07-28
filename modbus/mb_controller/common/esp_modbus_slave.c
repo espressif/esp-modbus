@@ -116,10 +116,10 @@ esp_err_t mbc_slave_lock(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                             "Slave interface is not correctly initialized.");
     mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbs_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
+    mb_base_t *mb_obj = mbs_controller->mb_base;
+    MB_RETURN_ON_FALSE((mb_obj && mb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
                             "Slave interface is not correctly initialized.");
-    CRITICAL_SECTION_LOCK(pmb_obj->lock);
+    CRITICAL_SECTION_LOCK(mb_obj->lock);
     return ESP_OK;
 }
 
@@ -131,10 +131,10 @@ esp_err_t mbc_slave_unlock(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                             "Slave interface is not correctly initialized.");
     mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
-    mb_base_t *pmb_obj = (mb_base_t *)mbs_controller->mb_base;
-    MB_RETURN_ON_FALSE((pmb_obj && pmb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
+    mb_base_t *mb_obj = mbs_controller->mb_base;
+    MB_RETURN_ON_FALSE((mb_obj && mb_obj->lock), ESP_ERR_INVALID_STATE, TAG,
                             "Slave interface is not correctly initialized.");
-    CRITICAL_SECTION_UNLOCK(pmb_obj->lock);
+    CRITICAL_SECTION_UNLOCK(mb_obj->lock);
     return ESP_OK;
 }
 
@@ -142,15 +142,15 @@ esp_err_t mbc_slave_unlock(void *ctx)
 /**
  * Set object ID for the Modbus controller
  */
-esp_err_t mbc_set_slave_id(void *ctx, uint8_t slave_addr, bool is_running, uint8_t const *pdata, uint8_t data_len)
+esp_err_t mbc_set_slave_id(void *ctx, uint8_t uid, bool is_running, uint8_t const *data_ptr, uint8_t data_len)
 {
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                         "Slave interface is not correctly initialized.");
-    mbs_controller_iface_t *pmbs_controller = MB_SLAVE_GET_IFACE(ctx);
+    mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
     // The Report Slave ID functionality is useful for TCP and gateway,
     // so the design decision is to keep this functionality for all slaves
     // Set the slave ID if the KConfig option is selected
-    mb_err_enum_t status = mbs_set_slave_id(pmbs_controller->mb_base, slave_addr, is_running, (uint8_t *)pdata, data_len);
+    mb_err_enum_t status = mbs_set_slave_id(mbs_controller->mb_base, uid, is_running, (uint8_t *)data_ptr, data_len);
     MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG, "mb stack set slave ID failure.");
     return MB_ERR_TO_ESP_ERR(status);
 }
@@ -158,12 +158,12 @@ esp_err_t mbc_set_slave_id(void *ctx, uint8_t slave_addr, bool is_running, uint8
 /**
  * Get object ID from the Modbus controller
  */
-esp_err_t mbc_get_slave_id(void *ctx, uint8_t const *pdata, uint8_t *pdata_len)
+esp_err_t mbc_get_slave_id(void *ctx, uint8_t const *data_ptr, uint8_t *data_len)
 {
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                         "Slave interface is not correctly initialized.");
-    mbs_controller_iface_t *pmbs_controller = MB_SLAVE_GET_IFACE(ctx);
-    mb_err_enum_t status = mbs_get_slave_id(pmbs_controller->mb_base, (uint8_t *)pdata, pdata_len);
+    mbs_controller_iface_t *mbs_controller = MB_SLAVE_GET_IFACE(ctx);
+    mb_err_enum_t status = mbs_get_slave_id(mbs_controller->mb_base, (uint8_t *)data_ptr, data_len);
     MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG, "mb stack get slave ID failure.");
     return MB_ERR_TO_ESP_ERR(status);
 }
@@ -348,7 +348,7 @@ mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
     address--; // address of register is already +1
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_INPUT, address, n_regs);
     if (it) {
-        uint16_t input_reg_start = (uint16_t)it->start_offset; // Get Modbus start address
+        uint16_t input_reg_start = it->start_offset; // Get Modbus start address
         uint8_t *input_buffer = (uint8_t *)it->p_data; // Get instance address
         uint16_t regs = n_regs;
         uint16_t reg_index;
@@ -368,8 +368,7 @@ mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
         // Send access notification
         (void)mbc_slave_send_param_access_notification(ctx, MB_EVENT_INPUT_REG_RD);
         // Send parameter info to application task
-        (void)mbc_slave_send_param_info(ctx, MB_EVENT_INPUT_REG_RD, address,
-                                            (uint8_t *)buffer_start, n_regs);
+        (void)mbc_slave_send_param_info(ctx, MB_EVENT_INPUT_REG_RD, address, buffer_start, n_regs);
     } else {
         status = MB_ENOREG;
     }
@@ -387,8 +386,8 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
     address--; // address of register is already +1
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_HOLDING, address, n_regs);
     if (it) {
-        uint16_t reg_holding_start = (uint16_t)it->start_offset; // Get Modbus start address
-        uint8_t *holding_buffer = (uint8_t *)it->p_data; // Get instance address
+        uint16_t reg_holding_start = it->start_offset; // Get Modbus start address
+        uint8_t *holding_buffer = it->p_data; // Get instance address
         uint16_t regs = n_regs;
         reg_index = (uint16_t) (address - reg_holding_start);
         reg_index <<= 1; // register Address to byte address
@@ -408,8 +407,7 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
                     // Send access notification
                     (void)mbc_slave_send_param_access_notification(ctx, MB_EVENT_HOLDING_REG_RD);
                     // Send parameter info
-                    (void)mbc_slave_send_param_info(ctx, MB_EVENT_HOLDING_REG_RD, address,
-                                                        (uint8_t *)buffer_start, n_regs);
+                    (void)mbc_slave_send_param_info(ctx, MB_EVENT_HOLDING_REG_RD, address, buffer_start, n_regs);
                 } else {
                     status = MB_EINVAL;
                 }
@@ -428,8 +426,7 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
                     // Send access notification
                     (void)mbc_slave_send_param_access_notification(ctx, MB_EVENT_HOLDING_REG_WR);
                     // Send parameter info
-                    (void)mbc_slave_send_param_info(ctx, MB_EVENT_HOLDING_REG_WR, (uint16_t)address,
-                                    (uint8_t *)buffer_start, (uint16_t)n_regs);
+                    (void)mbc_slave_send_param_info(ctx, MB_EVENT_HOLDING_REG_WR, address, buffer_start, n_regs);
                 } else {
                     status = MB_EINVAL;
                 }
@@ -453,8 +450,8 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
     address--; // The address is already +1
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_COIL, address, n_coils);
     if (it) {
-        uint16_t reg_coils_start = (uint16_t)it->start_offset; // MB offset of coils
-        uint8_t *reg_coils_buf = (uint8_t *)it->p_data;
+        uint16_t reg_coils_start = it->start_offset; // MB offset of coils
+        uint8_t *reg_coils_buf = it->p_data;
         reg_index = (uint16_t) (address - it->start_offset);
         char *coils_data_buf = (char *)(reg_coils_buf + (reg_index >> 3));
         switch (mode) {
@@ -463,7 +460,7 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
                     CRITICAL_SECTION(inst->lock)
                     {
                         while (coils > 0) {
-                            uint8_t result = mb_util_get_bits((uint8_t *)reg_coils_buf, reg_index, 1);
+                            uint8_t result = mb_util_get_bits(reg_coils_buf, reg_index, 1);
                             mb_util_set_bits(reg_buffer, reg_index - (address - reg_coils_start), 1, result);
                             reg_index++;
                             coils--;
@@ -484,7 +481,7 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
                         while (coils > 0) {
                             uint8_t result = mb_util_get_bits(reg_buffer,
                                     reg_index - (address - reg_coils_start), 1);
-                            mb_util_set_bits((uint8_t *)reg_coils_buf, reg_index, 1, result);
+                            mb_util_set_bits(reg_coils_buf, reg_index, 1, result);
                             reg_index++;
                             coils--;
                         }
@@ -519,7 +516,7 @@ mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
     address--;
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_DISCRETE, address, n_discrete);
     if (it) {
-        uint16_t reg_discrete_start = (uint16_t)it->start_offset; // MB offset of registers
+        uint16_t reg_discrete_start = it->start_offset; // MB offset of registers
         n_reg = (n_discrete >> 3) + 1;
         discrete_input_buf = (uint8_t *)it->p_data; // the storage address
         reg_index = (uint16_t) (address - reg_discrete_start) / 8; // Get register index in the buffer for bit number
@@ -540,8 +537,7 @@ mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
         *reg_buffer = *reg_buffer >> (8 - n_discrete);
         // Send an event to notify application task about event
         (void)mbc_slave_send_param_access_notification(ctx, MB_EVENT_DISCRETE_RD);
-        (void)mbc_slave_send_param_info(ctx, MB_EVENT_DISCRETE_RD, address,
-                                            (uint8_t *)temp_buf, n_discrete);
+        (void)mbc_slave_send_param_info(ctx, MB_EVENT_DISCRETE_RD, address, temp_buf, n_discrete);
     } else {
         status = MB_ENOREG;
     }

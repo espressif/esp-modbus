@@ -90,15 +90,15 @@ typedef struct _port_driver port_driver_t;
 
 #define MB_EVENT_BASE(context) (__extension__(                                      \
 {                                                                                   \
-    port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(context);                              \
-    (pdrv_ctx->loop_name) ? (esp_event_base_t)(pdrv_ctx->loop_name) : "UNK_BASE";   \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(context);                              \
+    (drv_obj->loop_name) ? (esp_event_base_t)(drv_obj->loop_name) : "UNK_BASE";   \
 }                                                                                   \
 ))
 
-#define MB_ADD_FD(fd, max_fd, pfdset) do {      \
+#define MB_ADD_FD(fd, max_fd, fdset) do {      \
     if (fd) {                                   \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
-        FD_SET(fd, pfdset);                     \
+        FD_SET(fd, fdset);                     \
     }                                           \
 } while(0)
 
@@ -106,15 +106,15 @@ typedef struct _port_driver port_driver_t;
 // Macro for atomic operations
 #define MB_ATOMIC_LOAD(ctx, addr) (__extension__(   \
 {                                                   \
-    port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);  \
-    (CRITICAL_LOAD(pdrv_ctx->lock, addr));          \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);  \
+    (CRITICAL_LOAD(drv_obj->lock, addr));          \
 }                                                   \
 ))
 
 #define MB_ATOMIC_STORE(ctx, addr, val) (__extension__( \
 {                                                       \
-    port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);      \
-    CRITICAL_STORE(pdrv_ctx->lock, addr, val);          \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);      \
+    CRITICAL_STORE(drv_obj->lock, addr, val);          \
 }                                                       \
 ))
 
@@ -122,11 +122,11 @@ typedef struct _port_driver port_driver_t;
 // So, the eventfd value keeps last event and its fd.
 #define DRIVER_SEND_EVENT(ctx, event, fd) (__extension__(                               \
 {                                                                                       \
-    port_driver_t *pdrv_ctx = MB_GET_DRV_PTR(ctx);                                      \
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                      \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
     (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
     (event_info##__FUNCTION__##__LINE__).opt_fd = fd;                                   \
-    ((write_event((void *)pdrv_ctx, &(event_info##__FUNCTION__##__LINE__)) > 0)         \
+    ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)         \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \
 ))
@@ -177,7 +177,7 @@ typedef union {
     uint64_t val;
 } mb_event_info_t;
 
-typedef struct _mb_node_info {
+typedef struct mb_node_info_s {
     int index;                          /*!< slave information index */
     int fd;                             /*!< slave global file descriptor */
     int sock_id;                        /*!< socket ID of slave */
@@ -263,7 +263,7 @@ typedef struct _port_driver {
  * @return esp_err_t
  *          - ESP_OK on success
  */
-esp_err_t mb_drv_register(port_driver_t **config);
+esp_err_t mb_drv_register(port_driver_t **ctx);
 
 /**
  * @brief Unregister modbus driver
@@ -317,7 +317,7 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 
 int mb_drv_close(void *ctx, int fd);
 
-int32_t write_event(void *ctx, mb_event_info_t *pevent);
+int32_t write_event(void *ctx, mb_event_info_t *event);
 
 const char *driver_event_to_name_r(mb_driver_event_t event);
 
@@ -335,7 +335,7 @@ void mb_drv_lock(void *ctx);
 
 void mb_drv_unlock(void *ctx);
 
-mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *pfd, fd_set *pfdset);
+mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fdset);
 
 mb_status_flags_t mb_drv_set_status_flag(void *ctx, mb_status_flags_t mask);
 

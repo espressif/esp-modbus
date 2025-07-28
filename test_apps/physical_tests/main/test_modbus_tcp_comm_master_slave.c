@@ -64,7 +64,7 @@ const char *slave_tcp_addr_table[] = {
     NULL                            // End of table condition (must be included)
 };
 
-static esp_err_t test_tcp_services_init(void **pnetif)
+static esp_err_t test_tcp_services_init(void **netif)
 {
     esp_err_t result = nvs_flash_init();
     if ((result == ESP_ERR_NVS_NO_FREE_PAGES) || (result == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
@@ -106,8 +106,8 @@ static esp_err_t test_tcp_services_init(void **pnetif)
     //                                "esp_wifi_set_ps fail, returns(0x%x).",
     //                                (int)result);
 #endif
-    if (pnetif) {
-        *pnetif = get_example_netif();
+    if (netif) {
+        *netif = get_example_netif();
     }
     return ESP_OK;
 }
@@ -146,9 +146,9 @@ static esp_err_t test_tcp_services_destroy(void)
 
 static void test_modbus_tcp_slave(void)
 {
-    void *pnetif = NULL;
-    TEST_ASSERT_TRUE(test_tcp_services_init(&pnetif) == ESP_OK);
-    TEST_ASSERT_NOT_NULL(pnetif);
+    void *netif = NULL;
+    TEST_ASSERT_TRUE(test_tcp_services_init(&netif) == ESP_OK);
+    TEST_ASSERT_NOT_NULL(netif);
     test_common_start();
 
     mb_communication_info_t tcp_slave_cfg_1 = {
@@ -160,7 +160,7 @@ static void test_modbus_tcp_slave(void)
         .tcp_opts.start_disconnected = true,
         .tcp_opts.response_tout_ms = 1,
         .tcp_opts.test_tout_us = TEST_TCP_SLAVE_SEND_TOUT_US,
-        .tcp_opts.ip_netif_ptr = pnetif
+        .tcp_opts.ip_netif_ptr = netif
     };
 
     TEST_ASSERT_NOT_NULL(test_common_slave_tcp_create(&tcp_slave_cfg_1, 0));
@@ -176,7 +176,7 @@ static void test_modbus_tcp_slave(void)
         .tcp_opts.start_disconnected = true,
         .tcp_opts.response_tout_ms = 1,
         .tcp_opts.test_tout_us = TEST_TCP_SLAVE_SEND_TOUT_US,
-        .tcp_opts.ip_netif_ptr = pnetif
+        .tcp_opts.ip_netif_ptr = netif
     };
 
     TEST_ASSERT_NOT_NULL(test_common_slave_tcp_create(&tcp_slave_cfg_2, 0));
@@ -198,9 +198,9 @@ static void test_modbus_tcp_slave(void)
 
 static void test_modbus_tcp_master(void)
 {
-    void *pnetif = NULL;
-    TEST_ASSERT_TRUE(test_tcp_services_init(&pnetif) == ESP_OK);
-    TEST_ASSERT_NOT_NULL(pnetif);
+    void *netif = NULL;
+    TEST_ASSERT_TRUE(test_tcp_services_init(&netif) == ESP_OK);
+    TEST_ASSERT_NOT_NULL(netif);
 
     test_common_start();
 
@@ -218,7 +218,7 @@ static void test_modbus_tcp_master(void)
         .tcp_opts.start_disconnected = false,
         .tcp_opts.response_tout_ms = TEST_MASTER_RESPOND_TOUT_MS,
         .tcp_opts.test_tout_us = TEST_TCP_MASTER_SEND_TOUT_US,
-        .tcp_opts.ip_netif_ptr = pnetif
+        .tcp_opts.ip_netif_ptr = netif
     };
 
     TEST_ASSERT_NOT_NULL(test_common_master_tcp_create(&tcp_master_cfg_1, 0, &descriptors[0], num_descriptors));

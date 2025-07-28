@@ -17,7 +17,7 @@ extern "C" {
 #define MB_ADDRESS_MIN          ( 1 )   /*! Smallest possible slave address. */
 #define MB_ADDRESS_MAX          ( 247 ) /*! Biggest possible slave address. */
 
-typedef enum _mb_commands_enum 
+typedef enum mb_commands_enum 
 {
     MB_FUNC_NONE                        = (  0 ),
     MB_FUNC_READ_COILS                  = (  1 ),

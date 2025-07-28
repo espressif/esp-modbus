@@ -150,7 +150,7 @@ uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len,
         if (node_id) {
             *node_id = item->node_id;
         }
-        return (uint8_t *)item->buffer;
+        return item->buffer;
     }
     return NULL;
 }

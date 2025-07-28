@@ -88,11 +88,11 @@ TEST(unit_test_controller, test_setup_destroy_master_tcp)
     ESP_LOGI(TAG, "TEST: Verify master create-destroy sequence TCP.");
 
     void *mbm_handle = NULL;
-    mb_base_t *pmb_base = NULL;
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_tcp_create(&master_config.tcp_opts, (void *)&pmb_base));
+    mb_base_t *mb_base = NULL;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_tcp_create(&master_config.tcp_opts, (void *)&mb_base));
 
     mbm_tcp_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_tcp_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_tcp_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     mbm_port_tcp_get_slave_info_IgnoreAndReturn((void *)(0x11223344));
     TEST_ESP_OK(mbc_master_create_tcp(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
@@ -121,18 +121,18 @@ TEST(unit_test_controller, test_setup_destroy_master_serial)
     ESP_LOGI(TAG, "TEST: Verify master create-destroy sequence.");
     
     void *mbm_handle = NULL;
-    mb_base_t *pmb_base = NULL;
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
+    mb_base_t *mb_base = NULL;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
 
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
     TEST_ESP_OK(mbc_master_delete(mbm_handle));
 
     master_config.ser_opts.mode = MB_ASCII;
     mbm_handle = NULL;
-    pmb_base = NULL;
+    mb_base = NULL;
 
     mbm_ascii_create_ExpectAnyArgsAndReturn(MB_EINVAL);
     TEST_ESP_ERR(ESP_ERR_INVALID_STATE, mbc_master_create_serial(&master_config, &mbm_handle));
@@ -157,11 +157,11 @@ TEST(unit_test_controller, test_setup_destroy_slave_serial)
     
     ESP_LOGI(TAG, "TEST: Verify slave create-destroy sequence.");
     void *mbs_handle = NULL;
-    mb_base_t *pmb_base = mbs_handle;
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&pmb_base));
-    mbs_rtu_create_ExpectAndReturn(&slave_config.ser_opts, (void *)pmb_base, MB_ENOERR);
+    mb_base_t *mb_base = mbs_handle;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&slave_config.ser_opts, (void *)&mb_base));
+    mbs_rtu_create_ExpectAndReturn(&slave_config.ser_opts, (void *)mb_base, MB_ENOERR);
     mbs_rtu_create_IgnoreArg_in_out_obj();
-    mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbs_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_slave_create_serial(&slave_config, &mbs_handle));
     TEST_ESP_OK(mbc_slave_delete(mbs_handle));
 
@@ -186,13 +186,13 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US
     };
-    mb_base_t *pmb_base = NULL; // fake mb_base handle 
+    mb_base_t *mb_base = NULL; // fake mb_base handle 
     void *mbm_handle = NULL;
 
-    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&pmb_base));
-    pmb_base->port_obj = (mb_port_base_t *)0x44556677;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
+    mb_base->port_obj = (mb_port_base_t *)0x44556677;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
-    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&pmb_base);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, &descriptors[0], num_descriptors));
     mb_port_event_res_take_ExpectAnyArgsAndReturn(true);
@@ -205,12 +205,12 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
     {
         TEST_ASSERT_EQUAL_HEX32(&descriptors[par_index], param_descriptor);       
         uint8_t type = 0; // type of parameter from dictionary
-        uint8_t *pdata = (uint8_t *)calloc(1, param_descriptor->mb_size + 1);
+        uint8_t *data_ptr = (uint8_t *)calloc(1, param_descriptor->mb_size + 1);
         ESP_LOGI(TAG, "Test CID #%d, %s, %s", param_descriptor->cid, param_descriptor->param_key, param_descriptor->param_units);
         // This is to check the request function is called with appropriate params.
         switch(param_descriptor->mb_param_type) { \
             case MB_PARAM_INPUT: \
-                mbm_rq_read_inp_reg_ExpectAndReturn(pmb_base, \
+                mbm_rq_read_inp_reg_ExpectAndReturn(mb_base, \
                                                             param_descriptor->mb_slave_addr, \
                                                             param_descriptor->mb_reg_start, \
                                                             param_descriptor->mb_size, \
@@ -219,7 +219,7 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
                 mbm_rq_read_inp_reg_IgnoreArg_tout(); \
                 break; \
             case MB_PARAM_HOLDING:
-                mbm_rq_read_holding_reg_ExpectAndReturn(pmb_base, \
+                mbm_rq_read_holding_reg_ExpectAndReturn(mb_base, \
                                                             param_descriptor->mb_slave_addr, \
                                                             param_descriptor->mb_reg_start, \
                                                             param_descriptor->mb_size, \
@@ -228,7 +228,7 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
                 mbm_rq_read_holding_reg_IgnoreArg_tout(); \
                 break; \
             case MB_PARAM_COIL: \
-                mbm_rq_read_coils_ExpectAndReturn(pmb_base, \
+                mbm_rq_read_coils_ExpectAndReturn(mb_base, \
                                                         param_descriptor->mb_slave_addr, \
                                                         param_descriptor->mb_reg_start, \
                                                         param_descriptor->mb_size, \
@@ -237,7 +237,7 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
                 mbm_rq_read_coils_IgnoreArg_tout(); \
                 break; \
             case MB_PARAM_DISCRETE: \
-                mbm_rq_read_discrete_inputs_ExpectAndReturn(pmb_base, \
+                mbm_rq_read_discrete_inputs_ExpectAndReturn(mb_base, \
                                                         param_descriptor->mb_slave_addr, \
                                                         param_descriptor->mb_reg_start, \
                                                         param_descriptor->mb_size, \
@@ -249,8 +249,8 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
                 TEST_FAIL(); \
                 break; \
         }    
-        err = mbc_master_get_parameter(mbm_handle, par_index, pdata, &type); \
-        free(pdata);
+        err = mbc_master_get_parameter(mbm_handle, par_index, data_ptr, &type); \
+        free(data_ptr);
     }
     TEST_ESP_OK(mbc_master_stop(mbm_handle));
     TEST_ESP_OK(mbc_master_delete(mbm_handle));

@@ -153,6 +153,7 @@ esp_err_t mbc_tcp_slave_controller_create(void ** ctx)
 
     mb_slave_options_t *mbs_opts = &mbs_controller_iface->opts;
     mbs_opts->port_type = MB_PORT_TCP_SLAVE; // set interface port type
+    mbs_opts->task_handle = NULL;
 
     // Initialization of active context of the Modbus controller
     BaseType_t status = 0;
@@ -243,13 +244,13 @@ esp_err_t mbc_tcp_slave_create(mb_communication_info_t *config, void **ctx)
 
     mbs_opts->comm_opts.tcp_opts = tcp_opts;
     mb_err_enum_t err = MB_ENOERR;
-    void *pinst = (void *)mbs_controller_iface;
+    void *inst = (void *)mbs_controller_iface;
 
     // Initialize Modbus stack using mbcontroller parameters
-    err = mbs_tcp_create(&tcp_opts, &pinst);
+    err = mbs_tcp_create(&tcp_opts, &inst);
     MB_GOTO_ON_FALSE((err == MB_ENOERR), ESP_ERR_INVALID_STATE, error, TAG, 
                         "mbscreate returns (0x%x).", (uint16_t)err);
-    mbs_controller_iface->mb_base = (mb_base_t *)pinst;
+    mbs_controller_iface->mb_base = (mb_base_t *)inst;
     mbs_controller_iface->mb_base->descr.is_master = false;
     
     // Configure Modbus read/write callbacks for the base modbus object
@@ -265,7 +266,7 @@ esp_err_t mbc_tcp_slave_create(mb_communication_info_t *config, void **ctx)
     return ESP_OK;
 
 error:
-    if (mbs_controller_iface->mb_base) {
+    if (mbs_controller_iface && mbs_controller_iface->mb_base) {
         mbs_controller_iface->mb_base->delete(mbs_controller_iface->mb_base);
         mbs_controller_iface->mb_base = NULL;
     }
