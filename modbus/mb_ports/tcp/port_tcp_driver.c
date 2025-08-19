@@ -633,11 +633,23 @@ void mb_drv_tcp_task(void *ctx)
                 mb_uid_info_t node_info;
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
                 if (sock_id) {
-                    int fd = mb_drv_open(drv_obj, node_info, 0);
-                    if (fd < 0) {
-                        ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
+                    if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
+                        ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
+#if LWIP_SO_LINGER
+                        struct linger sl;
+                        sl.l_onoff = 1;  // non-zero value enables linger option in lwip
+                        sl.l_linger = 0; // timeout interval in seconds
+                        setsockopt(sock_id, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+#endif // LWIP_SO_LINGER
+                        close(sock_id);
                     } else {
-                        DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
+                        // Create new node info and open it
+                        int fd = mb_drv_open(drv_obj, node_info, 0);
+                        if (fd < 0) {
+                            ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
+                        } else {
+                            DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
+                        }
                     }
                 }
             } else {
