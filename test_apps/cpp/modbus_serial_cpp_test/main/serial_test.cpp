@@ -3,11 +3,12 @@
 #include "sdkconfig.h"
 #include "mbcontroller.h"
 
-#define TEST_PORT_NUM (uart_port_t)1
-#define TEST_SPEED 115200
+#define TEST_PORT_NUM           (uart_port_t)1
+#define TEST_SPEED              115200
 
 #define TAG "CPP_TEST"
-#define MB_SLAVE_SHORT_ADDRESS 1
+#define MB_SLAVE_SHORT_ADDRESS  1
+#define MB_FUNC_CODE_MAX        42
 
 enum {
     MB_DEVICE_ADDR1 = 1
@@ -120,12 +121,18 @@ static int check_custom_handlers(void *inst)
     MB_RETURN_ON_FALSE((err == ESP_OK), 0, TAG,
                             "mbc slave get handler count, returns(0x%x).", (int)err);
     ESP_LOGI(TAG,"Object %p, custom handler test, (registered:max) handlers: %d:%d.", inst, count, CONFIG_FMB_FUNC_HANDLERS_MAX);
-    for (entry = 0x01; entry < CONFIG_FMB_FUNC_HANDLERS_MAX; entry++) {
-        // Try to remove the handler
+    for (entry = 0x01; entry < MB_FUNC_CODE_MAX; entry++) {
+        // Try to remove the handlers
         err = mbc_delete_handler(inst, (uint8_t)entry);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Could not remove handler for command: (0x%x), returned (0x%x), already empty?", entry, (int)err);
+        if (err == ESP_OK) {
+            ESP_LOGW(TAG, "Removed handler for command: (0x%x), returned (0x%x).", entry, (int)err);
         }
+    }
+    err = mbc_get_handler_count(inst, &count);
+    MB_RETURN_ON_FALSE((err == ESP_OK && !count), 0, TAG,
+                            "mbc slave get handler count, returns(0x%x), %u.", (int)err, count);
+
+    for (entry = 0x01; entry < CONFIG_FMB_FUNC_HANDLERS_MAX; entry++) {
         err = mbc_set_handler(inst, (uint8_t)entry, test_handler);
         if (err != ESP_OK) {
             ESP_LOGE(TAG,"Could not set handler for command 0x%x, returned (0x%x).", entry, (int)err);

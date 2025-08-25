@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 set(srcs "src/mb_object_stub.c")
 
 idf_component_register( SRCS ${srcs}
