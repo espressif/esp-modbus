@@ -302,7 +302,7 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
                 goto err;
             }
             if (drv_obj->mb_node_open_count > MB_MAX_FDS) {
-                ESP_LOGD(TAG, "Exceeded maximum node count: %d", drv_obj->mb_node_open_count);
+                ESP_LOGE(TAG, "Exceeded maximum node count: %d", drv_obj->mb_node_open_count);
                 goto err;
             }
             drv_obj->mb_node_open_count++;
@@ -576,7 +576,7 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
     pnode = mb_drv_get_next_node_from_set(ctx, fd_ptr, &drv_obj->conn_set);
     if (pnode && FD_ISSET(pnode->sock_id, &drv_obj->conn_set)) {
         uint64_t last_read_div_us = (esp_timer_get_time() - pnode->recv_time);
-        ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection timeout = %" PRId64 ", rcv_time: %" PRId64 " %" PRId32,
+        ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection timeout = %" PRId64 ", rcv_time: %" PRId64 " %" PRIu32,
                     ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
                     (esp_timer_get_time() / 1000), pnode->recv_time / 1000, timeout_ms);
         if (last_read_div_us >= (uint64_t)(timeout_ms * 1000)) {

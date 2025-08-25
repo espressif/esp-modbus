@@ -62,8 +62,16 @@ esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *
 {
     frame_entry_t frame_info = {0};
 
-    if (!queue) { // || !buf || (len <= 0)
-        return -1;
+    if (!queue) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (!uxQueueSpacesAvailable(queue)) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    if (frame) {
+        frame_info = *frame;
     }
 
     if (frame) {
@@ -114,7 +122,7 @@ ssize_t queue_pop(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *fra
     }
     return len;
 err:
-    return -1;
+    return ESP_ERR_INVALID_STATE;
 }
 
 bool queue_is_empty(QueueHandle_t queue)

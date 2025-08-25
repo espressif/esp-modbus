@@ -616,7 +616,6 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t addrets, uint8_t *f
         (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));
         ESP_LOGD(TAG, "%s, tx completed, flags = 0x%04x.", inst->descr.parent_name, (int)flags);
         ret = true;
-        
     }
     else
     {

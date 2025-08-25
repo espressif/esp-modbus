@@ -453,7 +453,7 @@ MB_EVENT_HANDLER(mbm_on_connect)
                                 ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id, 
                                 node_ptr->addr_info.ip_addr_str);
                     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CONNECTED);
-                    (void)port_keep_alive(node_ptr->sock_id);
+                    (void)port_keep_alive_enable(node_ptr->sock_id, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
                     ESP_LOGD(TAG, "Opened/connected: %u, %u.",
                                 (unsigned)drv_obj->mb_node_open_count, (unsigned)drv_obj->node_conn_count);
                     if (drv_obj->mb_node_open_count == drv_obj->node_conn_count) {
@@ -595,7 +595,6 @@ MB_EVENT_HANDLER(mbm_on_send_data)
                 info_ptr->tid_counter = (uint16_t)(info_ptr->index << 8U);
             }
         }
-        drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_SEND_OK);
         mb_drv_lock(ctx);
         drv_obj->mb_node_curr = info_ptr;
         drv_obj->curr_node_index = info_ptr->index;

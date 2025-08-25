@@ -331,7 +331,7 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
         count = uart_write_bytes(port_obj->ser_opts.port, p_ser_frame, ser_length);
         // Waits while UART sending the packet
         esp_err_t status = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
-        (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));
+
         ESP_LOGD(TAG, "%s, tx buffer sent: (%d) bytes.", inst->descr.parent_name, (int)count);
         MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
                                 inst->descr.parent_name);
