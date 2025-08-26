@@ -482,8 +482,8 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
 
 #if CONFIG_LWIP_IPV6
     // Configuration format: 
-    // "12:2001:0db8:85a3:0000:0000:8a2e:0370:7334:502"
-    // "12:2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+    // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334;502"
+    // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334"
     ret = sscanf(buffer, "%" PRIu16 ";" IPV6STR ";%" PRIu16, &index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &port);
     if ((ret == MB_STR_LEN_IDX_IP6) || (ret == MB_STR_LEN_IDX_IP6_PORT)) {
         if (-1 == asprintf(&host_str, IPV6STR, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
@@ -508,7 +508,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
         }
         info_ptr->node_name_str = host_str;
         info_ptr->ip_addr_str = host_str;
-        info_ptr->uid = 0;
+        info_ptr->uid = 1;
         info_ptr->fd = UNDEF_FD;
         info_ptr->port = CONFIG_FMB_TCP_PORT_DEFAULT;
         info_ptr->addr_type = MB_IPV6;
@@ -525,7 +525,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
         }
         info_ptr->node_name_str = host_str;
         info_ptr->ip_addr_str = host_str;
-        info_ptr->uid = 0;
+        info_ptr->uid = 1;
         info_ptr->fd = UNDEF_FD;
         info_ptr->port = CONFIG_FMB_TCP_PORT_DEFAULT;
         info_ptr->addr_type = MB_IPV4;
@@ -534,7 +534,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
     }
     
     // Configuration format:
-    // "1:192.168.1.1:502"
+    // "1;192.168.1.1;502"
     ret = sscanf(buffer, "%" PRIu16 ";"IPSTR";%" PRIu16, &index, &a[0], &a[1], &a[2], &a[3], &port);
     if ((ret == MB_STR_LEN_IDX_IP4_PORT) || (ret == MB_STR_LEN_IDX_IP4)) {
         if (-1 == asprintf(&host_str, IPSTR, a[0], a[1], a[2], a[3])) {
@@ -551,7 +551,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
     }
     
     // Configuration format:
-    // "01:mb_node_tcp_01:502"
+    // "01;mb_node_tcp_01;502"
     ret = sscanf(buffer,  "%" PRIu16 ";%m[a-z0-9_];%" PRIu16, &index, &host_str, &port);
     if ((ret == MB_STR_LEN_HOST) || (ret == MB_STR_LEN_IDX_HOST_PORT)) {
         info_ptr->node_name_str = (host_str && strlen(host_str)) ? host_str : info_ptr->node_name_str;
