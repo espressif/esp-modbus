@@ -62,14 +62,14 @@ extern "C" {
 #define MB_MDNS_QUERY_TIME_MS (2000)
 
 #define MB_STR_LEN_HOST 1  // "mb_node_tcp_01"
-#define MB_STR_LEN_IDX_HOST 2  // "12:mb_node_tcp_01"
-#define MB_STR_LEN_IDX_HOST_PORT 3 // "01:mb_node_tcp_01:1502"
+#define MB_STR_LEN_IDX_HOST 2  // "12;mb_node_tcp_01"
+#define MB_STR_LEN_IDX_HOST_PORT 3 // "01;mb_node_tcp_01;1502"
 #define MB_STR_LEN_IP4_ONLY 4 // "192.168.1.1"
-#define MB_STR_LEN_IDX_IP4 5 // "1:192.168.1.1"
-#define MB_STR_LEN_IDX_IP4_PORT 6 // "1:192.168.1.1:502"
+#define MB_STR_LEN_IDX_IP4 5 // "1;192.168.1.1"
+#define MB_STR_LEN_IDX_IP4_PORT 6 // "1;192.168.1.1;502"
 #define MB_STR_LEN_IP6_ONLY 8 // "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
-#define MB_STR_LEN_IDX_IP6 9 // "12:2001:0db8:85a3:0000:0000:8a2e:0370:7334"
-#define MB_STR_LEN_IDX_IP6_PORT 10 // "12:2001:0db8:85a3:0000:0000:8a2e:0370:7334:502"
+#define MB_STR_LEN_IDX_IP6 9 // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+#define MB_STR_LEN_IDX_IP6_PORT 10 // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334;502"
 
 #define MB_MDNS_STR_MIN_LENGTH 10 // "mb_node_01"
 #define MB_MDNS_SEGMENT_NAME "mb_tcp_segment" // "mb_node_01"

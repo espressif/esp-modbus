@@ -80,11 +80,12 @@ There are three ways to configure how the master example will obtain slave IP ad
 * Configure slave addresses manually as below:
 ```
 char* slave_ip_address_table[MB_DEVICE_COUNT] = {
-    "192.168.1.21",     // Address corresponds to MB_DEVICE_ADDR1 and set to predefined value by user
-    "192.168.1.22",     // Address corresponds to MB_DEVICE_ADDR2 of slave device in the Modbus data dictionary
-    NULL                // Marker of end of list
+    "01;192.168.1.21",      // Address corresponds to UID (slave address) = MB_DEVICE_ADDR1 and set to predefined value by user
+    "02;192.168.1.22",      // Address corresponds to MB_DEVICE_ADDR2 of slave device in the Modbus data dictionary
+    NULL                    // End of list marker (Must be provided!)
     };
 ```
+In the above notation the port option will be treated by default = `CONFIG_FMB_TCP_PORT_DEFAULT` kconfig value. The port can be specified explicitly for each slave as "01;192.168.1.21;1502".
 
 ### Setup external Modbus slave devices or emulator
 Option 1:
