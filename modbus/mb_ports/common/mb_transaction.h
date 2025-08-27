@@ -27,13 +27,13 @@ typedef struct transaction_item *transaction_item_handle_t;
 typedef struct transaction_message {
     uint8_t *buffer;
     uint16_t len;
-    int msg_id;
+    uint16_t msg_id;
     int node_id;
     void *pnode;
 } transaction_message_t;
 
 typedef struct transaction_message *transaction_message_handle_t;
-typedef long long transaction_tick_t;
+typedef uint64_t transaction_tick_t;
 
 typedef enum pending_state {
     INIT,
@@ -48,12 +48,14 @@ typedef enum pending_state {
 
 transaction_handle_t transaction_init(void);
 transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, transaction_message_handle_t message, transaction_tick_t tick);
-transaction_item_handle_t transaction_dequeue(transaction_handle_t transaction, pending_state_t state, transaction_tick_t *tick);
-transaction_item_handle_t transaction_get(transaction_handle_t transaction, int msg_id);
+transaction_item_handle_t transaction_dequeue(transaction_handle_t transaction, pending_state_t pending, transaction_tick_t *tick);
+transaction_item_handle_t transaction_get(transaction_handle_t transaction, uint16_t msg_id);
 transaction_item_handle_t transaction_get_first(transaction_handle_t transaction);
+uint16_t transaction_item_get_id(transaction_item_handle_t item);
 uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len, uint16_t *msg_id, int *node_id);
-esp_err_t transaction_delete(transaction_handle_t transaction, int msg_id);
+esp_err_t transaction_delete(transaction_handle_t transaction, uint16_t msg_id);
 esp_err_t transaction_delete_item(transaction_handle_t transaction, transaction_item_handle_t item);
+int transaction_delete_by_node_id(transaction_handle_t transaction, int node_id);
 int transaction_delete_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout);
 
 /**
@@ -61,11 +63,12 @@ int transaction_delete_expired(transaction_handle_t transaction, transaction_tic
  *
  * @return msg id of the deleted message, -1 if no expired message in the transaction
  */
-int transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout);
-esp_err_t transaction_set_state(transaction_handle_t transaction, int msg_id, pending_state_t state);
+uint16_t transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout);
+esp_err_t transaction_set_state(transaction_handle_t transaction, uint16_t msg_id, pending_state_t pending);
 pending_state_t transaction_item_get_state(transaction_item_handle_t item);
 esp_err_t transaction_item_set_state(transaction_item_handle_t item, pending_state_t state);
-esp_err_t transaction_set_tick(transaction_handle_t transaction, int msg_id, transaction_tick_t tick);
+esp_err_t transaction_set_tick(transaction_handle_t transaction, uint16_t msg_id, transaction_tick_t tick);
+transaction_tick_t transaction_item_get_tick(transaction_item_handle_t item);
 uint64_t transaction_get_size(transaction_handle_t transaction);
 void transaction_destroy(transaction_handle_t transaction);
 void transaction_delete_all_items(transaction_handle_t transaction);

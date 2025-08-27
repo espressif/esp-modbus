@@ -111,8 +111,6 @@ The format of slave definition following the notation `UID;slave_host_ip_or_dns_
 The slave IP addresses of the slaves can be resolved automatically by the stack using mDNS service as described in the example. In this case each slave has to use the mDNS service support and define its host name appropriately.
 Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example TCP slave <example_mb_tcp_slave>` for more information.
 
-.. note:: The Modbus Master TCP functionality is under testing and competition status will be announced later over official channels.
-
 .. _modbus_api_slave_setup_communication_options:
 
 Slave Communication Options
@@ -168,5 +166,3 @@ This example code to initialize Modbus TCP slave:
     }
 
 .. note:: Refer to `esp_netif component <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_netif.html>`__ for more information about network interface initialization.
-
-.. note:: The Modbus Slave TCP functionality is under testing and the competition status will be announced later over official channels.

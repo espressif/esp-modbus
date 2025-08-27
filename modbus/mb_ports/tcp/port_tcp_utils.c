@@ -82,6 +82,7 @@ bool port_close_connection(mb_node_info_t *info_ptr)
     if (shutdown(info_ptr->sock_id, SHUT_RDWR) == -1) {
         ESP_LOGV(TAG, "Shutdown failed sock %d, errno=%d", info_ptr->sock_id, (int)errno);
     }
+
     close(info_ptr->sock_id);
     MB_SET_NODE_STATE(info_ptr, MB_SOCK_STATE_OPENED);
     info_ptr->sock_id = UNDEF_FD;
@@ -198,11 +199,11 @@ int port_read_packet(mb_node_info_t *info_ptr)
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
-        }
+        } 
         
         if (ret != MB_TCP_UID) {
-            ESP_LOGD(TAG, "Socket (#%d)(%s), fail to read modbus header. ret=%d",
-                        info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
+            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), fail to read modbus header, err=%d",
+                        info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
             info_ptr->recv_err = ERR_VAL;
             return ERR_VAL;
         }
@@ -270,17 +271,21 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
     return ERR_OK;
 }
 
-int port_keep_alive(int sock)
+int port_keep_alive_enable(int sock, int timeout_sec)
 {
+    if ((timeout_sec > 7200) || (timeout_sec < 1)) {
+        ESP_LOGD(TAG, "Sock %d, invalid keep alive timeout, err = (%d).", sock, timeout_sec);
+        return -1;
+    }
     int optval = 1;
     // Enable the Keepalive feature in the LWIP stack
     int ret = setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));
     if (ret != 0) {
-        ESP_LOGE(TAG, "Sock %d, set keep alive option fail, err= (%d).", sock, ret);
+        ESP_LOGE(TAG, "Sock %d, enable keep alive option fail, err= (%d).", sock, ret);
         return -1;
     }
-    //  The interval between the last data packet sent and the first keepalive probe (seconds)
-    optval = 1;
+    // The interval between the last data packet sent and the first keepalive probe (seconds)
+    optval = timeout_sec;
     ret = setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &optval, sizeof(optval));
     if (ret != 0) {
         ESP_LOGD(TAG, "Sock %d, set keep idle time fail, err = (%d).", sock, ret);
@@ -293,8 +298,8 @@ int port_keep_alive(int sock)
         ESP_LOGD(TAG, "Sock %d, set keep alive probes interval fail, err = (%d).", sock, ret);
         return -1;
     }
-    // Set count of probes before timing out
-    optval = CONFIG_FMB_TCP_CONNECTION_TOUT_SEC;
+    // Set count of probes before timing out. Try to minimize the keep alive probes to decrease latency.
+    optval = 1;
     ret = setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &optval, sizeof(optval));
     if (ret != 0) {
         ESP_LOGD(TAG, "Sock %d, set keep alive probes count fail., err = (%d).", sock, ret);
@@ -425,7 +430,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
                         info_ptr->sock_id, str, (int)errno, strerror(errno));
 
             // Set keep alive flag in socket options
-            (void)port_keep_alive(info_ptr->sock_id);
+            (void)port_keep_alive_enable(info_ptr->sock_id, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
             err = port_check_alive(info_ptr, MB_TCP_CHECK_ALIVE_TOUT_MS);
             continue;
         }
@@ -917,7 +922,7 @@ int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
             // Make sure ss_family is valid
             abort();
         }
-        ESP_LOGI(TAG, "Socket (#%d), accept client connection from address[port]: %s[%d]", (int)sock_id, addr_str, info_ptr->port);
+        ESP_LOGI(TAG, "Socket (#%d), accept client connection from address[port]: %s[%u]", (int)sock_id, addr_str, info_ptr->port);
         paddr = strdup(addr_str);
         if (paddr) {
             info_ptr->fd = sock_id;

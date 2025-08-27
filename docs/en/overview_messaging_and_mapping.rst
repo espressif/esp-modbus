@@ -75,14 +75,14 @@ The Modbus protocol allows devices to map data to four types of registers (Holdi
 .. _modbus_mapping_complex_data_types:
 
 Mapping Of Complex Data Types
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As per section 4.2 of Modbus specification, "MODBUS uses a ``big-Endian`` representation for addresses and data items. This means that when a numerical quantity larger than a single byte is transmitted, the most significant byte is sent first". The biggest official structure defined by the Modbus specification is a 16-bit word register, which is 2 bytes. However, vendors sometimes group two or even four 16-bit registers together to be interpretted as 32-bit or 64-bit values, respectively. It is also possible when the Modbus vendors group many registers together for serial numbers, text strings, time/date, etc. Regardless of how the vendor intends the data to be interpreted, the Modbus protocol itself simply transfers 16-bit word registers. These values grouped from registers may use either little-endian or big-endian register order.
 
 .. note:: Each individual 16-bit register, is encoded in big-endian order (assuming the Modbus device abides by the Modbus specification). However, the 32-bit and 64-bit types naming conventions like ABCD or ABCDEFGH, does not take into account the network format byte order of frame. For example: the ABCD prefix for 32-bit values means the common Modbus mapping format and corresponds to the CDAB on network format (order in the frame).
 
 Common Data Types Supported By Modbus Vendors
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table:: Table 1 basic types used by Modbus vendors
   :widths: 8 3 20
@@ -275,6 +275,72 @@ The below diagrams show how the extended data types appear on network layer.
     :align: center
 
 The approach showed above can be used to pack the data into MBAP frames used by Modbus TCP as well as for other types with similar size.
+
+.. _modbus_master_slave_configuration_aspects:
+
+Important Configuration Aspects
+-------------------------------
+
+The slave and its behavior has some dependency with the master and its options. The master uses a timeout to determine if a slave is responding in a timely manner. This timeout is configured on the master side, not used by the slave. If the slave's response is not received within this timeout period, the master will consider the request a failure.
+
+    * Master Timeout (``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND``): This is the duration a master will wait for a response from the slave. The default value set by the ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` kconfig option on the master side can be overridden for the concrete master instance in its communication options structure. 
+
+    * Slave Behavior: The slave itself does not use this timeout for its internal operations. Instead, it measures its request processing time, which is the time from receiving a master's request to sending the slave's response. If this processing time exceeds the master's configured timeout because the master sends a new request while the previous one is under processing, the slave will log a warning.
+
+The Race Condition
+~~~~~~~~~~~~~~~~~~
+
+A common issue occurs when the slave's Request Processing Time is longer than the Master Timeout.
+
+In this scenario:
+
+    * The master sends a request.
+
+    * The slave begins processing the request.
+
+    * The master's timeout expires, and it marks the request as failed.
+
+    * The master immediately sends a new request for the next transaction.
+
+    * The slave finishes processing the first request and sends a response.
+
+    * The slave then receives the master's new request, potentially before the previous response is sent.
+
+The TCP slave's log message, such as ``W (571368) mb_port.tcp.slave: 0x3ffc8ba4, node #1, socket(#56)(192.168.88.250), handling time [ms]: 1394, exceeds slave response time in master.``, indicates this condition. The slave is warning that its internal processing time of 1394 ms was longer than the timeout configured on the master.
+
+To prevent the race condition from occurring, the slave will discard the pending response to the master's first request to avoid potential errors and an overloaded input queue. On the master side, this situation results in a timeout error for the first request, followed by the successful start of the next one. If the reasons for the race condition are not addressed, this can lead to the slave's input queues becoming cluttered, potentially causing the slave to stop responding altogether.
+
+Corrective Actions
+@@@@@@@@@@@@@@@@@@
+
+To resolve this, user must:
+
+    * Increase the Master Timeout (``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND``) to be significantly greater than the maximum expected Request Processing Time on the slave.
+
+    * Reduce the request rate from the master nodes to give the slave more time to process each request.
+
+.. note:: Set the Master Timeout to a value greater than the worst-case Round-Trip Time (RTT) on your network. A reasonable starting point is at least 1000 ms, but you should perform network measurements under maximum load to determine an appropriate value.
+
+Keep-Alive Mechanism for TCP Slave
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Modbus TCP slave includes a `TCP keep-alive mechanism <https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/lwip.html#tcp-options>`__ to detect dead connections and free up resources. This feature is enabled by default.
+
+* Keep-Alive Timeout (``CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC``): This is the time after which the slave will send a keep-alive probe to the master if no data has been received. If the master does not respond to this probe, the slave considers the connection dead and closes it. The keep-alive timeout is configured using the ``CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC`` kconfig option.
+
+Corrective Actions
+@@@@@@@@@@@@@@@@@@
+
+The TCP slave logs an error, such as ``E (227779) mb_port.tcp.slave: 0x3ffc8abc, node #4, socket(#59)(192.168.88.252), communication fail, err= -11``, when a connection is closed due to a keep-alive timeout.
+
+.. note:: The keep-alive timeout should be configured carefully. It is recommended to set it to a value greater than the Master Timeout to avoid prematurely dropping a connection during a long-running transaction. Be mindful of the trade-off: a short timeout can drop good connections during temporary network issues and increase the RTT time, while a very long timeout can waste resources on dead connections and increase communication error detection time.
+
+Manage Multiple Connections
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Modbus TCP slave supports multiple connections from external master nodes. The maximum number of simultaneous connections is configured using the ``CONFIG_FMB_TCP_PORT_MAX_CONN`` kconfig option. If the number of incoming connections exceeds this value, the slave will reject new connections. The slave manages the active connections and is able to close inactive connections that do not send requests for longer than the ``CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC`` time.
+
+.. note:: Each additional master connection can increase the Request Processing Time on the slave. This, in turn, impacts the overall Round-Trip Time (RTT), which is the total time for a request to travel to the slave and a response to return to the master.
 
 The following sections give an overview of how to use the ESP_Modbus component found under `components/esp-modbus`. The sections cover initialization of a Modbus port, and the setup a master or slave device accordingly:
 

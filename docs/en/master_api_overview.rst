@@ -571,6 +571,8 @@ The example to retrieve the slave identificator from slave:
         ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
     }
 
+.. note:: Please refer to :ref:`modbus_master_slave_configuration_aspects` for proper configuration.
+
 .. _modbus_api_master_destroy:
 
 Modbus Master Teardown

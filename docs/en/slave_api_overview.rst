@@ -15,7 +15,7 @@ The sections below represent typical programming workflow for the slave API whic
 .. _modbus_api_slave_configure_descriptor:
 
 Configuring Slave Data Access
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following functions must be called when the Modbus controller slave port is already initialized. Refer to :ref:`modbus_api_port_initialization`.
 
@@ -74,7 +74,7 @@ The function initializes Modbus communication descriptors for each type of Modbu
 
 At least one area descriptor per each Modbus register type must be set in order to provide register access to its area. If the master tries to access an undefined area, the stack will generate a Modbus exception.
 
-The stack supports the extended data types when enabled through the the option ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` in kconfig menu.
+The stack supports the extended data types when enabled through the option ``CONFIG_FMB_EXT_TYPE_SUPPORT`` in kconfig menu.
 In this case the mapped data values can be initialized to specific format using :ref:`modbus_api_endianness_conversion`.
 Please refer to secton :ref:`modbus_mapping_complex_data_types` for more information about data types.
 
@@ -165,7 +165,7 @@ Example to get the actual slave identificator:
 .. _modbus_api_slave_handler_customization:
 
 Slave Customize Function Handlers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Slave object contains the command handling table to define specific handling functionality for each supported Modbus command. The default handling functions in this table support the most common Modbus commands. However, the list of commands can be extended by adding a new command into the handling table with its custom handling behavior. It is also possible to override the function handler for a specific command. The below described API functions allow using this behavior for Slave objects.
 
@@ -231,7 +231,7 @@ Refer to :ref:`example Serial slave <example_mb_slave>` for more information.
 .. _modbus_api_slave_communication:
 
 Slave Communication
-^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~
 
 The function below is used to start Modbus controller interface and allows communication.
 
@@ -305,6 +305,8 @@ Example to get event when holding or input registers accessed in the slave:
                     (uint32_t)reg_info.size);
     }
 
+.. note:: Please refer to :ref:`modbus_master_slave_configuration_aspects` for proper configuration.
+
 :cpp:func:`mbc_slave_lock`
 
 :cpp:func:`mbc_slave_unlock`
@@ -331,10 +333,11 @@ The access to registered area shared between several slave objects from user app
     holding_reg_area[2] = 123;
     portEXIT_CRITICAL(&param_lock);
 
+
 .. _modbus_api_slave_destroy:
 
 Modbus Slave Teardown
-^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~
 
 This function stops the Modbus communication stack, destroys the controller interface, and frees all used active objects allocated for the slave.  
 
