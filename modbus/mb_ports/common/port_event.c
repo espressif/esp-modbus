@@ -144,7 +144,7 @@ bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 {
     MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), false, TAG, 
                             "incorrect object handle.");
-    BaseType_t status = pdTRUE;
+    BaseType_t status = pdFALSE;
     status = xSemaphoreTake(inst->event_obj->resource_hdl, timeout);
     ESP_LOGD(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
     return (bool)status;
@@ -185,13 +185,13 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
             // if we wait for certain event bits but get from poll subset
             ESP_LOGE(TAG, "%s, %s: incorrect event set = 0x%x", inst->descr.parent_name, __func__, (int)rcv_event);
         }
-        if (MB_PORT_CHECK_EVENT(rcv_event, EV_MASTER_PROCESS_SUCCESS)) {
+        if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_OK)) {
             err_status = MB_ENOERR;
-        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_MASTER_ERROR_RESPOND_TIMEOUT)) {
+        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_RESPOND_TIMEOUT)) {
             err_status = MB_ETIMEDOUT;
-        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_MASTER_ERROR_RECEIVE_DATA)) {
+        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_RECEIVE_DATA)) {
             err_status = MB_ERECVDATA;
-        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_MASTER_ERROR_EXECUTE_FUNCTION)) {
+        } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_EXECUTE_FUNCTION)) {
             err_status = MB_EILLFUNC;
         }
     } else {

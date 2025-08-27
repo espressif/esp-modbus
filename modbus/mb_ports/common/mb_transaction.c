@@ -16,7 +16,7 @@ typedef struct transaction_item {
     uint8_t *buffer;
     uint16_t len;
     int node_id;
-    int msg_id;
+    uint16_t msg_id;
     void *pnode;
     transaction_tick_t tick;
     _Atomic(int) state;
@@ -45,8 +45,11 @@ transaction_handle_t transaction_init(void)
 
 transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, transaction_message_handle_t message, transaction_tick_t tick)
 {
+    ESP_MEM_CHECK(TAG, (message && message->buffer && message->len), {
+        return NULL;
+    });
     transaction_item_handle_t item = calloc(1, sizeof(transaction_item_t));
-    ESP_MEM_CHECK(TAG, item, { 
+    ESP_MEM_CHECK(TAG, (item), { 
         return NULL;
     });
     CRITICAL_SECTION_LOCK(transaction->lock);
@@ -56,17 +59,7 @@ transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, 
     item->msg_id = message->msg_id;
     item->len =  message->len;
     item->state = QUEUED;
-    if (!message->buffer) {
-        item->buffer = heap_caps_malloc(message->len, TRANSACTION_MEMORY);
-        memcpy(item->buffer, message->buffer, message->len);
-    } else {
-        item->buffer = message->buffer;
-    }
-    ESP_MEM_CHECK(TAG, item->buffer, {
-        free(item);
-        CRITICAL_SECTION_UNLOCK(transaction->lock);
-        return NULL;
-    });
+    item->buffer = message->buffer;
     STAILQ_INSERT_TAIL(transaction->list, item, next);
     transaction->size += item->len;
     CRITICAL_SECTION_UNLOCK(transaction->lock);
@@ -74,7 +67,7 @@ transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, 
     return item;
 }
 
-transaction_item_handle_t transaction_get(transaction_handle_t transaction, int msg_id)
+transaction_item_handle_t transaction_get(transaction_handle_t transaction, uint16_t msg_id)
 {
     transaction_item_handle_t item;
     CRITICAL_SECTION_LOCK(transaction->lock);
@@ -138,6 +131,14 @@ esp_err_t transaction_delete_item(transaction_handle_t transaction, transaction_
     return ESP_FAIL;
 }
 
+uint16_t transaction_item_get_id(transaction_item_handle_t item)
+{
+    if (item) {
+        return item->msg_id;
+    }
+    return 0xFFFF;
+}
+
 uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len, uint16_t *msg_id, int *node_id)
 {
     if (item) {
@@ -155,7 +156,7 @@ uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len,
     return NULL;
 }
 
-esp_err_t transaction_delete(transaction_handle_t transaction, int msg_id)
+esp_err_t transaction_delete(transaction_handle_t transaction, uint16_t msg_id)
 {
     transaction_item_handle_t item, tmp;
     CRITICAL_SECTION_LOCK(transaction->lock);
@@ -174,7 +175,7 @@ esp_err_t transaction_delete(transaction_handle_t transaction, int msg_id)
     return ESP_FAIL;
 }
 
-esp_err_t transaction_set_state(transaction_handle_t transaction, int msg_id, pending_state_t state)
+esp_err_t transaction_set_state(transaction_handle_t transaction, uint16_t msg_id, pending_state_t state)
 {
     transaction_item_handle_t item = transaction_get(transaction, msg_id);
     if (item) {
@@ -201,7 +202,15 @@ esp_err_t transaction_item_set_state(transaction_item_handle_t item, pending_sta
     return ESP_FAIL;
 }
 
-esp_err_t transaction_set_tick(transaction_handle_t transaction, int msg_id, transaction_tick_t tick)
+transaction_tick_t transaction_item_get_tick(transaction_item_handle_t item)
+{
+    if (item) {
+        return item->tick;
+    }
+    return 0;
+}
+
+esp_err_t transaction_set_tick(transaction_handle_t transaction, uint16_t msg_id, transaction_tick_t tick)
 {
     transaction_item_handle_t item = transaction_get(transaction, msg_id);
     if (item) {
@@ -211,9 +220,9 @@ esp_err_t transaction_set_tick(transaction_handle_t transaction, int msg_id, tra
     return ESP_FAIL;
 }
 
-int transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout)
+uint16_t transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout)
 {
-    int msg_id = -1;
+    uint16_t msg_id = 0xFFFF;
     transaction_item_handle_t item;
     CRITICAL_SECTION_LOCK(transaction->lock);
     STAILQ_FOREACH(item, transaction->list, next) {
@@ -226,10 +235,27 @@ int transaction_delete_single_expired(transaction_handle_t transaction, transact
             CRITICAL_SECTION_UNLOCK(transaction->lock);
             return msg_id;
         }
-
     }
     CRITICAL_SECTION_UNLOCK(transaction->lock);
     return msg_id;
+}
+
+int transaction_delete_by_node_id(transaction_handle_t transaction, int node_id)
+{
+    int deleted_items = 0;
+    transaction_item_handle_t item, tmp;
+    CRITICAL_SECTION_LOCK(transaction->lock);
+    STAILQ_FOREACH_SAFE(item, transaction->list, next, tmp) {
+        if (item->node_id == node_id) {
+            STAILQ_REMOVE(transaction->list, item, transaction_item, next);
+            free(item->buffer);
+            transaction->size -= item->len;
+            free(item);
+            deleted_items ++;
+        }
+    }
+    CRITICAL_SECTION_UNLOCK(transaction->lock);
+    return deleted_items;
 }
 
 int transaction_delete_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout)

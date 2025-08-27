@@ -33,7 +33,20 @@ menu "Modbus configuration"
         help
                 Modbus TCP connection timeout in seconds.
                 Once expired the current connection with the client will be closed
-                and Modbus slave will be waiting for new connection to accept.
+                and Modbus TCP slave will be waiting for new connection to accept.
+                This timeout is applicable for Modbus TCP master when it tries to connect to the Modbus TCP slaves.
+    
+    config FMB_TCP_KEEP_ALIVE_TOUT_SEC
+        int "Modbus TCP keep alive timeout (seconds)"
+        default 4
+        range 1 7200
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                This option is used to set keep-alive time for Modbus TCP connections.
+                This timeout is the interval after which the device sends keep-alive messages
+                to maintain a connection with a server before register the error.
+                The keep-alive time can be configured and should be set based on the actual needs of the application,
+                considering the trade-off between keeping the connection alive and minimizing system load.
 
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
@@ -72,12 +85,12 @@ menu "Modbus configuration"
                 then master can send next frame.
 
     config FMB_QUEUE_LENGTH
-        int "Modbus serial task queue length"
-        range 0 200
-        default 20
+        int "Modbus event task queue length"
+        range 10 500
+        default 50
         help
-                Modbus serial driver queue length. It is used by event queue task.
-                See the serial driver API for more information.
+                Modbus event queue length. It is used by event queue tasks
+                for corresponding communication mode.
 
     config FMB_PORT_TASK_STACK_SIZE
         int "Modbus port task stack size"
