@@ -16,7 +16,8 @@ enum {
 
 // Enumeration of all supported CIDs for device (used in parameter definition table)
 enum {
-    CID_DEV_REG0 = 0
+    CID_DEV_REG0 = 0,
+    CID_DEV_STRING
 };
 
 #define STR(fieldname) ((const char*)( fieldname ))
@@ -26,11 +27,13 @@ static void *pmaster_handle = nullptr;
 static void *pslave_handle = nullptr;
 
 // Example Data (Object) Dictionary for Modbus parameters
-const mb_parameter_descriptor_t dummy_dict[] = {
+constexpr mb_parameter_descriptor_t dummy_dict[] = {
     // CID, Name, Units, Modbus addr, register type, Modbus Reg Start Addr, Modbus Reg read length, 
     // Instance offset (NA), Instance type, Instance length (bytes), Options (NA), Permissions
     { CID_DEV_REG0, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
                     0, PARAM_TYPE_U16, PARAM_SIZE_U16, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    { CID_DEV_STRING, STR("MB_hold_reg string"), STR("String"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 30,
+                    0, PARAM_TYPE_ASCII, 60, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER }
 };
 
 // Calculate number of parameters in the table

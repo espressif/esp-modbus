@@ -133,10 +133,11 @@ typedef enum {
     PARAM_SIZE_FLOAT = 0x04,                /*!< Float 32 size */
     PARAM_SIZE_ASCII = 0x08,                /*!< ASCII size default*/
     PARAM_SIZE_ASCII24 = 0x18,              /*!< ASCII24 size */
+    PARAM_SIZE_ASCII_MAX = 0xFF,            /*!< ASCII maximum size */
     PARAM_SIZE_I64 = 0x08,                  /*!< Signed integer 64 size */
     PARAM_SIZE_U64 = 0x08,                  /*!< Unsigned integer 64 size */
     PARAM_SIZE_DOUBLE = 0x08,               /*!< Double 64 size */
-    PARAM_MAX_SIZE
+    PARAM_SIZE_MAX = 0x7FFF
 } mb_descr_size_t;
 
 /**
@@ -169,7 +170,7 @@ typedef struct {
     uint16_t            mb_size;            /*!< Size of mb parameter in registers */
     uint32_t            param_offset;       /*!< Parameter name (OFFSET in the parameter structure or address of instance) */
     mb_descr_type_t     param_type;         /*!< Float, U8, U16, U32, ASCII, etc. */
-    mb_descr_size_t     param_size;         /*!< Number of bytes in the parameter. */
+    size_t              param_size;         /*!< Number of bytes in the parameter. */
     mb_parameter_opt_t  param_opts;         /*!< Parameter options used to check limits and etc. */
     mb_param_perms_t    access;             /*!< Access permissions based on mode */
 } mb_parameter_descriptor_t;
