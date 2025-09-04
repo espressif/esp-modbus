@@ -303,7 +303,7 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *
         // Store the timestamp of received frame
         port_obj->recv_time_stamp = esp_timer_get_time();
         ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
-        MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV", ser_frame, counter, ESP_LOG_DEBUG);
+        MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV", *ser_frame, counter, ESP_LOG_DEBUG);
         int64_t time_delta = (port_obj->recv_time_stamp > port_obj->send_time_stamp) ? 
                                 (port_obj->recv_time_stamp - port_obj->send_time_stamp) :
                                 (port_obj->send_time_stamp - port_obj->recv_time_stamp);
