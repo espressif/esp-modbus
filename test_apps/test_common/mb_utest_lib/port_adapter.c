@@ -576,9 +576,7 @@ bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **frame_ptr, uint16
         CRITICAL_SECTION_LOCK(inst->lock);
         rx_len = queue_pop(port_obj->rx_queue, &port_obj->rx_buffer[0], CONFIG_FMB_BUFFER_SIZE, NULL);
         if (rx_len) {
-            mb_port_timer_disable(inst);
             ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, rx_len);
-            // Stop timer because the new data is received
             // Store the timestamp of received frame
             port_obj->recv_time_stamp = esp_timer_get_time();
             *frame_ptr = &port_obj->rx_buffer[0];

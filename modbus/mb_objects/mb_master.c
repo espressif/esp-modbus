@@ -98,7 +98,7 @@ mb_err_enum_t mbm_get_handler_count(mb_base_t *inst, uint16_t *count)
     return MB_ENOERR;
 }
 
-static mb_err_enum_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *buf, uint16_t *len)
+static mb_exception_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *buf, uint16_t *len)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
     mb_exception_t exception = MB_EX_ILLEGAL_FUNCTION;
@@ -571,6 +571,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                                                             &mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
                 MB_RETURN_ON_FALSE(mbm_obj->snd_frame, MB_EILLSTATE, TAG, "Send buffer initialization fail.");
                 if (event.trans_id == mbm_obj->curr_trans_id) {
+                    mb_port_timer_disable(MB_OBJ(inst->port_obj));
                     // Check if the frame is for us. If not ,send an error process event.
                     if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr)
                             || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS))) {
@@ -594,10 +595,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                     }
                 } else {
                     // Ignore the `EV_FRAME_RECEIVED` event because the respond timeout occurred
-                    // and this is likely respond to previous transaction
+                    // and this is likely respond to previous transaction.
                     ESP_LOGE(TAG, MB_OBJ_FMT", drop data received outside of transaction.", MB_OBJ_PARENT(inst));
-                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
-                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
                 }
                 break;
 
