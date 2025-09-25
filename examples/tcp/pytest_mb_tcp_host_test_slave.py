@@ -37,7 +37,7 @@ pattern_dict_slave = {Stages.STACK_IPV4: (r'I \([0-9]+\) example_[a-z]+: - IPv4 
                       Stages.STACK_DESTROY: (r'I\s\(([0-9]+)\) SLAVE_TEST: (Modbus controller destroyed).')}
 
 
-@pytest.mark.esp32
+@pytest.mark.parametrize('target', ['esp32'], indirect=True)
 @pytest.mark.multi_dut_modbus_tcp
 @pytest.mark.parametrize('config', ['ethernet'], indirect=True)
 @pytest.mark.parametrize(
