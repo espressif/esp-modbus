@@ -42,7 +42,7 @@ test_configs = [
     'ethernet'
 ]
 
-@pytest.mark.esp32
+@pytest.mark.parametrize('target', ['esp32'], indirect=True)
 @pytest.mark.multi_dut_modbus_tcp
 @pytest.mark.parametrize('config', test_configs, indirect=True)
 @pytest.mark.parametrize(
@@ -67,6 +67,7 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
     dut_slave.dut_check_errors()
     dut_master.dut_check_errors()
 
+@pytest.mark.parametrize('target', ['esp32'], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize('config', ['dummy_config'])
 def test_modbus_tcp_generic(config) -> None:

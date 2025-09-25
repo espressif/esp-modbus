@@ -113,6 +113,7 @@ after_script:
     - *check_idf_ver
     # This is workaround to build library under esp-idf v4.4
     - pip install idf-component-manager --upgrade
+    - ${IDF_PATH}/install.sh --enable-ci
     - cd ${TEST_DIR}/test_apps
     - *build_cur_folder
     - cd ${TEST_DIR}/examples
