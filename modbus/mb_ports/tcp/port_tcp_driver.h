@@ -121,16 +121,35 @@ typedef struct _port_driver port_driver_t;
 
 // Post event to event loop and unblocks the select through the eventfd to handle the event loop run,
 // So, the eventfd value keeps last event and its fd.
-#define DRIVER_SEND_EVENT(ctx, event, fd) (__extension__(                               \
+#define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
     (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
     (event_info##__FUNCTION__##__LINE__).opt_fd = fd;                                   \
+    (event_info##__FUNCTION__##__LINE__).opt_val = value;                               \
     ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)          \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \
 ))
+
+#define PAR_CAT2(_1, _2) PAR_CAT_(_1, _2)
+#define PAR_CAT_(_1, _2) _1##_2
+
+#define PAR_VA_NUM_ARGS(...) PAR_VA_NUM_ARGS_(__VA_ARGS__, 4, 3, 2, 1)
+#define PAR_VA_NUM_ARGS_(_1, _2, _3, _4, N, ...) N
+
+// Initialization of event structure using variadic parameters
+#define DRIVER_SEND_EVENT(...) PAR_CAT2(DRIVER_SEND_EVENT_, PAR_VA_NUM_ARGS(__VA_ARGS__))(__VA_ARGS__)
+
+#define DRIVER_SEND_EVENT_1(_1) \
+    static_assert(0, "Number of parameters in this macro is incorrect.");
+#define DRIVER_SEND_EVENT_2(_1, _2) \
+    DRIVER_SEND_EVENT_MACRO(_1, _2, -1, 0)
+#define DRIVER_SEND_EVENT_3(_1, _2, _3) \
+    DRIVER_SEND_EVENT_MACRO(_1, _2, _3, 0)
+#define DRIVER_SEND_EVENT_4(_1, _2, _3, _4) \
+    DRIVER_SEND_EVENT_MACRO(_1, _2, _3, _4)
 
 #define MB_GET_NODE_STATE(pnode) (atomic_load(&((mb_node_info_t *)pnode)->addr_info.state))
 
@@ -173,7 +192,8 @@ typedef struct {
 typedef union {
     struct {
         int32_t event_id;               /*!< an event */
-        int32_t opt_fd;                 /*!< fd option for an event */
+        int16_t opt_fd;                 /*!< fd option for an event */
+        int16_t opt_val;                /*!< value option for an event */
     };
     uint64_t val;
 } mb_event_info_t;

@@ -449,8 +449,6 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                     mb_drv_check_suspend_shutdown(ctx);
                     return;
                 }
-                // send receive event to modbus object to get the new data
-                drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_OK);
                 mb_drv_lock(drv_obj);
                 uint16_t msg_id = 0;
                 int node_id = 0;
@@ -465,6 +463,8 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                              pnode->addr_info.ip_addr_str, (unsigned)msg_id);
                 }
                 mb_drv_unlock(drv_obj);
+                // send receive event to modbus object to get the new data
+                drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_OK);
             } else {
                 if (transaction_item_get_state(item) != TRANSMITTED) {
                     // Transaction processing is ongoing, just delete expired transactions
@@ -507,6 +507,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                 // The reason is too much active connections or incorrect response time or request rate in the master.
                 if ((node_id != pnode->index) || (tid != msg_id) || (tid != pnode->tid_counter) || (MB_GET_NODE_STATE(pnode) < MB_SOCK_STATE_CONNECTED)) {
                     mb_drv_lock(drv_obj);
+                    uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
                     err = transaction_delete(port_obj->transaction, tid);
                     mb_drv_unlock(drv_obj);
                     if (err != ESP_OK) {
@@ -515,11 +516,10 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                         ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, (int)tid);
                     }
                     (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
-                    uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
                     uint64_t time_div_us = (esp_timer_get_time() - tick);
-                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", frame TID:0x%04" PRIx16 "!=0x%04" PRIx16 ", slave is busy."),
+                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", frame TID:0x%04" PRIx16 "!=0x%04" PRIx16 " ,%" PRIu64 " ,%" PRIu64 " ,%" PRIx16 ", slave is busy."),
                              ctx, (int)pnode->index, (int)pnode->sock_id,
-                             pnode->addr_info.ip_addr_str, pnode->tid_counter, tid);
+                             pnode->addr_info.ip_addr_str, pnode->tid_counter, tid, esp_timer_get_time(), tick, msg_id);
                     ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master."),
                              ctx, (int)pnode->index, (int)pnode->sock_id,
                              pnode->addr_info.ip_addr_str, (time_div_us / 1000));
@@ -588,17 +588,33 @@ MB_EVENT_HANDLER(mbs_on_error)
         ESP_LOGD(TAG, "%s %s: fd: %d, is closed.", (char *)base, __func__, (int)event_info->opt_fd);
         return;
     }
-    // Check if the node is not alive for timeout
-    int ret = mb_drv_check_node_state(drv_obj, (int *)&event_info->opt_fd, MB_EVENT_SEND_RCV_TOUT_MS);
-    if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
-        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", communication fail, err= %d"),
+    mb_drv_check_suspend_shutdown(ctx);
+    if (event_info->opt_val == ERR_CONN) {
+        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection closed?, err= %d."),
                  port_obj, pnode->index, pnode->sock_id,
-                 pnode->addr_info.ip_addr_str, (int)ret);
+                 pnode->addr_info.ip_addr_str, (int)event_info->opt_val);
         mb_drv_lock(drv_obj);
         // delete all queued transactions for the node to be closed.
         (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
+#if LWIP_SO_LINGER
+        mb_set_linger(pnode->sock_id, 0);
+#endif
         mb_drv_unlock(drv_obj);
         mb_drv_close(drv_obj, event_info->opt_fd);
+    } else {
+        // An error happened, disconnect and close node after timeout.
+        // The master need to reconnect again to send new transaction.
+        int curr_fd = event_info->opt_fd;
+        int ret = mb_drv_check_node_state(drv_obj, &curr_fd, MB_TCP_KEEP_ALIVE_TOUT_MS);
+        if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
+            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", communication fail, err=%d, drop connection."),
+                     port_obj, pnode->index, pnode->sock_id,
+                     pnode->addr_info.ip_addr_str, (int)ret);
+            mb_drv_lock(drv_obj);
+            (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
+            mb_drv_unlock(drv_obj);
+            mb_drv_close(drv_obj, curr_fd);
+        }
     }
     mb_drv_check_suspend_shutdown(ctx);
 }
@@ -646,8 +662,8 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
     mb_drv_check_suspend_shutdown(ctx);
-    int ret = mb_drv_check_node_state(drv_obj, &curr_fd, MB_TCP_KEEP_ALIVE_TOUT_MS);
-    if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
+    int ret = mb_drv_check_node_state(drv_obj, &curr_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
+    if (ret != ERR_TIMEOUT) {
         ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);

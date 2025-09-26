@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -167,6 +167,8 @@ static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t le
     // blocking read of data from socket
     ret = recv(info_ptr->sock_id, buf, bytes_left, 0);
     if (ret < 0) {
+        ESP_LOGD(TAG, "socket(#%d)(%s) recv return, ret=%d, errno=%d.",
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
         if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
             // Read timeout occurred, check the timeout and return
             return 0;
@@ -196,6 +198,12 @@ int port_read_packet(mb_node_info_t *info_ptr)
         MB_RETURN_ON_FALSE((info_ptr->sock_id > 0), -1, TAG, "try to read incorrect socket = #%d", info_ptr->sock_id);
         // Read packet header
         ret = port_get_buf(info_ptr, ptemp_buf, MB_TCP_UID, MB_READ_TICK);
+        if (ret == 0) {
+            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), socket connection is closed or timeout, err=%d, ",
+                     info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
+            return ERR_CONN;
+        }
+
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
@@ -270,6 +278,16 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
     info_ptr->is_blocking = ((flags & O_NONBLOCK) != O_NONBLOCK);
     return ERR_OK;
 }
+
+#if LWIP_SO_LINGER
+int mb_set_linger(int sock, int tout)
+{
+    struct linger sl;
+    sl.l_onoff = 1;
+    sl.l_linger = tout;
+    return setsockopt(sock, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+}
+#endif
 
 int port_keep_alive_enable(int sock, int timeout_sec)
 {
@@ -364,7 +382,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
     }
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     err_t err = ERR_OK;
-    char str[MDNS_NAME_BUF_LEN];
+    char str[MDNS_NAME_BUF_LEN] = {0};
     char *string_ptr = NULL;
     ip_addr_t target_addr;
     struct addrinfo hint;
