@@ -105,11 +105,11 @@ typedef mb_exception_t (*mb_fn_handler_fp)(void *, uint8_t *frame_ptr, uint16_t 
  * \brief Error event type
  */
 typedef enum mb_err_event_enum {
-    EV_ERROR_INIT,              /*!< No error, initial state. */
-    EV_ERROR_RESPOND_TIMEOUT,   /*!< Slave respond timeout. */
-    EV_ERROR_RECEIVE_DATA,      /*!< Receive frame data error. */
-    EV_ERROR_EXECUTE_FUNCTION,  /*!< Execute function error. */
-    EV_ERROR_OK                 /*!< No error, processing completed. */
+    EV_ERROR_INIT,                      /*!< No error, initial state. */
+    EV_ERROR_RESPOND_TIMEOUT = 0x01,    /*!< Slave respond timeout. */
+    EV_ERROR_RECEIVE_DATA = 0x02,       /*!< Receive frame data error. */
+    EV_ERROR_EXECUTE_FUNCTION = 0x04,   /*!< Execute function error. */
+    EV_ERROR_OK = 0x08                  /*!< No error, processing completed. */
 } mb_err_event_t;
 
 typedef struct mb_event_s {

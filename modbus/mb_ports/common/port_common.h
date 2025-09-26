@@ -165,7 +165,7 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event);
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
 void mb_port_event_res_release(mb_port_base_t *inst);
-void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask);
+void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_err_event_t event_mask);
 void mb_port_event_set_err_type(mb_port_base_t *inst, mb_err_event_t event);
 mb_err_event_t mb_port_event_get_err_type(mb_port_base_t *inst);
 void mb_port_event_delete(mb_port_base_t *inst);

@@ -234,7 +234,6 @@ bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *len
             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", get packet TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p."),
                             port_obj->drv_obj, info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, 
                             (unsigned)tid_counter, (unsigned)info_ptr->tid_counter, *frame);
-
             uint64_t time = 0;
             time = port_get_timestamp() - info_ptr->send_time;
             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", processing time[us] = %ju."), port_obj->drv_obj, info_ptr->index,
@@ -297,7 +296,8 @@ bool mbm_port_timer_expired(void *inst)
     BaseType_t task_unblocked;
     mb_event_info_t mb_event;
     esp_err_t err = ESP_FAIL;
-
+    
+    ESP_EARLY_LOGD(TAG, "Timer timeout event: %p", inst);
     mb_port_timer_disable(inst);
     // If timer mode is respond timeout, the master event then turns EV_MASTER_EXECUTE status.
     if (mb_port_get_cur_timer_mode(inst) == MB_TMODE_RESPOND_TIMEOUT) {
@@ -331,13 +331,11 @@ static uint64_t mbm_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event)
 {
     switch(sync_event) {
         case MB_SYNC_EVENT_RECV_OK:
-            mb_port_timer_disable(inst);
             mb_port_event_set_err_type(inst, EV_ERROR_INIT);
             mb_port_event_post(inst, EVENT(EV_FRAME_RECEIVED));
             break;
 
         case MB_SYNC_EVENT_RECV_FAIL:
-            mb_port_timer_disable(inst);
             mb_port_event_set_err_type(inst, EV_ERROR_RECEIVE_DATA);
             mb_port_event_post(inst, EVENT(EV_ERROR_PROCESS));
             break;
@@ -679,8 +677,10 @@ MB_EVENT_HANDLER(mbm_on_timeout)
     // Socket read/write timeout is triggered
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    // Todo: this event can be used to check network state (kkep empty for now)
+    // Todo: this event can be used to check network state (keep empty for now)
     mb_drv_check_suspend_shutdown(ctx);
+    // Intentionally allow IDLE task to trigger if other tasks do not perform it properly.
+    vTaskDelay(1);
 }
 
 #endif

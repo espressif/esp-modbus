@@ -161,24 +161,25 @@ void mb_port_event_res_release(mb_port_base_t *inst)
     }
 }
 
-void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_event_enum_t event_mask)
+void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_err_event_t event_mask)
 {
     MB_RETURN_ON_FALSE((inst), ;, TAG, "incorrect object handle.");
-    (void)xEventGroupSetBits(inst->event_obj->event_group_hdl, event_mask);
+    (void)xEventGroupSetBits(inst->event_obj->event_group_hdl, (EventBits_t)event_mask);
 }
 
 mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 {
     MB_RETURN_ON_FALSE((inst), MB_EINVAL, TAG, 
                             "incorrect object handle.");
-    mb_err_enum_t err_status = MB_ENOERR;
-    mb_event_enum_t rcv_event;
-    EventBits_t bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl,// The event group being tested.
-                                                MB_EVENT_REQ_MASK,          // The bits within the event group to wait for.
-                                                pdTRUE,                     // Masked bits should be cleared before returning.
-                                                pdFALSE,                    // Don't wait for both bits, either bit will do.
-                                                MB_EVENT_QUEUE_TIMEOUT_MAX);// Wait forever for either bit to be set.
-    rcv_event = (mb_event_enum_t)(bits);
+    mb_err_enum_t err_status = MB_ETIMEDOUT;
+    mb_err_event_t rcv_event;
+    EventBits_t bits = EV_ERROR_INIT;
+    bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl,                        // The event group being tested.
+                                                MB_EVENT_REQ_MASK,                      // The bits within the event group to wait for.
+                                                pdTRUE,                                 // Masked bits should be cleared before returning.
+                                                pdFALSE,                                // Don't wait for both bits, either bit will do.
+                                                MB_EVENT_QUEUE_TIMEOUT_MAX);            // Wait forever for either bit to be set.
+    rcv_event = (mb_err_event_t)(bits);
     if (rcv_event) {
         ESP_LOGD(TAG, "%s, %s: returned event = 0x%x", inst->descr.parent_name, __func__, (int)rcv_event);
         if (!(rcv_event & MB_EVENT_REQ_MASK)) {
@@ -186,12 +187,29 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
             ESP_LOGE(TAG, "%s, %s: incorrect event set = 0x%x", inst->descr.parent_name, __func__, (int)rcv_event);
         }
         if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_OK)) {
+            // Just to check if abnormal state is detected (multiple errors are active). Should not happen in normal FSM handling.
+            if (MB_PORT_CHECK_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_RESPOND_TIMEOUT | EV_ERROR_EXECUTE_FUNCTION))) {
+                ESP_LOGD(TAG, "%s, %s: multiple errors detected? = 0x%x, clear.", inst->descr.parent_name, __func__, (int)rcv_event);
+                MB_PORT_CLEAR_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_RESPOND_TIMEOUT | EV_ERROR_EXECUTE_FUNCTION));
+            }
             err_status = MB_ENOERR;
         } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_RESPOND_TIMEOUT)) {
+            if (MB_PORT_CHECK_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_OK | EV_ERROR_EXECUTE_FUNCTION))) {
+                ESP_LOGD(TAG, "%s, %s: multiple errors detected? = 0x%x, clear.", inst->descr.parent_name, __func__, (int)rcv_event);
+                MB_PORT_CLEAR_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_OK | EV_ERROR_EXECUTE_FUNCTION));
+            }
             err_status = MB_ETIMEDOUT;
         } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_RECEIVE_DATA)) {
+            if (MB_PORT_CHECK_EVENT(rcv_event, (EV_ERROR_RESPOND_TIMEOUT | EV_ERROR_OK | EV_ERROR_EXECUTE_FUNCTION))) {
+                ESP_LOGD(TAG, "%s, %s: multiple errors detected? = 0x%x, clear.", inst->descr.parent_name, __func__, (int)rcv_event);
+                MB_PORT_CLEAR_EVENT(rcv_event, (EV_ERROR_RESPOND_TIMEOUT | EV_ERROR_OK | EV_ERROR_EXECUTE_FUNCTION));
+            }
             err_status = MB_ERECVDATA;
         } else if (MB_PORT_CHECK_EVENT(rcv_event, EV_ERROR_EXECUTE_FUNCTION)) {
+            if (MB_PORT_CHECK_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_OK | EV_ERROR_RESPOND_TIMEOUT))) {
+                ESP_LOGD(TAG, "%s, %s: multiple errors detected? = 0x%x, clear.", inst->descr.parent_name, __func__, (int)rcv_event);
+                MB_PORT_CLEAR_EVENT(rcv_event, (EV_ERROR_RECEIVE_DATA | EV_ERROR_OK | EV_ERROR_RESPOND_TIMEOUT));
+            }
             err_status = MB_EILLFUNC;
         }
     } else {
