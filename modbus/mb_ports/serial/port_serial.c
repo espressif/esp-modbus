@@ -155,7 +155,7 @@ static void mb_port_ser_task(void *p_args)
                     // data received during configured timeout and UART TOUT feature is triggered
                     if (event.timeout_flag) {
                         // If bus is busy or fragmented data is received, then flush buffer
-                        if (mb_port_ser_bus_sema_is_busy(&port_obj->base)) {
+                        if (mb_port_ser_bus_sema_is_busy(&port_obj->base) && port_obj->base.descr.is_master) {
                             mb_port_ser_rx_flush(&port_obj->base);
                             break;
                         }
@@ -298,8 +298,6 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *
     if (status && counter && *ser_frame && atomic_load(&(port_obj->enabled))) {
         // Read frame data from the ringbuffer of receiver
         counter = uart_read_bytes(port_obj->ser_opts.port, *ser_frame, counter, MB_SERIAL_RX_TOUT_TICKS);
-        // Stop timer because the new data is received
-        mb_port_timer_disable(inst);
         // Store the timestamp of received frame
         port_obj->recv_time_stamp = esp_timer_get_time();
         ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
@@ -331,12 +329,12 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
         count = uart_write_bytes(port_obj->ser_opts.port, p_ser_frame, ser_length);
         // Waits while UART sending the packet
         esp_err_t status = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
-
         ESP_LOGD(TAG, "%s, tx buffer sent: (%d) bytes.", inst->descr.parent_name, (int)count);
         MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
                                 inst->descr.parent_name);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_SEND", p_ser_frame, ser_length, ESP_LOG_DEBUG);
         port_obj->send_time_stamp = esp_timer_get_time();
+        res = true;
     } else {
         ESP_LOGE(TAG, "%s, send fail state:%d, %p, %u. ", inst->descr.parent_name, (int)port_obj->tx_state_en, p_ser_frame, (unsigned)ser_length);
     }
