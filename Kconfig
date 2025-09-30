@@ -254,4 +254,11 @@ menu "Modbus configuration"
             This is workaround to avoid false-positives for some IDF related components.
             When enabled, the library files will be analysed with GCC static analyzer.
 
+    config FMB_MDNS_INTEGRATION_ENABLE
+        bool "Enable MDNS integration for Modbus library"
+        default "y"
+        help
+            This option enables the integration of Modbus library with MDNS library.
+            When enabled, the Modbus library will use the MDNS API to resolve the node names within Modbus segment.
+
 endmenu

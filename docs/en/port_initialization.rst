@@ -74,6 +74,8 @@ The configuration structure is used to recognize the type of object being initia
 An example of initialization for Modbus TCP master is below. The Modbus master TCP requires additional definition of IP address table where number of addresses should be equal to number of unique slave addresses in master Modbus Data Dictionary. The Unit Identifier defined in the table below corresponds to UID (slave short address field) in the Data Dictionary.
 The format of slave definition following the notation `UID;slave_host_ip_or_dns_name;port_number` and allows some variations as described in the example below.
 
+.. note:: The Modbus library supports integration with the MDNS component in order to resolve the node names within the Modbus segment. This behavior is configurable and can be enabled by the ``CONFIG_FMB_MDNS_INTEGRATION_ENABLE`` kconfig value, which is enabled by default. This key allows you to disable MDNS integration and use IP addresses in the master configuration or use the MDNS resolution on the user project level. If the MDNS is disabled but the MDNS names are used in the configuration, the stack logs an error: ``E (20127) mb_port.tcp.master: 0x3ffc9ff0, slave: 2, IP:mb_slave_tcp_01, mdns service is not supported.``
+
 .. code:: c
 
     // This is public pointer for the module and used by master
