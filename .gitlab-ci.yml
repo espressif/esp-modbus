@@ -18,7 +18,7 @@ variables:
 # Define a matrix for IDF versions and their corresponding targets
 .options_list:
 #  versions:
-#    IDF_VER: ["latest", "v5.3", "v5.2", "v5.0"]
+#    IDF_VER: ["latest", "v5.5", "v5.3", "v5.1"]
   analyzers:
     ANALYZER_TYPE: [gcc, clang]
   markers:
@@ -60,7 +60,7 @@ after_script:
 .before_script_build_jobs:
   before_script:
     - pip install idf-component-manager --upgrade
-    - pip install "idf_build_apps~=1.0.1"
+    - pip install "idf_build_apps" --upgrade
 
 .check_idf_ver: &check_idf_ver |
   export IDF_PATH=$(find /opt -type d -name "*idf*" \
@@ -179,25 +179,25 @@ build_idf_latest:
   extends: .build_pytest_template
   image: espressif/idf:latest
   variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2"
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32h2 esp32p4"
+
+build_idf_v5.5:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.5
+  variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
 
 build_idf_v5.3:
   extends: .build_pytest_template
   image: espressif/idf:release-v5.3
   variables:
+    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
+
+build_idf_v5.1:
+  extends: .build_pytest_template
+  image: espressif/idf:release-v5.1
+  variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
-
-build_idf_v5.2:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v5.2
-  variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
-
-build_idf_v5.0:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v5.0
-  variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
 .target_test_template:
   stage: target_test
@@ -222,7 +222,8 @@ build_idf_v5.0:
 .test_cur_folder: &test_cur_folder |
   export IDF_VER=$(cat ${TEST_DIR}/idf_version_info.txt)
   echo "Start test job: ${CI_JOB_NAME}, version: ${IDF_VER%-*}, folder: ${PWD##*/}"
-  python -m pytest --junit-xml=${TEST_DIR}/${PWD##*/}/results_${IDF_VER%-*}_${PWD##*/}.xml --target=${IDF_TARGET} -m multi_dut_modbus_${TEST_MARKER}
+  echo "Check built artifacts:" $(find . -type d -regex '^\./.*build_esp32[a-z]*[0-9]*[_a-z]*' -print)
+  python -m pytest --junit-xml=${TEST_DIR}/${PWD##*/}/results_${IDF_VER%-*}_${PWD##*/}.xml -m multi_dut_modbus_${TEST_MARKER}
   ls -lh > test_dir_${PWD##*/}.txt
 
 .test_template:
@@ -232,8 +233,6 @@ build_idf_v5.0:
     - .before_script_pytest_jobs
   tags:
     - multi_dut_modbus_${TEST_MARKER}
-  variables:
-      IDF_TARGET: "esp32" # the only esp32 runners are available for now
   script:
     - cd ${TEST_DIR}/test_apps/
     - *test_cur_folder
@@ -246,25 +245,35 @@ build_idf_v5.0:
       - "${TEST_DIR}/**/*.xml"
       - "${TEST_DIR}/**/results_*.xml"
       - "${TEST_DIR}/**/pytest_embedded_log/"
-      - "${TEST_DIR}/**/test_dir*.txt"  
+      - "${TEST_DIR}/**/test_dir*.txt"
       - "${TEST_DIR}/**/idf_version_info.txt"
-      - "${TEST_DIR}/**/log.html"
+      - "${TEST_DIR}/**/log.html" # robot framework related files
       - "${TEST_DIR}/**/report.html"
       - "${TEST_DIR}/**/*.pcap"
-    reports:
-      junit: ${TEST_DIR}/results_${IDF_VER%-*}.xml
     when: always
     expire_in: 1 week
 
 target_test_latest:
   stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:1"
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v6.0:2"
   extends: .test_template
   parallel:
     matrix:
       - !reference [.options_list, markers]
   needs:
     job: build_idf_latest
+    artifacts: true
+  after_script: []
+
+target_test_v5.5:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.5:2"
+  extends: .test_template
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  needs:
+    job: build_idf_v5.5
     artifacts: true
   after_script: []
 
@@ -280,27 +289,15 @@ target_test_v5.3:
     artifacts: true
   after_script: []
 
-target_test_v5.2:
+target_test_v5.1:
   stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.2:2"
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.1:1"
   extends: .test_template
   parallel:
     matrix:
       - !reference [.options_list, markers]
   needs:
-    job: build_idf_v5.2
-    artifacts: true
-  after_script: []
-
-target_test_v5.0:
-  stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.0:3"
-  extends: .test_template
-  parallel:
-    matrix:
-      - !reference [.options_list, markers]
-  needs:
-    job: build_idf_v5.0
+    job: build_idf_v5.1
     artifacts: true
   after_script: []
 
