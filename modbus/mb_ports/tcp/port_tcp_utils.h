@@ -15,8 +15,7 @@ extern "C" {
 #include "lwip/err.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#include "esp_netif.h"
-#include "net/if.h"
+#include "net/if.h"     // for SOMAXCONN
 
 #include "port_tcp_common.h"
 
@@ -30,6 +29,10 @@ extern "C" {
 
 #if __has_include("mdns.h")
 #include "mdns.h"
+#endif
+
+#if __has_include("esp_netif.h")
+#include "esp_netif.h"
 #endif
 
 // Workaround for MDNS_NAME_BUF_LEN being defined in private header

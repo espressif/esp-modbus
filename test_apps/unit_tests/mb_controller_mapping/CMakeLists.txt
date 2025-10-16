@@ -12,12 +12,6 @@ else()
     list(APPEND EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/tools/unit-test-app/components")
 endif()
 
-set(COMPONENTS driver esp_timer esp_event esp_netif main)
-
-# list(APPEND EXTRA_COMPONENT_DIRS
-#      "$ENV{IDF_PATH}/tools/mocks/lwip/"
-#      "$ENV{IDF_PATH}/tools/mocks/freertos/"
-#      "$ENV{IDF_PATH}/tools/mocks/esp_timer/"
-#     )
+set(COMPONENTS main)
 
 project(test_mb_controller_mapping_unit)

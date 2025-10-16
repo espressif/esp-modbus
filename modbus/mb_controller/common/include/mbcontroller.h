@@ -11,7 +11,6 @@
 #include "string.h"                 // for strerror()
 #include "errno.h"                  // for errno
 #include "esp_err.h"                // for error handling
-#include "driver/uart.h"            // for uart port number defines
 #include "sdkconfig.h"              // for KConfig options
 
 #include "esp_modbus_common.h"

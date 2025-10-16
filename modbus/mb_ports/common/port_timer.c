@@ -9,12 +9,6 @@
 #include "esp_idf_version.h"
 #include "esp_attr.h"
 
-#if __has_include("driver/gptimer.h")
-#include "driver/gptimer.h"
-#else
-#include "driver/timer.h"
-#endif
-
 #include "esp_timer.h"
 #include "esp_log.h"
 
