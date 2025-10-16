@@ -7,7 +7,6 @@
 #pragma once
 #include <inttypes.h>
 
-#include "driver/uart.h"                    // for UART types
 #include "sdkconfig.h"
 
 #if CONFIG_FMB_EXT_TYPE_SUPPORT

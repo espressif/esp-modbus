@@ -59,18 +59,23 @@ add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${priv_include_
 
 message(STATUS "DEBUG: Use esp-modbus component folder: ${CMAKE_CURRENT_LIST_DIR}.")
 
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "5.2")
+set(requires esp_driver_uart)
+set(priv_requires
+        esp_timer   # mb timer implementation
+        esp_event   # mb tcp event loops
+        esp_netif   # mb tcp workaround for ipv6
+        vfs         # mb tcp uses event_fd
+)
+else()
 set(requires driver)
-set(priv_requires esp_netif esp_event vfs)
-
-# esp_timer component was introduced in v4.2
-if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "4.1")
-    list(APPEND requires esp_timer)
+set(priv_requires esp_timer esp_event esp_netif vfs)
 endif()
 
 idf_component_register(SRCS "${srcs}"
                         INCLUDE_DIRS "${include_dirs}"
                         PRIV_INCLUDE_DIRS "${priv_include_dirs}"
-                        REQUIRES ${requires} 
+                        REQUIRES ${requires}
                         PRIV_REQUIRES ${priv_requires}
                         LDFRAGMENTS linker.lf)
 

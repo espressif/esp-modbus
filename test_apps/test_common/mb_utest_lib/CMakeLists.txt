@@ -22,15 +22,20 @@ target_include_directories(mb_ut_lib PUBLIC
                             "${dir}/modbus/mb_transports/tcp"
                             )
 
-idf_component_get_property(driver_lib driver COMPONENT_LIB)
-target_link_libraries(mb_ut_lib PUBLIC ${driver_lib})
-idf_component_get_property(timer_lib esp_timer COMPONENT_LIB)
-target_link_libraries(mb_ut_lib PUBLIC ${timer_lib})
-idf_component_get_property(netif_lib esp_netif COMPONENT_LIB)
-target_link_libraries(mb_ut_lib PUBLIC ${netif_lib})
+idf_component_get_property(optional_reqs esp-modbus REQUIRES)
+idf_component_get_property(priv_requires esp-modbus PRIV_REQUIRES)
+list(APPEND optional_reqs ${priv_requires})
+
+foreach(req ${optional_reqs})
+    idf_component_get_property(req_lib ${req} COMPONENT_LIB)
+    target_link_libraries(mb_ut_lib PRIVATE ${req_lib})
+endforeach()
+
+idf_component_get_property(modbus_lib esp-modbus COMPONENT_LIB)
+target_link_libraries(mb_ut_lib PUBLIC ${modbus_lib})
+
 idf_component_get_property(test_utils_lib test_utils COMPONENT_LIB)
 target_link_libraries(mb_ut_lib PUBLIC ${test_utils_lib})
-
 
 # Wrap port functions to substitute port with port_adapter object
 if(CONFIG_MB_PORT_ADAPTER_EN)

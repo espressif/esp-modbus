@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include "driver/uart.h"            // for uart defines
 #include "errno.h"                  // for errno
 #include "sys/queue.h"              // for list
 #include "esp_log.h"                // for log write

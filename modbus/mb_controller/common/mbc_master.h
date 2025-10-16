@@ -12,7 +12,6 @@
 #include "freertos/event_groups.h"  // for event groups
 #include "freertos/semphr.h"        // for semaphore
 #include "freertos/queue.h"         // for queue api access
-#include "driver/uart.h"            // for UART types
 #include "errno.h"                  // for errno
 #include "esp_log.h"                // for log write
 #include "string.h"                 // for strerror()

@@ -17,8 +17,6 @@
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
 
-#include "esp_netif.h"
-
 #include "port_common.h"
 #include "esp_vfs_eventfd.h"
 #include "port_tcp_driver.h"
