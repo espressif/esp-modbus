@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 # This is the script to reproduce the issue when the expect() is called from
@@ -34,23 +34,26 @@ pattern_dict_slave = {
     Stages.STACK_IPV6: (
         r"I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
     ),
-    Stages.STACK_INIT: (
-        r"I \(([0-9]+)\) MB_TCP_SLAVE_PORT: (Protocol stack initialized)."
-    ),
+    Stages.STACK_INIT: (r"I \(([0-9]+)\) [A-Z_]*: (Modbus slave stack initialized)."),
     Stages.STACK_CONNECT: (
-        r"I\s\(([0-9]+)\) MB_TCP_SLAVE_PORT: Socket \(#[0-9]+\), accept client connection from address: "
-        r"([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+        r"I\s\(([0-9]+)\) port.utils: Socket \(#[0-9]+\), accept client connection from address\[port\]: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\[[0-9]+\]"
     ),
-    Stages.STACK_START: (r"I\s\(([0-9]+)\) SLAVE_TEST: (Start modbus test)"),
+    Stages.STACK_START: (r"I\s\(([0-9]+)\) [A-Z_]+: Slave TCP [#0-9]*\s*is started"),
     Stages.STACK_PAR_OK: (
-        r"I\s\(([0-9]+)\) SLAVE_TEST: ([A-Z]+ [A-Z]+) \([a-zA-Z0-9_]+ us\),\s"
-        r"ADDR:([0-9]+), TYPE:[0-9]+, INST_ADDR:0x[a-zA-Z0-9]+, SIZE:[0-9]+"
+        r"I\s\(([0-9]+)\) [A-Z_]+: OBJ (0x[a-fA-Z0-9]+),() ([A-Za-z\s]+) \([0-9]+ us\),\s*[A-Z:]*\s*[0-9,]*\s*[A-Z:]*[0-9]*, TYPE:[0-9]+, INST_ADDR:0x[a-fA-Z0-9]+[()0-9a-z]+, SIZE:[0-9]+"
     ),
     Stages.STACK_PAR_FAIL: (
         r"E \(([0-9]+)\) SLAVE_TEST: Response time exceeds configured [0-9]+ [ms], ignore packet"
     ),
-    Stages.STACK_DESTROY: (
-        r"I\s\(([0-9]+)\) SLAVE_TEST: (Modbus controller destroyed)."
+    Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: Destroy slave"),
+    Stages.STACK_OBJECT_CREATE: (
+        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_tcp[#@](0x[0-9a-f]+)"
+    ),
+    Stages.STACK_BAD_CONNECTION: (
+        r"I \([0-9]+\) example_connect: WiFi Connect failed [0-9]* times, stop reconnect."
+    ),
+    Stages.STACK_CID_RESPONSE_TIME: (
+        r"D \(([0-9]+)\) mbc_[a-z]+.slave: mbc_[a-z]+_slave_get_parameter: Good response for get cid\(([0-9]+)\) = ESP_OK"
     ),
 }
 
