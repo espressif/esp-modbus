@@ -73,7 +73,7 @@ TEST_SETUP(modbus_adapter_serial)
 
 TEST_TEAR_DOWN(modbus_adapter_serial)
 {
-    int task_count = test_common_task_start_all(1);
+    int task_count = test_common_task_start_all();
     TEST_ASSERT_TRUE(task_count > 0);
     TEST_ASSERT_EQUAL(task_count, test_common_task_wait_done_delete_all(TEST_TASK_TIMEOUT_MS));
     test_common_stop();

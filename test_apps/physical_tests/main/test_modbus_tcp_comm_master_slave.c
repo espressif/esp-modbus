@@ -196,7 +196,7 @@ static void test_modbus_tcp_slave(void)
     unity_send_signal("Slave_ready");
     unity_wait_for_signal("Master_started");
 
-    TEST_ASSERT_EQUAL(test_common_task_start_all(1),
+    TEST_ASSERT_EQUAL(test_common_task_start_all(),
                       test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
 
     ESP_LOGI(TAG, "Slave TCP test is completed. (%s).", __func__);
@@ -235,7 +235,7 @@ static void test_modbus_tcp_master(void)
 
     unity_send_signal("Master_started");
 
-    TEST_ASSERT_EQUAL(test_common_task_start_all(1),
+    TEST_ASSERT_EQUAL(test_common_task_start_all(),
                       test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
 
     test_common_stop();
