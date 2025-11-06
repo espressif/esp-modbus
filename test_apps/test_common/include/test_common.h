@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,6 +15,11 @@
 
 #include "sdkconfig.h"
 
+#define TEST_TASK_PRIO_MASTER       (CONFIG_MB_TEST_MASTER_TASK_PRIO)
+#define TEST_TASK_PRIO_SLAVE        (CONFIG_MB_TEST_SLAVE_TASK_PRIO)
+#define TEST_TASK_STACK_SIZE        (5120)
+
+
 #define STR(fieldname) ((const char *)(fieldname))
 #define OPTS(min_val, max_val, step_val)               \
 {                                                      \
@@ -23,7 +28,7 @@
 
 // Enumeration of modbus slave addresses accessed by master device
 enum {
-    MB_DEVICE_ADDR1 = 1,
+    MB_DEVICE_ADDR1 = 01,
     MB_DEVICE_ADDR2 = 200
 };
 
@@ -42,6 +47,12 @@ enum {
     TEST_REG_VAL2 = 0x2222,
     TEST_REG_VAL3 = 0x3333,
     TEST_REG_VAL4 = 0x4444
+};
+
+// Enumeration of task notification
+enum {
+    TASK_START = 1,
+    TASK_STOP = 2
 };
 
 typedef struct task_entry_s {
@@ -87,12 +98,17 @@ esp_err_t test_common_write_modbus_parameter(void *handle, uint16_t cid, uint16_
  * @brief The test helper functions to work with test tasks
  *
  */
-void test_common_task_notify_start(TaskHandle_t task_handle, uint32_t value);
+void test_common_task_notify_start_and_stop(TaskHandle_t task_handle, uint32_t value);
 void test_common_task_start(TaskHandle_t task_handle, uint32_t value);
-int test_common_task_start_all(uint32_t value);
+uint32_t test_common_task_wait_start_and_stop(TickType_t timeout_ticks);
+int test_common_task_start_all();
 bool test_common_task_wait_done(TaskHandle_t task_handle, TickType_t timeout_ticks);
 bool test_common_task_wait_done_delete(TaskHandle_t task_handle, TickType_t task_timeout_ticks);
 int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick);
 void test_common_task_delete(TaskHandle_t task_handle);
-void test_common_task_delete_all();
+int  test_common_task_delete_all();
 void *test_common_task_get_instance(TaskHandle_t task_handle);
+void test_task_add_entry(TaskHandle_t task_handle, void *pinst);
+void test_common_task_notify_done(TaskHandle_t task_handle);
+void test_common_task_destroy_and_notify_done_all();
+bool test_common_wait_check_destroy_message(char *message, uint32_t timeout_ms);

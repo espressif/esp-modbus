@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,6 +11,7 @@
 #include "mb_common.h"
 #include "mbc_slave.h"
 #include "mbc_master.h"
+#include "esp_timer.h"              // for esp_timer_get_time()
 
 #include "test_common.h"
 #include "esp_heap_caps.h"
@@ -21,9 +22,6 @@
 #include "esp_heap_trace.h"
 #endif
 
-#define TEST_TASK_PRIO_MASTER       (CONFIG_MB_TEST_MASTER_TASK_PRIO)
-#define TEST_TASK_PRIO_SLAVE        (CONFIG_MB_TEST_SLAVE_TASK_PRIO)
-#define TEST_TASK_STACK_SIZE        (5120)
 #define TEST_TASK_CYCLE_COUNTER     (CONFIG_MB_TEST_COMM_CYCLE_COUNTER)
 #define TEST_BUSY_TASK_PRIO         (20)
 
@@ -42,8 +40,11 @@
 #define TEST_NOTIF_SIZE             (20)
 #define TEST_ALLOW_PROC_FAIL        (5) // percentage of allowed failures due to desynchronization
 #define TEST_TASK_TICK_TIME         (50 / portTICK_PERIOD_MS)
+#define TEST_DESTROY_MESSAGE_TOUT   (500)
+#define TEST_NOTIFY_DONE_TOUT       (200 / portTICK_PERIOD_MS)
 
 #define TAG "TEST_COMMON"
+#define MSG_DESTROY "Destroy instances\n\0"
 
 typedef enum {
     RT_HOLDING_RD,
@@ -109,18 +110,18 @@ static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_
         if ((xSemaphoreTake(task_entry->task_sema_handle, tout_ticks) == pdTRUE)) {
             ESP_LOGI(TAG, "Test task 0x%" PRIx32 ", done successfully.", (uint32_t)task_entry->task_handle);
             is_done = true;
-        } else {
-            ESP_LOGE(TAG, "Could not complete task 0x%" PRIx32 " after timeout, force kill the task.",
-                     (uint32_t)task_entry->task_handle);
-            is_done = false;
+            task_entry_remove(task_entry);
         }
+        // Else statement removed from here.
+        //This is a workaround on how to handle the finishing of tasks without increasing  timeout of
+        //test_common_task_wait_done_delete_all() and task_wait_done_and_remove()
+
         vTaskDelay(1); // Let the lower priority task to suspend or delete itself
-        task_entry_remove(task_entry);
     }
     return (is_done);
 }
 
-static void test_task_add_entry(TaskHandle_t task_handle, void *inst)
+void test_task_add_entry(TaskHandle_t task_handle, void *inst)
 {
     TEST_ASSERT_TRUE(task_handle);
     task_entry_t *new_entry = (task_entry_t *) calloc(1, sizeof(task_entry_t));
@@ -154,7 +155,42 @@ static task_entry_t *test_task_find_entry(TaskHandle_t task_handle)
     return pfound;
 }
 
-static void test_common_task_notify_done(TaskHandle_t task_handle)
+void  test_common_task_notify_stop_all()
+{
+    task_entry_t *it = NULL;
+    if (LIST_EMPTY(&s_task_list)) {
+        return;
+    }
+
+    LIST_FOREACH(it, &s_task_list, entries) {
+        ESP_LOGD(TAG, "Notify task stop, inst: %p.", it->task_handle);
+        test_common_task_notify_start_and_stop(it->task_handle, TASK_STOP);
+    }
+    return;
+}
+
+bool test_common_wait_check_destroy_message(char *message, uint32_t timeout_ms)
+{
+    /* Read line from console, non-blocking function, timeout in ms */
+
+    char buffer[64] = {0};     //fixed size buffer to store the input from stdin
+
+    ESP_LOGD(TAG, "Waiting for destroy message: \"%s\" (timeout: %lu ms)", message, timeout_ms);
+
+    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    if (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+        ESP_LOGD(TAG, "%s: received: %s", __func__, buffer);
+    }
+
+    if (strcmp(buffer, message) == 0) {
+        ESP_LOGD(TAG, "Destroy message matched, notifying to destroy instances.");
+        return true;
+    }
+    ESP_LOGD(TAG, "Timeout waiting for destroy message.");
+    return false;
+}
+
+void test_common_task_notify_done(TaskHandle_t task_handle)
 {
     task_entry_t *it = test_task_find_entry(task_handle);
     if (it) {
@@ -180,10 +216,10 @@ static void test_busy_task(void *phandle)
 void test_common_task_start(TaskHandle_t task_handle, uint32_t value)
 {
     // Directly notify the task waiting to start loop
-    test_common_task_notify_start(task_handle, value);
+    test_common_task_notify_start_and_stop(task_handle, value);
 }
 
-int test_common_task_start_all(uint32_t value)
+int test_common_task_start_all()
 {
     task_entry_t *it = NULL;
     if (LIST_EMPTY(&s_task_list)) {
@@ -191,7 +227,7 @@ int test_common_task_start_all(uint32_t value)
     }
     int task_count = 0;
     LIST_FOREACH(it, &s_task_list, entries) {
-        test_common_task_notify_start(it->task_handle, value);
+        test_common_task_notify_start_and_stop(it->task_handle, TASK_START);
         task_count++;
     }
     return task_count;
@@ -216,13 +252,32 @@ int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick)
 {
     task_entry_t *it, *ptmp = NULL;
     int task_count = 0;
+    int64_t start_time = esp_timer_get_time(); //getting the reference system time to compare
+
     if (LIST_EMPTY(&s_task_list)) {
         return 0;
     }
-    LIST_FOREACH_SAFE(it, &s_task_list, entries, ptmp) {
-        task_wait_done_and_remove(it, task_timeout_tick);
-        task_count++;
+
+    while ((esp_timer_get_time() - start_time) <= (task_timeout_tick * portTICK_PERIOD_MS * 1000)) {
+
+        if (LIST_EMPTY(&s_task_list)) {
+            return task_count;
+        }
+
+        if (test_common_wait_check_destroy_message(MSG_DESTROY, TEST_DESTROY_MESSAGE_TOUT)) {
+            test_common_task_notify_stop_all();
+        }
+
+        LIST_FOREACH_SAFE(it, &s_task_list, entries, ptmp) {
+            if (task_wait_done_and_remove(it, TEST_NOTIFY_DONE_TOUT)) {
+                task_count++;
+            }
+        }
+
+        vTaskDelay(TEST_TASK_TICK_TIME);
+
     }
+    task_count = test_common_task_delete_all();
     return task_count;
 }
 
@@ -234,12 +289,15 @@ void test_common_task_delete(TaskHandle_t task_handle)
     }
 }
 
-void test_common_task_delete_all()
+int test_common_task_delete_all()
 {
     task_entry_t *it = NULL;
+    int task_count = 0;
     while ((it = LIST_FIRST(&s_task_list))) {
         task_entry_remove(it);
+        task_count++;
     }
+    return task_count;
 }
 
 void *test_common_task_get_instance(TaskHandle_t task_handle)
@@ -305,7 +363,7 @@ void test_common_stop()
                            CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
 }
 
-static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
+uint32_t test_common_task_wait_start_and_stop(TickType_t timeout_ticks)
 {
     static uint32_t notify_value = 0;
 
@@ -317,9 +375,10 @@ static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
     return 0;
 }
 
-void test_common_task_notify_start(TaskHandle_t task_handle, uint32_t value)
+void test_common_task_notify_start_and_stop(TaskHandle_t task_handle, uint32_t value)
 {
-    ESP_LOGD(TAG, "Notify task start 0x%" PRIx32, (uint32_t)task_handle);
+    char *task_state = (value == TASK_START) ? "start" :  "stop";
+    ESP_LOGD(TAG, "Notify task %s  0x%" PRIx32, task_state, (uint32_t)task_handle);
     TEST_ASSERT_EQUAL_INT(xTaskNotify(task_handle, value, eSetValueWithOverwrite), pdTRUE);
 }
 
@@ -419,7 +478,7 @@ static void test_master_task(void *arg)
     uint16_t cycle_counter = 0;
 
     // Wait task start notification during timeout
-    test_common_task_wait_start(TEST_TASK_START_TIMEOUT);
+    test_common_task_wait_start_and_stop(TEST_TASK_START_TIMEOUT);
 
     holding_registers[CID_DEV_REG0] = TEST_REG_VAL1;
     holding_registers[CID_DEV_REG1] = TEST_REG_VAL2;
@@ -485,7 +544,7 @@ static void test_slave_task(void *arg)
     mbs_controller_iface_t *pctrl_obj = ((mbs_controller_iface_t *)mbs_handle);
     mb_param_info_t reg_info;                    // keeps the Modbus registers access information
 
-    test_common_task_wait_start(TEST_TASK_START_TIMEOUT);
+    test_common_task_wait_start_and_stop(TEST_TASK_START_TIMEOUT);
 
     while (1) {
         // Get parameter information from parameter queue
@@ -513,6 +572,7 @@ static void test_slave_task(void *arg)
             break;
         }
     }
+
     ESP_LOGI(TAG, "Destroy slave, inst: %p.", mbs_handle);
     TEST_ESP_OK(mbc_slave_delete(mbs_handle));
     ESP_LOGD(TAG, "Notify task done, inst: %p.", xTaskGetCurrentTaskHandle());
@@ -544,6 +604,7 @@ void test_common_slave_setup_start(void *mbs_handle)
     reg_area.size = coil_registers_counter;
     TEST_ESP_OK(mbc_slave_set_descriptor(mbs_handle, reg_area));
     TEST_ESP_OK(mbc_slave_start(mbs_handle));
+
 }
 
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
