@@ -1,8 +1,12 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+// esp-modbus Slave Example ESP32
+
+
 
 #include <stdio.h>
 #include "esp_err.h"
@@ -54,6 +58,7 @@
 #define MB_TEST_VALUE                       (12345.0)
 #define MB_SLAVE_ADDR                       (CONFIG_MB_SLAVE_ADDR)
 #define MB_CUST_DATA_MAX_LEN                (100)
+
 
 static const char *TAG = "SLAVE_TEST";
 
@@ -123,33 +128,35 @@ static void setup_reg_data(void)
     coil_reg_params.coils_port0 = 0x55;
     coil_reg_params.coils_port1 = 0xAA;
 
-    input_reg_params.input_data0 = 1.12F;
-    input_reg_params.input_data1 = 2.34F;
-    input_reg_params.input_data2 = 3.56F;
-    input_reg_params.input_data3 = 4.78F;
-    input_reg_params.input_data4 = 1.12F;
-    input_reg_params.input_data5 = 2.34F;
-    input_reg_params.input_data6 = 3.56F;
-    input_reg_params.input_data7 = 4.78F;
+    input_reg_params.input_data0 = 1.12;
+    input_reg_params.input_data1 = 2.34;
+    input_reg_params.input_data2 = 3.56;
+    input_reg_params.input_data3 = 4.78;
+
+    input_reg_params.input_data4 = 6.12;
+    input_reg_params.input_data5 = 7.34;
+    input_reg_params.input_data6 = 8.56;
+    input_reg_params.input_data7 = 9.78;
 }
 
 static void slave_operation_func(void *arg)
 {
     mb_param_info_t reg_info; // keeps the Modbus registers access information
 
-    ESP_LOGI(TAG, "Modbus slave stack initialized.");
+    ESP_LOGI(TAG, "Slave TCP is started");
     ESP_LOGI(TAG, "Start modbus test...");
     // The cycle below will be terminated when parameter holding_data0
     // incremented each access cycle reaches the CHAN_DATA_MAX_VAL value.
     for (; holding_reg_params.holding_data0 < MB_CHAN_DATA_MAX_VAL;) {
         // Check for read/write events of Modbus master for certain events
-        (void)mbc_slave_check_event(slave_handle, MB_READ_WRITE_MASK);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));
-        const char *rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
+        (void)mbc_slave_check_event(slave_handle, MB_READ_WRITE_MASK);      // checks every type of event from specific slave  , parameter queue
+        ESP_ERROR_CHECK_WITHOUT_ABORT(mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));     // get latest info from parameter queue
+        const char *rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";   //only checks read mask, assumes write if not
         // Filter events and process them accordingly
         if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
             // Get parameter information from parameter queue
-            ESP_LOGI(TAG, "HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+                     slave_handle,
                      rw_str,
                      (unsigned)reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
@@ -166,21 +173,24 @@ static void slave_operation_func(void *arg)
                 (void)mbc_slave_unlock(slave_handle);
             }
         } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
-            ESP_LOGI(TAG, "INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     slave_handle,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
                      (unsigned)reg_info.type,
                      (uint32_t)reg_info.address,
                      (unsigned)reg_info.size);
         } else if (reg_info.type & MB_EVENT_DISCRETE_RD) {
-            ESP_LOGI(TAG, "DISCRETE READ (%" PRIu32 " us): ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, DISCRETE READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     slave_handle,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
                      (unsigned)reg_info.type,
                      (uint32_t)reg_info.address,
                      (unsigned)reg_info.size);
         } else if (reg_info.type & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
-            ESP_LOGI(TAG, "COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     slave_handle,
                      rw_str,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
@@ -194,7 +204,7 @@ static void slave_operation_func(void *arg)
         }
     }
     // Destroy of Modbus controller on alarm
-    ESP_LOGI(TAG, "Modbus controller destroyed.");
+    ESP_LOGI(TAG, "Destroy slave.");
     vTaskDelay(100);
 }
 
@@ -428,7 +438,7 @@ void app_main(void)
     // Set UART log level
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
-    mb_communication_info_t tcp_slave_config = {
+    mb_communication_info_t tcp_slave_config_1 = {
         .tcp_opts.port = MB_TCP_PORT_NUMBER,
         .tcp_opts.mode = MB_TCP,
 #if !CONFIG_EXAMPLE_CONNECT_IPV6
@@ -441,7 +451,10 @@ void app_main(void)
         .tcp_opts.uid = MB_SLAVE_ADDR
     };
 
-    ESP_ERROR_CHECK(slave_init(&tcp_slave_config));
+
+    ESP_ERROR_CHECK(slave_init(&tcp_slave_config_1));
+    ESP_LOGI(TAG, "Slave TCP #1 is started (%s)", __func__);
+
 
     // The Modbus slave logic is located in this function (user handling of Modbus)
     slave_operation_func(NULL);

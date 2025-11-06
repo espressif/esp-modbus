@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -306,7 +306,8 @@ void app_main(void)
 
         // Filter events and process them accordingly
         if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
-            ESP_LOGI(TAG, "HOLDING %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     mbc_slave_handle,
                      rw_str,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
@@ -322,21 +323,24 @@ void app_main(void)
                 (void)mbc_slave_unlock(mbc_slave_handle);
             }
         } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
-            ESP_LOGI(TAG, "INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     mbc_slave_handle,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
                      (unsigned)reg_info.type,
                      (uint32_t)reg_info.address,
                      (unsigned)reg_info.size);
         } else if (reg_info.type & MB_EVENT_DISCRETE_RD) {
-            ESP_LOGI(TAG, "DISCRETE READ (%" PRIu32 " us): ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, DISCRETE READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     mbc_slave_handle,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
                      (unsigned)reg_info.type,
                      (uint32_t)reg_info.address,
                      (unsigned)reg_info.size);
         } else if (reg_info.type & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
-            ESP_LOGI(TAG, "COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+            ESP_LOGI(TAG, "OBJ %p, COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                     mbc_slave_handle,
                      rw_str,
                      reg_info.time_stamp,
                      (unsigned)reg_info.mb_offset,
@@ -350,7 +354,7 @@ void app_main(void)
         }
     }
     // Destroy of Modbus controller on alarm
-    ESP_LOGI(TAG, "Modbus controller destroyed.");
+    ESP_LOGI(TAG, "Destroy slave.");
     vTaskDelay(100);
     ESP_ERROR_CHECK(mbc_slave_delete(mbc_slave_handle));
 }

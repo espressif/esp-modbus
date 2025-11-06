@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -312,55 +312,60 @@ static void *master_get_param_data(const mb_parameter_descriptor_t *param_descri
     return instance_ptr;
 }
 
-#define TEST_VERIFY_VALUES(handle, descr, inst) (__extension__(                                   \
-{                                                                                                 \
-    assert(inst);                                                                                 \
-    assert(descr);                                                                                \
-    uint8_t type = 0;                                                                             \
-    esp_err_t err = ESP_FAIL;                                                                     \
-    err = mbc_master_get_parameter(handle, descr->cid,                                            \
-                                    (uint8_t *)inst, &type);                                      \
-    if (err == ESP_OK) {                                                                          \
-        bool is_correct = true;                                                                   \
-        if (descr->param_opts.opt3) {                                                             \
-            for EACH_ITEM(inst, descr->param_size / sizeof(*item_ptr)) {                          \
-                if (*item_ptr != (typeof(*(inst)))descr->param_opts.opt3) {                       \
-                    *item_ptr = (typeof(*(inst)))descr->param_opts.opt3;                          \
-                    ESP_LOGD(TAG, "Characteristic #%d (%s), initialize to 0x%" PRIx16 ".",        \
-                                (int)descr->cid,                                                  \
-                                (char *)descr->param_key,                                         \
-                                (uint16_t)descr->param_opts.opt3);                                \
-                    is_correct = false;                                                           \
-                }                                                                                 \
-            }                                                                                     \
-        }                                                                                         \
-        if (!is_correct) {                                                                        \
-            ESP_LOGE(TAG, "Characteristic #%d (%s), initialize.",                                 \
-                        (int)descr->cid,                                                          \
-                        (char *)descr->param_key);                                                \
-            err = mbc_master_set_parameter(handle, cid, (uint8_t *)inst, &type);                  \
-            if (err != ESP_OK) {                                                                  \
-                ESP_LOGE(TAG, "Characteristic #%d (%s) write fail, err = 0x%x (%s).",             \
-                            (int)descr->cid,                                                      \
-                            (char *)descr->param_key,                                             \
-                            (int)err,                                                             \
-                            (char *)esp_err_to_name(err));                                        \
-            } else {                                                                              \
-                ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (..) write successful.",        \
-                        (int)descr->cid,                                                          \
-                        (char *)descr->param_key,                                                 \
-                        (char *)descr->param_units);                                              \
-            }                                                                                     \
-        }                                                                                         \
-    } else {                                                                                      \
-        ESP_LOGE(TAG, "Characteristic #%d (%s) read fail, err = 0x%x (%s).",                      \
-                            (int)descr->cid,                                                      \
-                            (char *)descr->param_key,                                             \
-                            (int)err,                                                             \
-                            (char *)esp_err_to_name(err));                                        \
-    }                                                                                             \
-    (err);                                                                                        \
-}                                                                                                 \
+#define TEST_VERIFY_VALUES(handle, pdescr, pinst) (__extension__(                                   \
+{                                                                                                   \
+    assert(pinst);                                                                                  \
+    assert(pdescr);                                                                                 \
+    uint8_t type = 0;                                                                               \
+    esp_err_t err = ESP_FAIL;                                                                       \
+    err = mbc_master_get_parameter(handle, pdescr->cid,                                             \
+                                    (uint8_t *)pinst, &type);                                       \
+    if (err == ESP_OK) {                                                                            \
+        bool is_correct = true;                                                                     \
+        if (pdescr->param_opts.opt3) {                                                              \
+            for EACH_ITEM(pinst, pdescr->param_size / sizeof(*item_ptr)) {                          \
+                if (*item_ptr != (typeof(*(pinst)))pdescr->param_opts.opt3) {                       \
+                    *item_ptr = (typeof(*(pinst)))pdescr->param_opts.opt3;                          \
+                    ESP_LOGD(TAG, "%p Characteristic #%d (%s), initialize to 0x%" PRIx16 ".",       \
+                                master_handle,                                                      \
+                                (int)pdescr->cid,                                                   \
+                                (char *)pdescr->param_key,                                          \
+                                (uint16_t)pdescr->param_opts.opt3);                                 \
+                    is_correct = false;                                                             \
+                }                                                                                   \
+            }                                                                                       \
+        }                                                                                           \
+        if (!is_correct) {                                                                          \
+            ESP_LOGE(TAG, "%p Characteristic #%d (%s), initialize.",                                \
+                        master_handle,                                                              \
+                        (int)pdescr->cid,                                                           \
+                        (char *)pdescr->param_key);                                                 \
+            err = mbc_master_set_parameter(handle, cid, (uint8_t *)pinst, &type);                   \
+            if (err != ESP_OK) {                                                                    \
+                ESP_LOGE(TAG, "%p Characteristic #%d (%s) write fail, err = 0x%x (%s).",            \
+                            master_handle,                                                          \
+                            (int)pdescr->cid,                                                       \
+                            (char *)pdescr->param_key,                                              \
+                            (int)err,                                                               \
+                            (char *)esp_err_to_name(err));                                          \
+            } else {                                                                                \
+                ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = (..) write successful.",       \
+                        master_handle,                                                              \
+                        (int)pdescr->cid,                                                           \
+                        (char *)pdescr->param_key,                                                  \
+                        (char *)pdescr->param_units);                                               \
+            }                                                                                       \
+        }                                                                                           \
+    } else {                                                                                        \
+        ESP_LOGE(TAG, "%p Characteristic #%d (%s) read fail, err = 0x%x (%s).",                     \
+                            master_handle,                                                          \
+                            (int)pdescr->cid,                                                       \
+                            (char *)pdescr->param_key,                                              \
+                            (int)err,                                                               \
+                            (char *)esp_err_to_name(err));                                          \
+    }                                                                                               \
+    (err);                                                                                          \
+}                                                                                                   \
 ))
 
 // User operation function to read slave values and check alarm
@@ -426,7 +431,8 @@ static void master_operation_func(void *arg)
                         && (param_descriptor->cid <= CID_HOLD_TEST_REG)) {
                     // Check test parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -437,7 +443,8 @@ static void master_operation_func(void *arg)
                            && (param_descriptor->cid <= CID_HOLD_U16_BA)) {
                     // Check the uint16 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -447,7 +454,8 @@ static void master_operation_func(void *arg)
                            && (param_descriptor->cid <= CID_HOLD_U8_B)) {
                     // Check the uint8 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -457,7 +465,8 @@ static void master_operation_func(void *arg)
                            && (param_descriptor->cid <= CID_HOLD_UINT32_DCBA)) {
                     // Check the uint32 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %" PRIu32 " (0x%" PRIx32 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = %" PRIu32 " (0x%" PRIx32 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -468,7 +477,8 @@ static void master_operation_func(void *arg)
                            && (param_descriptor->cid <= CID_HOLD_FLOAT_DCBA)) {
                     // Check the float parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -478,7 +488,8 @@ static void master_operation_func(void *arg)
                 } else if (param_descriptor->cid >= CID_HOLD_DOUBLE_ABCDEFGH) {
                     // Check the double parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (double *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %lf (0x%" PRIx64 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = %lf (0x%" PRIx64 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -488,7 +499,8 @@ static void master_operation_func(void *arg)
 #endif
                 } else  if (cid <= CID_HOLD_DATA_2) {
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
-                        ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                        ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
+                                 master_handle,
                                  (int)param_descriptor->cid,
                                  (char *)param_descriptor->param_key,
                                  (char *)param_descriptor->param_units,
@@ -506,14 +518,16 @@ static void master_operation_func(void *arg)
                         uint8_t state = *(uint8_t *)temp_data_ptr;
                         const char *rw_str = (state & param_descriptor->param_opts.opt1) ? "ON" : "OFF";
                         if ((state & param_descriptor->param_opts.opt2) == param_descriptor->param_opts.opt2) {
-                            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 ") read successful.",
+                            ESP_LOGI(TAG, "%p Characteristic #%d %s (%s) value = %s (0x%" PRIx8 ") read successful.",
+                                     master_handle,
                                      (int)param_descriptor->cid,
                                      (char *)param_descriptor->param_key,
                                      (char *)param_descriptor->param_units,
                                      (const char *)rw_str,
                                      *(uint8_t *)temp_data_ptr);
                         } else {
-                            ESP_LOGE(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 "), unexpected value.",
+                            ESP_LOGE(TAG, "%p Characteristic #%d %s (%s) value = %s (0x%" PRIx8 "), unexpected value.",
+                                     master_handle,
                                      (int)param_descriptor->cid,
                                      (char *)param_descriptor->param_key,
                                      (char *)param_descriptor->param_units,
@@ -629,4 +643,5 @@ void app_main(void)
     vTaskDelay(10);
 
     master_operation_func(NULL);
+    ESP_LOGI(TAG, "Master Serial is completed. (%s).", __func__);
 }

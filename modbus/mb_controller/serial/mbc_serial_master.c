@@ -319,6 +319,7 @@ static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid, uint8_
 {
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
     MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
+    mbm_controller_iface_t *mbm_controller_iface = MB_MASTER_GET_IFACE(ctx);
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
     mb_param_request_t request ;
     mb_parameter_descriptor_t reg_info = { 0 };
@@ -339,23 +340,23 @@ static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid, uint8_
                 error = mbc_master_set_param_data((void *)value, (void *)data_ptr,
                                                   reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
-                    ESP_LOGE(TAG, "fail to set parameter data.");
+                    ESP_LOGE(TAG, "%p fail to set parameter data.", mbm_controller_iface);
                     error = ESP_ERR_INVALID_STATE;
                 } else {
-                    ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
-                             __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                    ESP_LOGD(TAG, "%s: %p Good response for get cid(%u) = %s",
+                             __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
                 }
             }
         } else {
-            ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+            ESP_LOGD(TAG, "%s: %p Bad response to get cid(%u) = %s",
+                     __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
         free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
-        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.",
-                 __FUNCTION__, (unsigned)reg_info.cid);
+        ESP_LOGE(TAG, "%s: %p The cid(%u) not found in the data dictionary.",
+                 __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;
