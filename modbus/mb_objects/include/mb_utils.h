@@ -104,7 +104,7 @@ uint8_t mb_util_get_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num
 /*! \brief Standard function to set slave ID in the modbus object.
  *
  * This function is used to set the Slave ID array for modbus object.
- * This ID can then be read over Modbus. 
+ * This ID can then be read over Modbus.
  *
  * \param inst - instance pointer to base modbus object
  * \param slave_id - slave short address.
@@ -126,7 +126,7 @@ mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t sl_id, bool is_running, 
  * \param data_ptr - the pointer to store object ID array from the modbus object
  * \param[in/out] data_len - input length of the allocated data_ptr array,
  *                            returns the actual length of object id.
- * returns the modbus error code = MB_ENOERR, if set correctly, 
+ * returns the modbus error code = MB_ENOERR, if set correctly,
  *           MB_ENOREG - if the object ID is not set,
  *           MB_ENORES - no space to store object ID in the data_ptr buffer,
  *           MB_EINVAL - the arguments are not correct

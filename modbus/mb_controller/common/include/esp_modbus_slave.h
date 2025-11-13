@@ -80,7 +80,7 @@ typedef struct {
  *
  * @param[out] ctx context pointer of the initialized modbus interface
  * @param[in] config - pointer to configuration structure for the slave
- * 
+ *
  * @return
  *     - ESP_OK                 Success
  *     - ESP_ERR_NO_MEM         Parameter error
@@ -94,7 +94,7 @@ esp_err_t mbc_slave_create_tcp(mb_communication_info_t *config, void **ctx);
  *
  * @param[out] ctx context pointer of the initialized modbus interface
  * @param[in] config - pointer to configuration structure for the slave
- * 
+ *
  * @return
  *     - ESP_OK                 Success
  *     - ESP_ERR_NO_MEM         Parameter error
@@ -181,7 +181,7 @@ mb_event_group_t mbc_slave_check_event(void *ctx, mb_event_group_t group);
  * @param[out] reg_info parameter info structure
  * @param[in] timeout Timeout in milliseconds to read information from
  *                    parameter queue
- * 
+ *
  * @return
  *     - ESP_OK Success
  *     - ESP_ERR_TIMEOUT Can not get data from parameter queue

@@ -59,7 +59,7 @@ extern "C" {
             ret = (err_code);                                                                               \
             goto goto_tag;                                                                                  \
         }                                                                                                   \
-    } while (0) 
+    } while (0)
 
 #endif
 
@@ -119,7 +119,7 @@ typedef LIST_HEAD(handler_head, mb_command_entry_s) handler_head_t;
 
 typedef struct mb_handler_descriptor_s {
     SemaphoreHandle_t sema;
-    void* instance;
+    void *instance;
     handler_head_t head;
     uint16_t count;
 } handler_descriptor_t;
@@ -139,15 +139,13 @@ typedef void (*mb_set_send_len_fp)(mb_base_t *inst, uint16_t len);
 typedef uint16_t (*mb_get_send_len_fp)(mb_base_t *inst);
 typedef void (*mb_get_send_buf_fp)(mb_base_t *inst, uint8_t **buf);
 
-typedef enum
-{
+typedef enum {
     STATE_ENABLED,
     STATE_DISABLED,
     STATE_NOT_INITIALIZED
 } mb_state_enum_t;
 
-struct mb_base_t
-{
+struct mb_base_t {
     obj_descr_t descr;
     _lock_t lock;                   // base object lock
     mb_trans_base_t *transp_obj;

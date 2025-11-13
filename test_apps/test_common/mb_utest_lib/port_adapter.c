@@ -37,10 +37,9 @@ extern "C"
 #define MB_ADAPTER_TX_QUEUE_MAX_SIZE    (CONFIG_FMB_QUEUE_LENGTH * MB_ADAPTER_MAX_PORTS)
 #define MB_ADAPTER_QUEUE_TIMEOUT        (200 / portTICK_PERIOD_MS)
 #define MB_ADAPTER_QUEUE_SET_MAX_LEN    ((sizeof(frame_entry_t) + sizeof(mb_uid_info_t)) * MB_ADAPTER_MAX_PORTS) //
-#define MB_ADAPTER_CONN_TIMEOUT         (200 / portTICK_PERIOD_MS) 
+#define MB_ADAPTER_CONN_TIMEOUT         (200 / portTICK_PERIOD_MS)
 
-typedef struct _mb_adapter_port_entry
-{
+typedef struct _mb_adapter_port_entry {
     mb_port_base_t base;
     uint8_t rx_buffer[CONFIG_FMB_BUFFER_SIZE];
     uint16_t recv_length;
@@ -78,8 +77,7 @@ static bool mb_port_adapter_timer_expired(void *inst)
 
     mb_port_timer_disable(&port_obj->base);
 
-    switch (timer_mode)
-    {
+    switch (timer_mode) {
     case MB_TMODE_T35:
         need_poll = mb_port_event_post(&port_obj->base, EVENT(EV_READY));
         ESP_EARLY_LOGD(TAG, "%p:EV_READY", port_obj->base.descr.parent);
@@ -117,15 +115,11 @@ int mb_port_adapter_get_rx_buffer(mb_port_base_t *inst, uint8_t **frame_ptr, int
     MB_RETURN_ON_FALSE((frame_ptr && len), -1, TAG, "mb serial get buffer failure.");
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
     int sz = port_obj->recv_length;
-    if (*frame_ptr && *len >= port_obj->recv_length)
-    {
-        CRITICAL_SECTION(inst->lock)
-        {
+    if (*frame_ptr && *len >= port_obj->recv_length) {
+        CRITICAL_SECTION(inst->lock) {
             memcpy(*frame_ptr, port_obj->rx_buffer, sz);
         }
-    }
-    else
-    {
+    } else {
         *frame_ptr = port_obj->rx_buffer;
         *len = sz;
     }
@@ -137,15 +131,11 @@ int mb_port_adapter_get_tx_buffer(mb_port_base_t *inst, uint8_t **frame_ptr, int
     MB_RETURN_ON_FALSE((frame_ptr && len), -1, TAG, "mb serial get buffer failure.");
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
     int sz = port_obj->recv_length;
-    if (*frame_ptr && *len >= port_obj->recv_length)
-    {
-        CRITICAL_SECTION(inst->lock)
-        {
+    if (*frame_ptr && *len >= port_obj->recv_length) {
+        CRITICAL_SECTION(inst->lock) {
             memcpy(*frame_ptr, port_obj->rx_buffer, sz);
         }
-    }
-    else
-    {
+    } else {
         *frame_ptr = port_obj->rx_buffer;
         *len = sz;
     }
@@ -170,33 +160,30 @@ uint16_t mb_port_adapter_wait_flag(mb_port_base_t *inst, uint16_t mask, uint32_t
 {
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
     EventBits_t bits = xEventGroupWaitBits(port_obj->event_group_handle, // The event group being tested.
-                                            (EventBits_t)mask,           // The bits within the event group to wait for.
-                                            pdTRUE,                      // Masked bits should be cleared before returning.
-                                            pdFALSE,                     // Don't wait for both bits, either bit will do.
-                                            (TickType_t)timeout);        // Wait during timeout for either bit to be set.
+                                           (EventBits_t)mask,           // The bits within the event group to wait for.
+                                           pdTRUE,                      // Masked bits should be cleared before returning.
+                                           pdFALSE,                     // Don't wait for both bits, either bit will do.
+                                           (TickType_t)timeout);        // Wait during timeout for either bit to be set.
     ESP_LOGV(TAG, "%s: get flag (0x%x).", inst->descr.parent_name, (int)bits);
     return (uint16_t)bits;
 }
 
 // Timer task to send notification on timeout expiration
-IRAM_ATTR 
+IRAM_ATTR
 static void mb_port_adapter_timer_cb(void *param)
 {
     mb_port_adapter_t *port_obj = __containerof(param, mb_port_adapter_t, base);
     uint8_t temp_buffer[CONFIG_FMB_BUFFER_SIZE] = {0};
     mb_port_adapter_t *it;
 
-    if (!LIST_EMPTY(&s_port_list))
-    {
+    if (!LIST_EMPTY(&s_port_list)) {
         // send the queued frame to all registered ports with the same port number
         int sz = queue_pop(port_obj->tx_queue, (void *)&temp_buffer[0], CONFIG_FMB_BUFFER_SIZE, NULL);
-        LIST_FOREACH(it, &s_port_list, entries)
-        {
+        LIST_FOREACH(it, &s_port_list, entries) {
             if (it && (it != port_obj) &&
-                (port_obj->addr_info.port == it->addr_info.port) && (sz != -1)
-                && (port_obj->addr_info.proto == it->addr_info.proto)
-                && (!port_obj->addr_info.uid || !it->addr_info.uid))
-            {
+                    (port_obj->addr_info.port == it->addr_info.port) && (sz != -1)
+                    && (port_obj->addr_info.proto == it->addr_info.proto)
+                    && (!port_obj->addr_info.uid || !it->addr_info.uid)) {
                 // Send the data to all ports with the same communication port setting except itself
                 queue_push(it->rx_queue, (void *)&temp_buffer[0], sz, NULL);
                 mb_port_adapter_set_flag(&port_obj->base, MB_QUEUE_FLAG_SENT);
@@ -209,7 +196,7 @@ static void mb_port_adapter_timer_cb(void *param)
 bool mb_port_adapter_is_connected(void *inst)
 {
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
-    if (queue_is_empty(port_obj->conn_queue) 
+    if (queue_is_empty(port_obj->conn_queue)
             && port_obj->base.descr.is_master) {
         return true;
     }
@@ -224,19 +211,19 @@ static void mb_port_adapter_conn_logic(void *inst, mb_uid_info_t *addr_info)
 
     if (port_obj->base.descr.is_master) { // master object
         LIST_FOREACH(slave, &s_port_list, entries) {
-            if ((addr_info->uid == slave->addr_info.uid) 
+            if ((addr_info->uid == slave->addr_info.uid)
                     && !slave->base.descr.is_master
                     && (addr_info->port == slave->addr_info.port)) {
                 // Register each slave object
                 ESP_LOGD(TAG, "Check connection state of object #%d(%s), uid: %d, port: %d, %s",
-                            addr_info->index, addr_info->node_name_str, 
-                            addr_info->uid, addr_info->port, 
-                            (addr_info->state == MB_SOCK_STATE_CONNECTED) ? "CONNECTED" : "DISCONNECTED");
+                         addr_info->index, addr_info->node_name_str,
+                         addr_info->uid, addr_info->port,
+                         (addr_info->state == MB_SOCK_STATE_CONNECTED) ? "CONNECTED" : "DISCONNECTED");
                 if ((addr_info->state != MB_SOCK_STATE_CONNECTED) || (addr_info->inst != inst)) {
                     (void)xQueueSend(slave->conn_queue, &port_obj->addr_info, MB_ADAPTER_QUEUE_TIMEOUT);
                 } else {
                     mb_port_adapter_set_flag(inst, MB_QUEUE_FLAG_CONNECTED);
-                }                          
+                }
                 slave_found = true;
                 break;
             }
@@ -244,14 +231,14 @@ static void mb_port_adapter_conn_logic(void *inst, mb_uid_info_t *addr_info)
         if (!slave_found) {
             // reactivate the connection set
             ESP_LOGE(TAG, "Slave #%d(%s), uid: %d, port: %d is not found, reconnect.",
-                            addr_info->index, addr_info->node_name_str, addr_info->uid, addr_info->port);
+                     addr_info->index, addr_info->node_name_str, addr_info->uid, addr_info->port);
             (void)xQueueSend(port_obj->conn_queue, addr_info, MB_ADAPTER_QUEUE_TIMEOUT);
             vTaskDelay(MB_ADAPTER_CONN_TIMEOUT);
         }
     } else { // slave connection logic
         ESP_LOGD(TAG, "Register connection in adapter object #%d(%s), uid: %d, port: %d, to master %s",
-                    port_obj->addr_info.index, port_obj->addr_info.node_name_str, 
-                    port_obj->addr_info.uid, port_obj->addr_info.port, addr_info->node_name_str);
+                 port_obj->addr_info.index, port_obj->addr_info.node_name_str,
+                 port_obj->addr_info.uid, port_obj->addr_info.port, addr_info->node_name_str);
         // Mimic connection logic for each slave here
         //mb_port_adapter_slave_connect(it);
         port_obj->addr_info.state = MB_SOCK_STATE_CONNECTED;
@@ -269,13 +256,10 @@ static void mb_port_adapter_task(void *p_args)
     mb_uid_info_t addr_info;
     frame_entry_t frame_entry;
 
-    while (1)
-    {
-        if (!LIST_EMPTY(&s_port_list))
-        {
+    while (1) {
+        if (!LIST_EMPTY(&s_port_list)) {
             active_queue = xQueueSelectFromSet(queue_set, MB_ADAPTER_QUEUE_TIMEOUT);
-            LIST_FOREACH(it, &s_port_list, entries)
-            {
+            LIST_FOREACH(it, &s_port_list, entries) {
                 if (it && active_queue && (it->rx_queue == active_queue)) {
                     if (xQueuePeek(it->rx_queue, &frame_entry, 0) == pdTRUE) {
                         it->recv_length = frame_entry.len;
@@ -288,9 +272,7 @@ static void mb_port_adapter_task(void *p_args)
                     }
                 }
             }
-        }
-        else
-        {
+        } else {
             vTaskDelay(1);
         }
     }
@@ -304,23 +286,20 @@ static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *obje
     mb_port_adapter_t *port_obj = __containerof(object, mb_port_adapter_t, base);
 
     MB_RETURN_ON_FALSE((paddr_table && *paddr_table && (tcp_opts->mode == MB_TCP)),
-                        MB_EINVAL, TAG,
-                        "%s, invalid address table.", port_obj->base.descr.parent_name);
+                       MB_EINVAL, TAG,
+                       "%s, invalid address table.", port_obj->base.descr.parent_name);
     int count = 0;
-    while (*paddr_table)
-    {
+    while (*paddr_table) {
         int res = port_scan_addr_string((char *)*paddr_table, &uid_info);
-        if (res > 0)
-        {
+        if (res > 0) {
             ESP_LOGD(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
-                        (char *)*paddr_table, uid_info.ip_addr_str, uid_info.port,
-                        uid_info.uid, (uid_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
+                     (char *)*paddr_table, uid_info.ip_addr_str, uid_info.port,
+                     uid_info.uid, (uid_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
             uid_info.index = count++;
             free(uid_info.ip_addr_str);
             uid_info.ip_addr_str = (char *)*paddr_table;
             uid_info.node_name_str = uid_info.ip_addr_str;
-            if (xQueueSend(port_obj->conn_queue, &uid_info, MB_EVENT_QUEUE_TIMEOUT_MAX) != pdTRUE)
-            {
+            if (xQueueSend(port_obj->conn_queue, &uid_info, MB_EVENT_QUEUE_TIMEOUT_MAX) != pdTRUE) {
                 ESP_LOGE(TAG, "can not send info to connection queue.");
             };
             // Mimic connection event
@@ -330,9 +309,7 @@ static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *obje
                     ESP_LOGE(TAG, "Could not connect to slave %s during timeout.", (char *)*paddr_table);
                 }
             }
-        }
-        else
-        {
+        } else {
             ESP_LOGE(TAG, "unable to open slave: %s, check configuration.", (char *)*paddr_table);
         }
         paddr_table++;
@@ -361,7 +338,7 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     };
     // Create Modbus timer handlers for streams
     MB_GOTO_ON_ERROR(esp_timer_create(&timer_conf, &adapter_obj->timer_handle),
-                        error, TAG, "create input stream timer failed.");
+                     error, TAG, "create input stream timer failed.");
 
     adapter_obj->rx_queue = queue_create(MB_ADAPTER_RX_QUEUE_MAX_SIZE);
     MB_GOTO_ON_FALSE(adapter_obj->rx_queue, MB_EILLSTATE, error, TAG, "create rx queue failed");
@@ -369,18 +346,17 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     MB_GOTO_ON_FALSE(adapter_obj->tx_queue, MB_EILLSTATE, error, TAG, "create tx queue failed");
     adapter_obj->event_group_handle = xEventGroupCreate();
     MB_GOTO_ON_FALSE((adapter_obj->event_group_handle), MB_EILLSTATE, error, TAG,
-                        "%p, event group create error.", *in_out_obj);
+                     "%p, event group create error.", *in_out_obj);
 
-    if (!s_port_list_counter)
-    {
+    if (!s_port_list_counter) {
         // Create a task to handle UART events
         BaseType_t status = xTaskCreatePinnedToCore(mb_port_adapter_task, "adapt_rx_task",
-                                                    MB_ADAPTER_TASK_STACK_SIZE,
-                                                    &adapter_obj->base, CONFIG_FMB_PORT_TASK_PRIO,
-                                                    &adapter_task_handle, CONFIG_FMB_PORT_TASK_AFFINITY);
+                            MB_ADAPTER_TASK_STACK_SIZE,
+                            &adapter_obj->base, CONFIG_FMB_PORT_TASK_PRIO,
+                            &adapter_task_handle, CONFIG_FMB_PORT_TASK_AFFINITY);
         // Force exit from function with failure
         MB_GOTO_ON_FALSE((status == pdPASS), MB_EILLSTATE, error, TAG,
-                            "serial task creation error, returned (0x%x).", (int)status);
+                         "serial task creation error, returned (0x%x).", (int)status);
         // Create the queue set to handle clients
         queue_set = xQueueCreateSet(MB_ADAPTER_QUEUE_SET_MAX_LEN);
         MB_GOTO_ON_FALSE((queue_set), MB_EILLSTATE, error, TAG, "can not create queue set.");
@@ -389,22 +365,22 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     adapter_obj->conn_queue = xQueueCreate(MB_ADAPTER_MAX_PORTS, sizeof(mb_uid_info_t));
     MB_GOTO_ON_FALSE(adapter_obj->conn_queue, MB_EILLSTATE, error, TAG, "create conn queue failed");
     MB_GOTO_ON_FALSE((queue_set && xQueueAddToSet(adapter_obj->conn_queue, queue_set)),
-                        MB_EILLSTATE, error, TAG, "can not add conn queue to queue set.");
+                     MB_EILLSTATE, error, TAG, "can not add conn queue to queue set.");
     // Add rx queue to set
     MB_GOTO_ON_FALSE((queue_set && xQueueAddToSet(adapter_obj->rx_queue, queue_set)),
-                        MB_EILLSTATE, error, TAG, "can not add rx queue to queue set.");
+                     MB_EILLSTATE, error, TAG, "can not add rx queue to queue set.");
 
     MB_GOTO_ON_FALSE((s_port_list_counter <= MB_ADAPTER_MAX_PORTS), MB_EILLSTATE, error,
-                        TAG, "adapter exceeded maximum number of ports = %d", MB_ADAPTER_MAX_PORTS);
+                     TAG, "adapter exceeded maximum number of ports = %d", MB_ADAPTER_MAX_PORTS);
 
     // register new port instance in the list
     LIST_INSERT_HEAD(&s_port_list, adapter_obj, entries);
     s_port_list_counter++;
     char *string_ptr;
     int res = asprintf(&string_ptr, "%d;%s;%u", (unsigned)addr_info->uid,
-                        adapter_obj->base.descr.parent_name, (unsigned)addr_info->port);
+                       adapter_obj->base.descr.parent_name, (unsigned)addr_info->port);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
-                        TAG, "object adress info alloc fail, err: %d", (int)res);
+                     TAG, "object adress info alloc fail, err: %d", (int)res);
     adapter_obj->base.cb.tmr_expired = mb_port_adapter_timer_expired;
     adapter_obj->base.cb.tx_empty = NULL;
     adapter_obj->base.cb.byte_rcvd = NULL;
@@ -445,8 +421,8 @@ mb_err_enum_t mb_port_adapter_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t
         if (obj->descr.is_master) {
             ESP_LOGI(TAG, "Parsing of config for %s", obj->descr.parent_name);
             ret |= mb_port_adapter_connect(tcp_opts, obj);
-            MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG, 
-                                "%s, could not parse config, err=%x.", obj->descr.parent_name, (int)ret);
+            MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EILLSTATE, error, TAG,
+                             "%s, could not parse config, err=%x.", obj->descr.parent_name, (int)ret);
         }
         ESP_LOGD(TAG, "%s, set test time to %" PRIu64, obj->descr.parent_name, tcp_opts->test_tout_us);
         mb_port_adapter_set_response_time(obj, (tcp_opts->test_tout_us));
@@ -491,41 +467,33 @@ void mb_port_adapter_delete(mb_port_base_t *inst)
 {
     mb_port_adapter_t *port_obj = __containerof(inst, mb_port_adapter_t, base);
 
-    if (port_obj->rx_queue && !queue_is_empty(port_obj->rx_queue))
-    {
+    if (port_obj->rx_queue && !queue_is_empty(port_obj->rx_queue)) {
         queue_flush(port_obj->rx_queue);
     }
-    if (port_obj->tx_queue && !queue_is_empty(port_obj->tx_queue))
-    {
+    if (port_obj->tx_queue && !queue_is_empty(port_obj->tx_queue)) {
         queue_flush(port_obj->tx_queue);
     }
-    if (port_obj && port_obj->event_group_handle)
-    {
+    if (port_obj && port_obj->event_group_handle) {
         vEventGroupDelete(port_obj->event_group_handle);
         port_obj->event_group_handle = NULL;
     }
-    if (port_obj && port_obj->timer_handle)
-    {
+    if (port_obj && port_obj->timer_handle) {
         esp_timer_stop(port_obj->timer_handle);
         esp_timer_delete(port_obj->timer_handle);
         port_obj->timer_handle = NULL;
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     LIST_REMOVE(port_obj, entries);
-    if (s_port_list_counter)
-    {
+    if (s_port_list_counter) {
         atomic_store(&(s_port_list_counter), (s_port_list_counter - 1));
-        if (queue_set && port_obj && port_obj->rx_queue)
-        {
+        if (queue_set && port_obj && port_obj->rx_queue) {
             xQueueRemoveFromSet(port_obj->rx_queue, queue_set);
         }
-        if (port_obj && port_obj->conn_queue && queue_set)
-        {
+        if (port_obj && port_obj->conn_queue && queue_set) {
             xQueueRemoveFromSet(port_obj->conn_queue, queue_set);
         }
     }
-    if (!s_port_list_counter) 
-    {
+    if (!s_port_list_counter) {
         if (port_obj && adapter_task_handle) {
             vTaskDelete(adapter_task_handle);
             adapter_task_handle = NULL;
@@ -533,20 +501,17 @@ void mb_port_adapter_delete(mb_port_base_t *inst)
         vQueueDelete(queue_set);
         queue_set = NULL;
     }
-    if (port_obj && port_obj->rx_queue && port_obj->tx_queue) 
-    {
+    if (port_obj && port_obj->rx_queue && port_obj->tx_queue) {
         queue_delete(port_obj->rx_queue);
         queue_delete(port_obj->tx_queue);
         port_obj->rx_queue = NULL;
         port_obj->tx_queue = NULL;
     }
-    if (port_obj && port_obj->conn_queue)
-    {
+    if (port_obj && port_obj->conn_queue) {
         vQueueDelete(port_obj->conn_queue);
         port_obj->conn_queue = NULL;
     }
-    if (port_obj && port_obj->addr_info.node_name_str)
-    {
+    if (port_obj && port_obj->addr_info.node_name_str) {
         free(port_obj->addr_info.node_name_str);
         port_obj->addr_info.node_name_str = NULL;
         port_obj->addr_info.ip_addr_str = NULL;
@@ -560,8 +525,8 @@ static esp_err_t mb_port_adapter_set_timer(mb_port_base_t *inst, uint64_t time_d
     esp_timer_stop(port_obj->timer_handle);
     esp_err_t ret = esp_timer_start_once(port_obj->timer_handle, time_diff_us);
     MB_RETURN_ON_FALSE((ret == ESP_OK),
-                        ESP_ERR_INVALID_STATE, TAG,
-                        "%s, could not start timer, err=%x.", inst->descr.parent_name, (int)ret);
+                       ESP_ERR_INVALID_STATE, TAG,
+                       "%s, could not start timer, err=%x.", inst->descr.parent_name, (int)ret);
     return ESP_OK;
 }
 
@@ -581,7 +546,7 @@ bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **frame_ptr, uint16
             port_obj->recv_time_stamp = esp_timer_get_time();
             *frame_ptr = &port_obj->rx_buffer[0];
             MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV",
-                                &port_obj->rx_buffer[0], rx_len, ESP_LOG_DEBUG);
+                       &port_obj->rx_buffer[0], rx_len, ESP_LOG_DEBUG);
         }
         CRITICAL_SECTION_UNLOCK(inst->lock);
         *len_ptr = rx_len;
@@ -603,9 +568,9 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t addrets, uint8_t *f
         esp_err_t err = queue_push(port_obj->tx_queue, (void *)frame_ptr, length, NULL);
         CRITICAL_SECTION_UNLOCK(inst->lock);
         MB_RETURN_ON_FALSE((err == ESP_OK),
-                            false, TAG, "%s, could not send the data into queue.", inst->descr.parent_name);
+                           false, TAG, "%s, could not send the data into queue.", inst->descr.parent_name);
         MB_RETURN_ON_FALSE((mb_port_adapter_set_timer(inst, time_diff) == ESP_OK),
-                            false, TAG, "%s, could not set output timer.", inst->descr.parent_name);
+                           false, TAG, "%s, could not set output timer.", inst->descr.parent_name);
         // Wait for send buffer complition
         uint16_t flags = mb_port_adapter_wait_flag(inst, MB_QUEUE_FLAG_SENT, MB_EVENT_QUEUE_TIMEOUT_MAX);
         port_obj->send_time_stamp = esp_timer_get_time();
@@ -614,9 +579,7 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t addrets, uint8_t *f
         (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));
         ESP_LOGD(TAG, "%s, tx completed, flags = 0x%04x.", inst->descr.parent_name, (int)flags);
         ret = true;
-    }
-    else
-    {
+    } else {
         ESP_LOGE(TAG, "send callback %p, %u. ", frame_ptr, (unsigned)length);
     }
     return ret;
@@ -636,12 +599,9 @@ mb_uid_info_t *mb_port_adapter_get_slave_info(mb_port_base_t *inst, uint8_t slav
 {
     mb_port_adapter_t *it = NULL;
 
-    if (!LIST_EMPTY(&s_port_list))
-    {
-        LIST_FOREACH(it, &s_port_list, entries)
-        {
-            if ((it->addr_info.uid == slave_addr) && (it->base.descr.is_master == false))
-            {
+    if (!LIST_EMPTY(&s_port_list)) {
+        LIST_FOREACH(it, &s_port_list, entries) {
+            if ((it->addr_info.uid == slave_addr) && (it->base.descr.is_master == false)) {
                 return (&it->addr_info);
             }
         }

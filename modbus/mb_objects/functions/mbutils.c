@@ -54,7 +54,7 @@ void mb_util_set_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num, u
     pre_bits_num = (uint16_t)(bit_offset - byte_offset * BITS_uint8_t);
 
     /* Move bit field into position over bits to set */
-     us_val <<= pre_bits_num;
+    us_val <<= pre_bits_num;
 
     /* Prepare a mask for setting the new bits. */
     msk = (uint16_t)((1 << (uint16_t) but_num) - 1);
@@ -107,21 +107,21 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code)
     mb_exception_t    status;
 
     switch (error_code) {
-        case MB_ENOERR:
-            status = MB_EX_NONE;
-            break;
+    case MB_ENOERR:
+        status = MB_EX_NONE;
+        break;
 
-        case MB_ENOREG:
-            status = MB_EX_ILLEGAL_DATA_ADDRESS;
-            break;
+    case MB_ENOREG:
+        status = MB_EX_ILLEGAL_DATA_ADDRESS;
+        break;
 
-        case MB_ETIMEDOUT:
-            status = MB_EX_SLAVE_BUSY;
-            break;
+    case MB_ETIMEDOUT:
+        status = MB_EX_SLAVE_BUSY;
+        break;
 
-        default:
-            status = MB_EX_SLAVE_DEVICE_FAILURE;
-            break;
+    default:
+        status = MB_EX_SLAVE_DEVICE_FAILURE;
+        break;
     }
 
     return status;

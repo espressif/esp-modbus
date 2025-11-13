@@ -76,4 +76,3 @@ void transaction_delete_all_items(transaction_handle_t transaction);
 #ifdef  __cplusplus
 }
 #endif
-

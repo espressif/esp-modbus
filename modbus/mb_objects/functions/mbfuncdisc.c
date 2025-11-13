@@ -1,22 +1,22 @@
- /*
-  * FreeRTOS Modbus Libary: A Modbus serial implementation for FreeRTOS
-  * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
-  * Copyright (C) 2006 Christian Walter <wolti@sil.at>
-  *
-  * This library is free software; you can redistribute it and/or
-  * modify it under the terms of the GNU Lesser General Public
-  * License as published by the Free Software Foundation; either
-  * version 2.1 of the License, or (at your option) any later version.
-  *
-  * This library is distributed in the hope that it will be useful,
-  * but WITHOUT ANY WARRANTY; without even the implied warranty of
-  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  * Lesser General Public License for more details.
-  *
-  * You should have received a copy of the GNU Lesser General Public
-  * License along with this library; if not, write to the Free Software
-  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-  */
+/*
+ * FreeRTOS Modbus Libary: A Modbus serial implementation for FreeRTOS
+ * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * Copyright (C) 2006 Christian Walter <wolti@sil.at>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 #include <mb_common.h>
 #include <mb_proto.h>
 #include "mb_slave.h"
@@ -58,7 +58,7 @@ mbs_fn_read_discrete_inp(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
          * return Modbus illegal data value exception.
          */
         if ((discrete_cnt >= 1) &&
-            (discrete_cnt < MB_PDU_FUNC_READ_DISCCNT_MAX)) {
+                (discrete_cnt < MB_PDU_FUNC_READ_DISCCNT_MAX)) {
             /* Set the current PDU data pointer to the beginning. */
             frame_cur = &frame_ptr[MB_PDU_FUNC_OFF];
             *len_buf = MB_PDU_FUNC_OFF;

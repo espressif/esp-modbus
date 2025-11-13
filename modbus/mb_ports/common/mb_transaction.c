@@ -49,7 +49,7 @@ transaction_item_handle_t transaction_enqueue(transaction_handle_t transaction, 
         return NULL;
     });
     transaction_item_handle_t item = calloc(1, sizeof(transaction_item_t));
-    ESP_MEM_CHECK(TAG, (item), { 
+    ESP_MEM_CHECK(TAG, (item), {
         return NULL;
     });
     CRITICAL_SECTION_LOCK(transaction->lock);
@@ -87,10 +87,9 @@ transaction_item_handle_t transaction_get_first(transaction_handle_t transaction
     if (STAILQ_EMPTY(transaction->list)) {
         return NULL;
     }
-    
-    item = STAILQ_FIRST(transaction->list); 
-    if (item)
-    {
+
+    item = STAILQ_FIRST(transaction->list);
+    if (item) {
         return item;
     }
     return NULL;
@@ -301,4 +300,3 @@ void transaction_destroy(transaction_handle_t transaction)
     free(transaction->list);
     free(transaction);
 }
-

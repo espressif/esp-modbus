@@ -43,16 +43,26 @@ __attribute__((unused)) bool mb_test_include_phys_impl_tcp = true;
 
 // Example Data (Object) Dictionary for Modbus parameters
 static const mb_parameter_descriptor_t descriptors[] = {
-    {CID_DEV_REG0, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG1, STR("MB_hold_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG2, STR("MB_hold_reg-2"), STR("Data"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING, 2, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG3, STR("MB_hold_reg-3"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 3, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG_COUNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER}
+    {
+        CID_DEV_REG0, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG1, STR("MB_hold_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG2, STR("MB_hold_reg-2"), STR("Data"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING, 2, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG3, STR("MB_hold_reg-3"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 3, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG_COUNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    }
 };
 
 // The number of parameters in the table
@@ -68,23 +78,23 @@ static esp_err_t test_tcp_services_init(void **netif)
 {
     esp_err_t result = nvs_flash_init();
     if ((result == ESP_ERR_NVS_NO_FREE_PAGES) || (result == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      result = nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        result = nvs_flash_init();
     }
     ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "nvs_flash_init fail, returns(0x%x).",
-                            (int)result);
+                        TAG,
+                        "nvs_flash_init fail, returns(0x%x).",
+                        (int)result);
     result = esp_netif_init();
     ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "esp_netif_init fail, returns(0x%x).",
-                            (int)result);
+                        TAG,
+                        "esp_netif_init fail, returns(0x%x).",
+                        (int)result);
     result = esp_event_loop_create_default();
     ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "esp_event_loop_create_default fail, returns(0x%x).",
-                            (int)result);
+                        TAG,
+                        "esp_event_loop_create_default fail, returns(0x%x).",
+                        (int)result);
 #if MB_MDNS_IS_INCLUDED
     // Start mdns service and register device
     if (mdns_init() != ESP_OK) {
@@ -96,9 +106,9 @@ static esp_err_t test_tcp_services_init(void **netif)
     // examples/protocols/README.md for more information about this function.
     result = example_connect();
     ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "example_connect fail, returns(0x%x).",
-                                (int)result);
+                        TAG,
+                        "example_connect fail, returns(0x%x).",
+                        (int)result);
 #if CONFIG_EXAMPLE_CONNECT_WIFI
     // result = esp_wifi_set_ps(WIFI_PS_NONE);
     // ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
@@ -118,25 +128,25 @@ static esp_err_t test_tcp_services_destroy(void)
 
     err = example_disconnect();
     ESP_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "example_disconnect fail, returns(0x%x).",
-                            (int)err);
+                        TAG,
+                        "example_disconnect fail, returns(0x%x).",
+                        (int)err);
     err = esp_event_loop_delete_default();
     ESP_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                             TAG,
-                            "esp_event_loop_delete_default fail, returns(0x%x).",
-                            (int)err);
+                        TAG,
+                        "esp_event_loop_delete_default fail, returns(0x%x).",
+                        (int)err);
     err = esp_netif_deinit();
-    ESP_RETURN_ON_FALSE(((err == ESP_OK) || (err == ESP_ERR_NOT_SUPPORTED)), 
-                            ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "esp_netif_deinit fail, returns(0x%x).",
-                            (int)err);
+    ESP_RETURN_ON_FALSE(((err == ESP_OK) || (err == ESP_ERR_NOT_SUPPORTED)),
+                        ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "esp_netif_deinit fail, returns(0x%x).",
+                        (int)err);
     err = nvs_flash_deinit();
     ESP_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "nvs_flash_deinit fail, returns(0x%x).",
-                            (int)err);
+                        TAG,
+                        "nvs_flash_deinit fail, returns(0x%x).",
+                        (int)err);
 #if MB_MDNS_IS_INCLUDED
     // Stop mdns service and register device
     mdns_free();
@@ -187,7 +197,7 @@ static void test_modbus_tcp_slave(void)
     unity_wait_for_signal("Master_started");
 
     TEST_ASSERT_EQUAL(test_common_task_start_all(1),
-                        test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
+                      test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
 
     ESP_LOGI(TAG, "Slave TCP test is complited. (%s).", __func__);
 
@@ -226,7 +236,7 @@ static void test_modbus_tcp_master(void)
     unity_send_signal("Master_started");
 
     TEST_ASSERT_EQUAL(test_common_task_start_all(1),
-                        test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
+                      test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
 
     test_common_stop();
 
@@ -234,10 +244,10 @@ static void test_modbus_tcp_master(void)
     ESP_LOGI(TAG, "Master TCP is complited. (%s).", __func__);
 }
 
-/* 
+/*
  * Modbus TCP multi device test case
  */
 TEST_CASE_MULTIPLE_DEVICES("Modbus TCP multi device master - slave case.", "[modbus][test_env=multi_dut_modbus_tcp]",
-                            test_modbus_tcp_slave, test_modbus_tcp_master);
+                           test_modbus_tcp_slave, test_modbus_tcp_master);
 
 #endif

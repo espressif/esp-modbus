@@ -110,8 +110,8 @@ mb_exception_t mbs_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
         reg_byte_cnt = frame_ptr[MB_PDU_FUNC_WRITE_MUL_BYTECNT_OFF];
 
         if ((reg_cnt >= 1) &&
-            (reg_cnt <= MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX) &&
-            (reg_byte_cnt == (uint8_t) (2 * reg_cnt))) {
+                (reg_cnt <= MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX) &&
+                (reg_byte_cnt == (uint8_t) (2 * reg_cnt))) {
             /* Make callback to update the register values. */
             if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_WRITE_MUL_VALUES_OFF], reg_addr, reg_cnt, MB_REG_WRITE);
@@ -229,8 +229,8 @@ mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, 
         reg_wr_byte_cnt = frame_ptr[MB_PDU_FUNC_READWRITE_BYTECNT_OFF];
 
         if ((reg_rd_cnt >= 1) && (reg_rd_cnt <= MB_PDU_FUNC_READ_REGCNT_MAX) &&
-            (reg_wr_cnt >= 1) && (reg_wr_cnt <= MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX) &&
-            ((2 * reg_wr_cnt) == reg_wr_byte_cnt)) {
+                (reg_wr_cnt >= 1) && (reg_wr_cnt <= MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX) &&
+                ((2 * reg_wr_cnt) == reg_wr_byte_cnt)) {
             /* Make callback to update the register values. */
             if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_READWRITE_WRITE_VALUES_OFF], reg_wr_addr, reg_wr_cnt, MB_REG_WRITE);

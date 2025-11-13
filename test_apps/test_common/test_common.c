@@ -93,13 +93,13 @@ static portMUX_TYPE s_list_spinlock = portMUX_INITIALIZER_UNLOCKED;
 
 static void task_entry_remove(task_entry_t *task_entry)
 {
-        portENTER_CRITICAL(&s_list_spinlock);
-        LIST_REMOVE(task_entry, entries);
-        portEXIT_CRITICAL(&s_list_spinlock);
-        ESP_LOGD(TAG, "Delete task 0x%" PRIx32, (uint32_t)task_entry->task_handle);
-        vTaskDelete(task_entry->task_handle);
-        vSemaphoreDelete(task_entry->task_sema_handle);
-        free(task_entry);
+    portENTER_CRITICAL(&s_list_spinlock);
+    LIST_REMOVE(task_entry, entries);
+    portEXIT_CRITICAL(&s_list_spinlock);
+    ESP_LOGD(TAG, "Delete task 0x%" PRIx32, (uint32_t)task_entry->task_handle);
+    vTaskDelete(task_entry->task_handle);
+    vSemaphoreDelete(task_entry->task_sema_handle);
+    free(task_entry);
 }
 
 static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_ticks)
@@ -111,7 +111,7 @@ static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_
             is_done = true;
         } else {
             ESP_LOGE(TAG, "Could not complete task 0x%" PRIx32 " after timeout, force kill the task.",
-                        (uint32_t)task_entry->task_handle);
+                     (uint32_t)task_entry->task_handle);
             is_done = false;
         }
         vTaskDelay(1); // Let the lower priority task to suspend or delete itself
@@ -123,7 +123,7 @@ static bool task_wait_done_and_remove(task_entry_t *task_entry, TickType_t tout_
 static void test_task_add_entry(TaskHandle_t task_handle, void *inst)
 {
     TEST_ASSERT_TRUE(task_handle);
-    task_entry_t *new_entry = (task_entry_t*) calloc(1, sizeof(task_entry_t));
+    task_entry_t *new_entry = (task_entry_t *) calloc(1, sizeof(task_entry_t));
     TEST_ASSERT_TRUE(new_entry);
     portENTER_CRITICAL(&s_list_spinlock);
     new_entry->task_handle = task_handle;
@@ -137,7 +137,7 @@ static void test_task_add_entry(TaskHandle_t task_handle, void *inst)
 static task_entry_t *test_task_find_entry(TaskHandle_t task_handle)
 {
     TEST_ASSERT_NOT_NULL(task_handle);
-    
+
     task_entry_t *it, *pfound = NULL;
     if (LIST_EMPTY(&s_task_list)) {
         return NULL;
@@ -157,7 +157,7 @@ static task_entry_t *test_task_find_entry(TaskHandle_t task_handle)
 static void test_common_task_notify_done(TaskHandle_t task_handle)
 {
     task_entry_t *it = test_task_find_entry(task_handle);
-    if (it) { 
+    if (it) {
         xSemaphoreGive(it->task_sema_handle);
     }
 }
@@ -167,9 +167,9 @@ static void test_busy_task(void *phandle)
     spinlock_t spin_lock;
     SPIN_LOCK_INIT(spin_lock);
     ESP_EARLY_LOGW(TAG, "test task");
-    while(1) {
+    while (1) {
         SPIN_LOCK_ENTER(spin_lock);
-        for (int i = 0; i < TEST_BUSY_COUNT; i++){
+        for (int i = 0; i < TEST_BUSY_COUNT; i++) {
             ;
         }
         SPIN_LOCK_EXIT(spin_lock);
@@ -245,7 +245,7 @@ void test_common_task_delete_all()
 void *test_common_task_get_instance(TaskHandle_t task_handle)
 {
     task_entry_t *it = test_task_find_entry(task_handle);
-    if (it) { 
+    if (it) {
         return it->inst_handle;
     }
     return NULL;
@@ -261,9 +261,9 @@ TaskHandle_t test_common_start_busy_task(uint32_t priority)
     }
 
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_busy_task, "busy_task",
-                                            TEST_TASK_STACK_SIZE,
-                                            NULL, priority,
-                                            &busy_task_handle, MB_PORT_TASK_AFFINITY));
+                     TEST_TASK_STACK_SIZE,
+                     NULL, priority,
+                     &busy_task_handle, MB_PORT_TASK_AFFINITY));
     test_task_add_entry(busy_task_handle, NULL);
     return busy_task_handle;
 }
@@ -299,10 +299,10 @@ void test_common_stop()
 #endif
     size_t after_free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     size_t after_free_32bit = heap_caps_get_free_size(MALLOC_CAP_32BIT);
-    test_common_check_leak(before_free_8bit, after_free_8bit, "8BIT", 
-                            CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
-    test_common_check_leak(before_free_32bit, after_free_32bit, "32BIT", 
-                            CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
+    test_common_check_leak(before_free_8bit, after_free_8bit, "8BIT",
+                           CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
+    test_common_check_leak(before_free_32bit, after_free_32bit, "32BIT",
+                           CONFIG_MB_TEST_LEAK_WARN_LEVEL, CONFIG_MB_TEST_LEAK_CRITICAL_LEVEL);
 }
 
 static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
@@ -310,8 +310,8 @@ static uint32_t test_common_task_wait_start(TickType_t timeout_ticks)
     static uint32_t notify_value = 0;
 
     if (xTaskNotifyWait(0, 0, &notify_value, timeout_ticks) == pdTRUE) {
-        ESP_LOGD(TAG, "Task: 0x%" PRIx32 ", get notify value = %u", 
-                        (uint32_t)xTaskGetCurrentTaskHandle(), (unsigned)notify_value);
+        ESP_LOGD(TAG, "Task: 0x%" PRIx32 ", get notify value = %u",
+                 (uint32_t)xTaskGetCurrentTaskHandle(), (unsigned)notify_value);
         return pdTRUE;
     }
     return 0;
@@ -358,21 +358,17 @@ esp_err_t test_common_read_modbus_parameter(void *handle, uint16_t cid, uint16_t
     const mb_parameter_descriptor_t *param_descriptor = NULL;
 
     esp_err_t err = mbc_master_get_cid_info(handle, cid, &param_descriptor);
-    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL))
-    {
+    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
         uint8_t type = 0;
         err = mbc_master_get_parameter(handle, cid, (uint8_t *)par_data, &type);
-        if (err == ESP_OK)
-        {
+        if (err == ESP_OK) {
             ESP_LOGI(TAG, "%p, CHAR #%u %s (%s) value = (0x%04x) parameter read successful.",
                      handle,
                      param_descriptor->cid,
                      param_descriptor->param_key,
                      param_descriptor->param_units,
                      *(uint16_t *)par_data);
-        }
-        else
-        {
+        } else {
             ESP_LOGE(TAG, "%p, CHAR #%u (%s) read fail, err = 0x%x (%s).",
                      handle,
                      param_descriptor->cid,
@@ -390,21 +386,17 @@ esp_err_t write_modbus_parameter(void *handle, uint16_t cid, uint16_t *par_data)
     const mb_parameter_descriptor_t *param_descriptor = NULL;
 
     esp_err_t err = mbc_master_get_cid_info(handle, cid, &param_descriptor);
-    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL))
-    {
+    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
         uint8_t type = 0; // type of parameter from dictionary
         err = mbc_master_set_parameter(handle, cid, (uint8_t *)par_data, &type);
-        if (err == ESP_OK)
-        {
+        if (err == ESP_OK) {
             ESP_LOGI(TAG, "%p, CHAR #%u %s (%s) value = (0x%04x), write successful.",
                      handle,
                      param_descriptor->cid,
                      param_descriptor->param_key,
                      param_descriptor->param_units,
                      *(uint16_t *)par_data);
-        }
-        else
-        {
+        } else {
             ESP_LOGE(TAG, "%p, CHAR #%u (%s) write fail, err = 0x%x (%s).",
                      handle,
                      param_descriptor->cid,
@@ -438,42 +430,40 @@ static void test_master_task(void *arg)
     write_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
     write_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
     write_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
-    for (cycle_counter = 0; cycle_counter <= TEST_TASK_CYCLE_COUNTER; cycle_counter++)
-    {
-        switch (req_type)
-        {
-            case RT_HOLDING_RD:
-                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
-                CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
+    for (cycle_counter = 0; cycle_counter <= TEST_TASK_CYCLE_COUNTER; cycle_counter++) {
+        switch (req_type) {
+        case RT_HOLDING_RD:
+            err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
+            CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
 
-                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
-                CHECK_PAR_VALUE(CID_DEV_REG1, err, holding_registers[CID_DEV_REG1], TEST_REG_VAL2);
+            err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
+            CHECK_PAR_VALUE(CID_DEV_REG1, err, holding_registers[CID_DEV_REG1], TEST_REG_VAL2);
 
-                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
-                CHECK_PAR_VALUE(CID_DEV_REG2, err, holding_registers[CID_DEV_REG2], TEST_REG_VAL3);
+            err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
+            CHECK_PAR_VALUE(CID_DEV_REG2, err, holding_registers[CID_DEV_REG2], TEST_REG_VAL3);
 
-                err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
-                CHECK_PAR_VALUE(CID_DEV_REG3, err, holding_registers[CID_DEV_REG3], TEST_REG_VAL4);
-                req_type = RT_HOLDING_WR;
-                break;
+            err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
+            CHECK_PAR_VALUE(CID_DEV_REG3, err, holding_registers[CID_DEV_REG3], TEST_REG_VAL4);
+            req_type = RT_HOLDING_WR;
+            break;
 
-            case RT_HOLDING_WR:
-                err = write_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
-                CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
+        case RT_HOLDING_WR:
+            err = write_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
+            CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
 
-                err = write_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
-                CHECK_PAR_VALUE(CID_DEV_REG1, err, holding_registers[CID_DEV_REG1], TEST_REG_VAL2);
+            err = write_modbus_parameter(mbm_handle, CID_DEV_REG1, &holding_registers[CID_DEV_REG1]);
+            CHECK_PAR_VALUE(CID_DEV_REG1, err, holding_registers[CID_DEV_REG1], TEST_REG_VAL2);
 
-                err = write_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
-                CHECK_PAR_VALUE(CID_DEV_REG2, err, holding_registers[CID_DEV_REG2], TEST_REG_VAL3);
+            err = write_modbus_parameter(mbm_handle, CID_DEV_REG2, &holding_registers[CID_DEV_REG2]);
+            CHECK_PAR_VALUE(CID_DEV_REG2, err, holding_registers[CID_DEV_REG2], TEST_REG_VAL3);
 
-                err = write_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
-                CHECK_PAR_VALUE(CID_DEV_REG3, err, holding_registers[CID_DEV_REG3], TEST_REG_VAL4);
-                req_type = RT_HOLDING_RD;
-                break;
+            err = write_modbus_parameter(mbm_handle, CID_DEV_REG3, &holding_registers[CID_DEV_REG3]);
+            CHECK_PAR_VALUE(CID_DEV_REG3, err, holding_registers[CID_DEV_REG3], TEST_REG_VAL4);
+            req_type = RT_HOLDING_RD;
+            break;
 
-            default:
-                break;
+        default:
+            break;
         }
         if (holding_registers[CID_DEV_REG_COUNT] >= TEST_TASK_CYCLE_COUNTER) {
             ESP_LOGI(TAG, "Stop master: %p.", mbm_handle);
@@ -497,14 +487,13 @@ static void test_slave_task(void *arg)
 
     test_common_task_wait_start(TEST_TASK_START_TIMEOUT);
 
-    while(1) {
+    while (1) {
         // Get parameter information from parameter queue
         esp_err_t err = mbc_slave_get_param_info(mbs_handle, &reg_info, TEST_PAR_INFO_GET_TOUT);
         const char *rw_str = (reg_info.type & TEST_READ_MASK) ? "READ" : "WRITE";
 
         // Filter events and process them accordingly
-        if ((err != ESP_ERR_TIMEOUT) && (reg_info.type & TEST_READ_WRITE_MASK))
-        {
+        if ((err != ESP_ERR_TIMEOUT) && (reg_info.type & TEST_READ_WRITE_MASK)) {
             // Get parameter information from parameter queue
             ESP_LOGI("SLAVE", "OBJ %p, %s (%" PRIu32 " us), SL: %u, REG:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 "(0x%" PRIx16 "), SIZE:%u",
                      (void *)pctrl_obj->mb_base->descr.parent,
@@ -560,9 +549,9 @@ void test_common_slave_setup_start(void *mbs_handle)
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
 
 TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,
-                                                uint32_t priority, 
-                                                const mb_parameter_descriptor_t *descr,
-                                                uint16_t descr_size)
+        uint32_t priority,
+        const mb_parameter_descriptor_t *descr,
+        uint16_t descr_size)
 {
     if (!pconfig || !descr) {
         ESP_LOGI(TAG, "invalid master configuration.");
@@ -583,12 +572,12 @@ TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,
     if (priority) {
         priority = TEST_TASK_PRIO_MASTER;
     }
-    
-    char* port_name = pbase->mb_base->descr.parent_name;
+
+    char *port_name = pbase->mb_base->descr.parent_name;
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_master_task, port_name,
-                                             TEST_TASK_STACK_SIZE,
-                                             mbm_handle, priority,
-                                             &master_task_handle, MB_PORT_TASK_AFFINITY));
+                     TEST_TASK_STACK_SIZE,
+                     mbm_handle, priority,
+                     &master_task_handle, MB_PORT_TASK_AFFINITY));
     test_task_add_entry(master_task_handle, mbm_handle);
     return master_task_handle;
 }
@@ -613,9 +602,9 @@ TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, u
     }
 
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_slave_task, pbase->mb_base->descr.parent_name,
-                                             TEST_TASK_STACK_SIZE,
-                                             mbs_handle, priority,
-                                             &slave_task_handle, MB_PORT_TASK_AFFINITY));
+                     TEST_TASK_STACK_SIZE,
+                     mbs_handle, priority,
+                     &slave_task_handle, MB_PORT_TASK_AFFINITY));
     test_task_add_entry(slave_task_handle, mbs_handle);
     return slave_task_handle;
 }
@@ -638,19 +627,19 @@ TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uin
 
     TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, descr, descr_size));
     ESP_LOGI(TAG, "%p, modbus master stack is initialized", mbm_handle);
-    
+
     TEST_ESP_OK(mbc_master_start(mbm_handle));
     ESP_LOGI(TAG, "%p, modbus master start...", mbm_handle) ;
-    
+
     if (priority) {
         priority = TEST_TASK_PRIO_MASTER;
     }
 
     char *port_name = pbase->mb_base->descr.parent_name;
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_master_task, port_name,
-                                             TEST_TASK_STACK_SIZE,
-                                             mbm_handle, priority,
-                                             &master_task_handle, MB_PORT_TASK_AFFINITY));
+                     TEST_TASK_STACK_SIZE,
+                     mbm_handle, priority,
+                     &master_task_handle, MB_PORT_TASK_AFFINITY));
 
     test_task_add_entry(master_task_handle, mbm_handle);
     return master_task_handle;
@@ -675,9 +664,9 @@ TaskHandle_t test_common_slave_tcp_create(mb_communication_info_t *pconfig, uint
     }
 
     TEST_ASSERT_TRUE(xTaskCreatePinnedToCore(test_slave_task, pbase->mb_base->descr.parent_name,
-                                             TEST_TASK_STACK_SIZE,
-                                             mbs_handle, priority,
-                                             &slave_task_handle, MB_PORT_TASK_AFFINITY));
+                     TEST_TASK_STACK_SIZE,
+                     mbs_handle, priority,
+                     &slave_task_handle, MB_PORT_TASK_AFFINITY));
     test_task_add_entry(slave_task_handle, mbs_handle);
     return slave_task_handle;
 }

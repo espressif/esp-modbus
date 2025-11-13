@@ -19,8 +19,7 @@ static const char *TAG = "mb_object.master.stub";
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED || MB_MASTER_TCP_ENABLED)
 
-typedef struct
-{
+typedef struct {
     mb_base_t base;
     uint16_t pdu_snd_len;
     uint8_t dst_addr;
@@ -77,7 +76,7 @@ error:
 }
 #endif
 
-#if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED) 
+#if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED)
 
 typedef struct port_serial_opts_s mb_serial_opts_t;
 

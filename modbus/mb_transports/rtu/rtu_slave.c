@@ -10,11 +10,10 @@
 
 static const char *TAG = "mb_transp.rtu_slave";
 
-typedef struct
-{
+typedef struct {
     mb_trans_base_t base;
     mb_port_base_t *port_obj;
-    
+
     uint8_t snd_buf[MB_RTU_SER_PDU_SIZE_MAX]; // pdu_buf
     uint8_t rcv_buf[MB_RTU_SER_PDU_SIZE_MAX];
     uint16_t snd_pdu_len;
@@ -129,14 +128,14 @@ static mb_err_enum_t mbs_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *recv
     if (!buf_len || !recv_addr || !frame_buf || !buf_len) {
         return MB_EIO;
     }
-    
+
     mbs_rtu_transp_t *transp = __containerof(inst, mbs_rtu_transp_t, base);
     mb_err_enum_t status = MB_ENOERR;
 
     uint8_t *buf = (uint8_t *)transp->rcv_buf;
     uint16_t length = *buf_len;
 
-    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false){
+    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false) {
         *buf_len = 0;
         return MB_EPORTERR;
     }
@@ -146,7 +145,7 @@ static mb_err_enum_t mbs_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *recv
 
     /* Check length and CRC checksum */
     if ((length >= MB_RTU_SER_PDU_SIZE_MIN)
-        && (mb_crc16(buf, length) == 0)) {
+            && (mb_crc16(buf, length) == 0)) {
         /* Save the address field. All frames are passed to the upper layed
          * and the decision if a frame is used is done there.
          */
@@ -218,7 +217,7 @@ static bool mbs_rtu_transp_timer_expired(void *inst)
     //mb_timer_mode_enum_t timer_mode = mb_port_get_cur_timer_mode(transp->base.port_obj);
 
     mb_port_timer_disable(transp->base.port_obj);
-    
+
     return need_poll;
 }
 
@@ -251,7 +250,7 @@ static void mbs_rtu_transp_set_snd_len(mb_trans_base_t *inst, uint16_t snd_pdu_l
     mbs_rtu_transp_t *transp = __containerof(inst, mbs_rtu_transp_t, base);
     CRITICAL_SECTION(inst->lock) {
         transp->snd_buf_cnt = snd_pdu_len;
-    }   
+    }
 }
 
 #endif

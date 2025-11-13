@@ -38,4 +38,3 @@
 #pragma once
 
 uint16_t mb_crc16(uint8_t *frame_ptr, uint16_t len_buf);
-

@@ -162,7 +162,7 @@ typedef enum _mb_driver_event {
     MB_EVENT_RECV_DATA = (1 << MB_EVENT_RECV_DATA_NUM),
     MB_EVENT_ERROR = (1 << MB_EVENT_ERROR_NUM),
     MB_EVENT_CLOSE = (1 << MB_EVENT_CLOSE_NUM),
-    MB_EVENT_TIMEOUT =(1 << MB_EVENT_TIMEOUT_NUM)
+    MB_EVENT_TIMEOUT = (1 << MB_EVENT_TIMEOUT_NUM)
 } mb_driver_event_t;
 
 typedef struct {

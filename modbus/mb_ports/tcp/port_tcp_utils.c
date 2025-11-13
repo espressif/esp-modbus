@@ -172,16 +172,16 @@ static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t le
             return 0;
         }
         if ((errno == ENOTCONN) || (errno == ECONNRESET)) {
-            ESP_LOGD(TAG, "socket(#%d)(%s) connection closed, ret=%d, errno=%d.", 
-                            info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
+            ESP_LOGD(TAG, "socket(#%d)(%s) connection closed, ret=%d, errno=%d.",
+                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
             // Socket connection closed
             return ERR_CONN;
         }
         // Other error occurred during receiving
         ESP_LOGD(TAG, "Socket(#%d)(%s) receive error, ret = %d, errno = %d(%s)",
-                    info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno, strerror(errno));
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno, strerror(errno));
         ret = -1;
-    } 
+    }
     return ret;
 }
 
@@ -199,11 +199,11 @@ int port_read_packet(mb_node_info_t *info_ptr)
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
-        } 
-        
+        }
+
         if (ret != MB_TCP_UID) {
             ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), fail to read modbus header, err=%d",
-                        info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
+                     info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
             info_ptr->recv_err = ERR_VAL;
             return ERR_VAL;
         }
@@ -229,7 +229,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
             info_ptr->recv_err = ret;
             return ret;
         }
-        
+
         if (ret != temp) {
             info_ptr->recv_err = ERR_VAL;
             return ERR_VAL;
@@ -264,7 +264,7 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
     flags = is_blocking ? flags & ~O_NONBLOCK : flags | O_NONBLOCK;
     if (fcntl(info_ptr->sock_id, F_SETFL, flags) == -1) {
         ESP_LOGE(TAG, "Socket(#%d)(%s), fcntl() call error=%d",
-                    info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, (int)errno);
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, (int)errno);
         return ERR_WOULDBLOCK;
     }
     info_ptr->is_blocking = ((flags & O_NONBLOCK) != O_NONBLOCK);
@@ -329,12 +329,12 @@ err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms)
                 err = ERR_INPROGRESS;
             } else {
                 ESP_LOGV(TAG, MB_NODE_FMT(" connection, select write err(errno) = %d(%d)."),
-                            info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
+                         info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
                 err = ERR_CONN;
             }
         } else if (err == 0) {
             ESP_LOGV(TAG, "Socket(#%d)(%s), connection timeout occurred, err(errno) = %d(%d).",
-                        info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
+                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
             return ERR_INPROGRESS;
         } else {
             int opt_err = 0;
@@ -343,11 +343,11 @@ err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms)
             err = getsockopt(info_ptr->sock_id, SOL_SOCKET, SO_ERROR, (void *)&opt_err, (socklen_t *)&opt_len);
             if (opt_err != 0) {
                 ESP_LOGD(TAG, "Socket(#%d)(%s), sock error occurred (%d).",
-                            info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, opt_err);
+                         info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, opt_err);
                 return ERR_CONN;
             }
             ESP_LOGV(TAG, "Socket(#%d)(%s), is alive.",
-                        info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
+                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
             return ERR_OK;
         }
     } else {
@@ -427,7 +427,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
         if ((err < 0) && (errno == EINPROGRESS || errno == EALREADY)) {
             // The unblocking connect is pending (check status later) or already connected
             ESP_LOGD(TAG, "Socket(#%d)(%s) connection is pending, errno %d (%s).",
-                        info_ptr->sock_id, str, (int)errno, strerror(errno));
+                     info_ptr->sock_id, str, (int)errno, strerror(errno));
 
             // Set keep alive flag in socket options
             (void)port_keep_alive_enable(info_ptr->sock_id, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
@@ -442,12 +442,12 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
         if (err != ERR_OK) {
             // Other error occurred during connection
             ESP_LOGV(TAG, "%p, "MB_NODE_FMT(" unable to connect, error=%d, errno %d (%s)"),
-                        ctx, info_ptr->index, info_ptr->sock_id, str, err, (int)errno, strerror(errno));
+                     ctx, info_ptr->index, info_ptr->sock_id, str, err, (int)errno, strerror(errno));
             port_close_connection(info_ptr);
             err = ERR_CONN;
         } else {
             ESP_LOGI(TAG, "%p, "MB_NODE_FMT(", successfully connected."),
-                        ctx, info_ptr->index, info_ptr->sock_id, str);
+                     ctx, info_ptr->index, info_ptr->sock_id, str);
             continue;
         }
     }
@@ -462,13 +462,13 @@ int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t fra
     int res = (int)port_check_alive(info_ptr, timeout);
     if ((res < 0) && (res != ERR_INPROGRESS)) {
         ESP_LOGE(TAG, MB_NODE_FMT(", is not writable, error: %d, errno %d"),
-                    info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
         return res;
     }
     res = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
     if (res < 0) {
         ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
-                    info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
     }
     return res;
 }
@@ -482,11 +482,11 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
     uint16_t index = 0;
     uint16_t port = 0;
 
-    MB_RETURN_ON_FALSE((buffer && (strlen(buffer) < (HOST_STR_MAX_LEN - 8)) && info_ptr), 
-                            -1, TAG, "check input parameters fail.");
+    MB_RETURN_ON_FALSE((buffer && (strlen(buffer) < (HOST_STR_MAX_LEN - 8)) && info_ptr),
+                       -1, TAG, "check input parameters fail.");
 
 #if CONFIG_LWIP_IPV6
-    // Configuration format: 
+    // Configuration format:
     // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334;502"
     // "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334"
     ret = sscanf(buffer, "%" PRIu16 ";" IPV6STR ";%" PRIu16, &index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &port);
@@ -537,7 +537,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
         info_ptr->proto = MB_TCP;
         return ret;
     }
-    
+
     // Configuration format:
     // "1;192.168.1.1;502"
     ret = sscanf(buffer, "%" PRIu16 ";"IPSTR";%" PRIu16, &index, &a[0], &a[1], &a[2], &a[3], &port);
@@ -554,7 +554,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
         info_ptr->proto = MB_TCP;
         return ret;
     }
-    
+
     // Configuration format:
     // "01;mb_node_tcp_01;502"
     ret = sscanf(buffer,  "%" PRIu16 ";%m[a-z0-9_];%" PRIu16, &index, &host_str, &port);
@@ -568,7 +568,7 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
         info_ptr->proto = MB_TCP;
         return ret;
     }
-    
+
     // Configuration format:
     // "mb_node_tcp_01"
     ret = sscanf(buffer, "%m[a-z0-9_]", &host_str);
@@ -599,27 +599,27 @@ esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void
     int ip6_addrs_count = 0;
     esp_err_t err = ESP_ERR_INVALID_STATE;
     MB_RETURN_ON_FALSE((node_netif),
-                            err, TAG, "Invalid parameters for dns.");
+                       err, TAG, "Invalid parameters for dns.");
 
     // initialize mDNS
     err = mdns_init(); // if the mdns is already initialized on higher layer, just returns
     MB_RETURN_ON_FALSE(((err == ESP_OK) && node_netif), err, TAG, "mdns init fail, err = %d.", (int)err);
 
-    esp_netif_t *pnetif = (esp_netif_t*)node_netif;
+    esp_netif_t *pnetif = (esp_netif_t *)node_netif;
     // set mDNS hostname (required if need to advertise services)
     err = mdns_hostname_get(temp_str);
     if (err != ESP_OK) {
         uint8_t mac[6];
-        MB_RETURN_ON_FALSE((esp_netif_get_mac(pnetif, mac) == ESP_OK), 
-                            err, TAG, "get MAC fail, err = %d.", (int)err);
+        MB_RETURN_ON_FALSE((esp_netif_get_mac(pnetif, mac) == ESP_OK),
+                           err, TAG, "get MAC fail, err = %d.", (int)err);
         snprintf(temp_str, HOST_STR_MAX_LEN, "%s_%02x%02x%02x", MB_MDNS_INST_NAME(is_master), mac[3], mac[4], mac[5]);
         err = mdns_hostname_set(temp_str);
         MB_RETURN_ON_FALSE((err == ESP_OK),
-                            err, TAG, "could not set mdns host name, err = %d.", (int)err);
+                           err, TAG, "could not set mdns host name, err = %d.", (int)err);
         ESP_LOGI(TAG, "hostname set to: [%s]", temp_str);
         err = mdns_instance_name_set(temp_str);
         MB_RETURN_ON_FALSE((err == ESP_OK),
-                            err, TAG, "mdns instance name set fail, err = %d.", (int)err);
+                           err, TAG, "mdns instance name set fail, err = %d.", (int)err);
     }
     // Check if the default mdns name is defined in the configuration
     if (dns_name && *dns_name && (strlen(*dns_name) >= MB_MDNS_STR_MIN_LENGTH)) {
@@ -630,7 +630,7 @@ esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void
             return ESP_ERR_INVALID_STATE;
         };
     }
-    
+
     // Setup the real assigned dns_name instead of constant string
     if (dns_name) {
         *dns_name = strdup(temp_str);
@@ -640,7 +640,7 @@ esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void
     mdns_ip_addr_t node_ip;
     err = esp_netif_get_ip_info(pnetif, &ip_info);
     MB_RETURN_ON_FALSE((err == ESP_OK),
-                            err, TAG, "get IP info fail, err = %d.", (int)err);
+                       err, TAG, "get IP info fail, err = %d.", (int)err);
     node_ip.next = NULL;
     node_ip.addr.type = ESP_IPADDR_TYPE_V4;
     node_ip.addr.u_addr.ip4 = ip_info.ip;
@@ -774,7 +774,7 @@ int port_resolve_mdns_host(const char *host_name, char **addr_str)
     // Try to send query to obtain the IPv4 address
     esp_err_t err = mdns_query_a(host_name, MB_MDNS_QUERY_TIME_MS, &addr.u_addr.ip4);
     if (err) {
-        if (err == ESP_ERR_NOT_FOUND){
+        if (err == ESP_ERR_NOT_FOUND) {
             // Try to resolve using AAAA query
             err =  mdns_query_aaaa(host_name, MB_MDNS_QUERY_TIME_MS, &addr.u_addr.ip6);
             if (err == ESP_ERR_NOT_FOUND) {
@@ -811,7 +811,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
     struct addrinfo hint;
     struct addrinfo *addr_list;
     struct addrinfo *cur_addr;
-    char* string_ptr = NULL;
+    char *string_ptr = NULL;
 
     memset(&hint, 0, sizeof(hint));
 
@@ -836,38 +836,32 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
     }
 
     // Try the sockaddr until a binding succeeds
-    for (cur_addr = addr_list; cur_addr!= NULL; cur_addr = cur_addr->ai_next)
-    {
+    for (cur_addr = addr_list; cur_addr != NULL; cur_addr = cur_addr->ai_next) {
         listen_sock_fd = socket(cur_addr->ai_family, cur_addr->ai_socktype,
-                                        cur_addr->ai_protocol);
-        if (listen_sock_fd < 0)
-        {
+                                cur_addr->ai_protocol);
+        if (listen_sock_fd < 0) {
             continue;
         }
 
         temp_par = 1;
         // Allow multi client connections
         if (setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR,
-                        (const char*)&temp_par, sizeof(temp_par)) != 0)
-        {
+                       (const char *)&temp_par, sizeof(temp_par)) != 0) {
             close(listen_sock_fd);
             listen_sock_fd = UNDEF_FD;
             continue;
         }
 
         if (bind(listen_sock_fd, cur_addr->ai_addr,
-                                        (socklen_t)cur_addr->ai_addrlen) != 0 )
-        {
+                 (socklen_t)cur_addr->ai_addrlen) != 0 ) {
             close(listen_sock_fd);
             listen_sock_fd = UNDEF_FD;
             continue;
         }
 
         // Listen only makes sense for TCP
-        if (proto == MB_TCP)
-        {
-            if (listen(listen_sock_fd, MB_TCP_NET_LISTEN_BACKLOG) != 0)
-            {
+        if (proto == MB_TCP) {
+            if (listen(listen_sock_fd, MB_TCP_NET_LISTEN_BACKLOG) != 0) {
                 ESP_LOGE(TAG, "Error occurred during listen: errno=%u", (unsigned)errno);
                 shutdown(listen_sock_fd, SHUT_RDWR);
                 close(listen_sock_fd);
@@ -878,12 +872,12 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
         // Bind was successful
         string_ptr = (cur_addr->ai_canonname == NULL) ? (char *)"\0" : cur_addr->ai_canonname;
         ESP_LOGI(TAG, "Socket (#%d), listener %s on port: %u, errno=%u",
-                                            (int)listen_sock_fd, string_ptr, (unsigned)port, (unsigned)errno);
+                 (int)listen_sock_fd, string_ptr, (unsigned)port, (unsigned)errno);
         break;
     }
 
     freeaddrinfo(addr_list);
-    return(listen_sock_fd);
+    return (listen_sock_fd);
 }
 
 int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)

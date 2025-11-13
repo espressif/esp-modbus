@@ -45,16 +45,26 @@ __attribute__((unused)) bool mb_test_include_phys_impl_serial = true;
 
 // Example Data (Object) Dictionary for Modbus parameters
 static const mb_parameter_descriptor_t descriptors[] = {
-    {CID_DEV_REG0, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG1, STR("MB_hold_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG2, STR("MB_hold_reg-2"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG3, STR("MB_hold_reg-3"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 3, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG_COUNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER}
+    {
+        CID_DEV_REG0, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG1, STR("MB_hold_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG2, STR("MB_hold_reg-2"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG3, STR("MB_hold_reg-3"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 3, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG_COUNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    }
 };
 
 // The number of parameters in the table
@@ -73,9 +83,9 @@ static void test_modbus_rs485_rtu_slave(void)
         .ser_opts.response_tout_ms = TEST_MASTER_RESPOND_TOUT_MS,
         .ser_opts.test_tout_us = TEST_SEND_TOUT_US
     };
-    
-    TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX, 
-                                TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
+
+    TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX,
+                             TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
     TaskHandle_t slave_task_handle = test_common_slave_serial_create(&slave_config1, 0);
 
@@ -113,14 +123,14 @@ static void test_modbus_rs485_rtu_master(void)
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(master_config.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
-    TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX, 
-                                TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
+    TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX,
+                             TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
     test_common_task_start(master_task_handle, 1);
     TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
 
-/* 
+/*
  * Modbus RS485 RTU multi device test case
  */
 TEST_CASE_MULTIPLE_DEVICES("Modbus RS485 RTU multi device master - slave case.", "[modbus][test_env=multi_dut_modbus_serial]", test_modbus_rs485_rtu_slave, test_modbus_rs485_rtu_master);
@@ -138,9 +148,9 @@ static void test_modbus_rs485_ascii_slave(void)
         .ser_opts.response_tout_ms = TEST_MASTER_RESPOND_TOUT_MS,
         .ser_opts.test_tout_us = TEST_SEND_TOUT_US
     };
-    
-    TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX, 
-                                TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
+
+    TEST_ESP_OK(uart_set_pin(slave_config1.ser_opts.port, TEST_SER_PIN_TX,
+                             TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
 
     TaskHandle_t slave_task_handle = test_common_slave_serial_create(&slave_config1, 0);
 
@@ -177,15 +187,15 @@ static void test_modbus_rs485_ascii_master(void)
 
     // Set driver mode to Half Duplex
     TEST_ESP_OK(uart_set_mode(master_config.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
-    TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX, 
-                                TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
+    TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX,
+                             TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
     unity_send_signal("Master_started");
 
     test_common_task_start(master_task_handle, 1);
     TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
 
-/* 
+/*
  * Modbus RS485 ASCII multi device test case
  */
 TEST_CASE_MULTIPLE_DEVICES("Modbus RS485 ASCII multi device master - slave case.", "[modbus][test_env=multi_dut_modbus_serial]", test_modbus_rs485_ascii_slave, test_modbus_rs485_ascii_master);

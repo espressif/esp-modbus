@@ -26,8 +26,7 @@
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
-typedef struct
-{
+typedef struct {
     mb_port_base_t base;
     // serial communication properties
     mb_serial_opts_t ser_opts;
@@ -50,8 +49,8 @@ static bool mb_port_ser_bus_sema_init(mb_port_base_t *inst)
 {
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
     port_obj->bus_sema_handle = xSemaphoreCreateBinary();
-    MB_RETURN_ON_FALSE((port_obj->bus_sema_handle), false , TAG, 
-                        "%s: RX semaphore create failure.", inst->descr.parent_name);
+    MB_RETURN_ON_FALSE((port_obj->bus_sema_handle), false, TAG,
+                       "%s: RX semaphore create failure.", inst->descr.parent_name);
     return true;
 }
 
@@ -69,8 +68,8 @@ static bool mb_port_ser_bus_sema_take(mb_port_base_t *inst, uint32_t tm_ticks)
     BaseType_t status = pdTRUE;
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
     status = xSemaphoreTake(port_obj->bus_sema_handle, tm_ticks );
-    MB_RETURN_ON_FALSE((status == pdTRUE), false , TAG, 
-                        "%s,  rx semaphore take failure.", inst->descr.parent_name);
+    MB_RETURN_ON_FALSE((status == pdTRUE), false, TAG,
+                       "%s,  rx semaphore take failure.", inst->descr.parent_name);
     ESP_LOGV(TAG, "%s: take RX semaphore (%" PRIu32" ticks).", inst->descr.parent_name, tm_ticks);
     return true;
 }
@@ -100,13 +99,13 @@ static void mb_port_ser_rx_flush(mb_port_base_t *inst)
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
     for (int cnt = 0; (cnt < MB_SERIAL_RX_FLUSH_RETRY) && size; cnt++) {
         err = uart_get_buffered_data_len(port_obj->ser_opts.port, &size);
-        MB_RETURN_ON_FALSE((err == ESP_OK), ; , TAG, 
-                                "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
+        MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                           "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
         BaseType_t status = xQueueReset(port_obj->uart_queue);
         if (status) {
             err = uart_flush_input(port_obj->ser_opts.port);
-            MB_RETURN_ON_FALSE((err == ESP_OK), ; , TAG, 
-                                "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
+            MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+                               "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
         }
     }
 }
@@ -140,7 +139,7 @@ static void mb_port_ser_task(void *p_args)
     uart_event_t event;
     MB_RETURN_ON_FALSE(port_obj, ;, TAG, "%s, get serial instance fail.", port_obj->base.descr.parent_name);
     (void)mb_port_ser_rx_flush(&port_obj->base);
-    while(1) {
+    while (1) {
         // Workaround to suspend task from known place to avoid dead lock when resume
         while (!atomic_load(&(port_obj->enabled))) {
             ESP_LOGI(TAG, "%s, suspend port from task.", port_obj->base.descr.parent_name);
@@ -148,56 +147,56 @@ static void mb_port_ser_task(void *p_args)
         }
         if (xQueueReceive(port_obj->uart_queue, (void *)&event, MB_SERIAL_RX_TOUT_TICKS)) {
             ESP_LOGD(TAG, "%s, UART[%d] event:", port_obj->base.descr.parent_name, port_obj->ser_opts.port);
-            switch(event.type) {
-                case UART_DATA:
-                    ESP_LOGD(TAG, "%s, data event, len: %d.", port_obj->base.descr.parent_name, (int)event.size);
-                    // This flag set in the event means that no more
-                    // data received during configured timeout and UART TOUT feature is triggered
-                    if (event.timeout_flag) {
-                        // If bus is busy or fragmented data is received, then flush buffer
-                        if (mb_port_ser_bus_sema_is_busy(&port_obj->base) && port_obj->base.descr.is_master) {
-                            mb_port_ser_rx_flush(&port_obj->base);
-                            break;
-                        }
-                        uart_get_buffered_data_len(port_obj->ser_opts.port, (unsigned int*)&event.size);
-                        port_obj->recv_length = (event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE;
-                        if (event.size <= MB_SER_PDU_SIZE_MIN) {
-                            ESP_LOGD(TAG, "%s, drop short packet %d byte(s)", port_obj->base.descr.parent_name, (int)event.size);
-                            (void)mb_port_ser_rx_flush(&port_obj->base);
-                            break;
-                        }
-                        // New frame is received, send an event to main FSM to read it into receiver buffer
-                        mb_port_event_post(&port_obj->base, EVENT(EV_FRAME_RECEIVED, port_obj->recv_length, NULL, 0));
-                        ESP_LOGD(TAG, "%s, frame %d bytes is ready.", port_obj->base.descr.parent_name, (int)port_obj->recv_length);
+            switch (event.type) {
+            case UART_DATA:
+                ESP_LOGD(TAG, "%s, data event, len: %d.", port_obj->base.descr.parent_name, (int)event.size);
+                // This flag set in the event means that no more
+                // data received during configured timeout and UART TOUT feature is triggered
+                if (event.timeout_flag) {
+                    // If bus is busy or fragmented data is received, then flush buffer
+                    if (mb_port_ser_bus_sema_is_busy(&port_obj->base) && port_obj->base.descr.is_master) {
+                        mb_port_ser_rx_flush(&port_obj->base);
+                        break;
                     }
-                    break;
-                //Event of HW FIFO overflow detected
-                case UART_FIFO_OVF:
-                    ESP_LOGD(TAG, "%s, hw fifo overflow.", port_obj->base.descr.parent_name);
-                    xQueueReset(port_obj->uart_queue);
-                    break;
-                //Event of UART ring buffer full
-                case UART_BUFFER_FULL:
-                    ESP_LOGD(TAG, "%s, ring buffer full.", port_obj->base.descr.parent_name);
-                    (void)mb_port_ser_rx_flush(&port_obj->base);
-                    break;
-                //Event of UART RX break detected
-                case UART_BREAK:
-                    ESP_LOGD(TAG, "%s, uart rx break.", port_obj->base.descr.parent_name);
-                    break;
-                //Event of UART parity check error
-                case UART_PARITY_ERR:
-                    ESP_LOGD(TAG, "%s, uart parity error.", port_obj->base.descr.parent_name);
-                    (void)mb_port_ser_rx_flush(&port_obj->base);
-                    break;
-                //Event of UART frame error
-                case UART_FRAME_ERR:
-                    ESP_LOGD(TAG, "%s, uart frame error.", port_obj->base.descr.parent_name);
-                    (void)mb_port_ser_rx_flush(&port_obj->base);
-                    break;
-                default:
-                    ESP_LOGD(TAG, "%s, uart event type: %d.", port_obj->base.descr.parent_name, (int)event.type);
-                    break;
+                    uart_get_buffered_data_len(port_obj->ser_opts.port, (unsigned int *)&event.size);
+                    port_obj->recv_length = (event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE;
+                    if (event.size <= MB_SER_PDU_SIZE_MIN) {
+                        ESP_LOGD(TAG, "%s, drop short packet %d byte(s)", port_obj->base.descr.parent_name, (int)event.size);
+                        (void)mb_port_ser_rx_flush(&port_obj->base);
+                        break;
+                    }
+                    // New frame is received, send an event to main FSM to read it into receiver buffer
+                    mb_port_event_post(&port_obj->base, EVENT(EV_FRAME_RECEIVED, port_obj->recv_length, NULL, 0));
+                    ESP_LOGD(TAG, "%s, frame %d bytes is ready.", port_obj->base.descr.parent_name, (int)port_obj->recv_length);
+                }
+                break;
+            //Event of HW FIFO overflow detected
+            case UART_FIFO_OVF:
+                ESP_LOGD(TAG, "%s, hw fifo overflow.", port_obj->base.descr.parent_name);
+                xQueueReset(port_obj->uart_queue);
+                break;
+            //Event of UART ring buffer full
+            case UART_BUFFER_FULL:
+                ESP_LOGD(TAG, "%s, ring buffer full.", port_obj->base.descr.parent_name);
+                (void)mb_port_ser_rx_flush(&port_obj->base);
+                break;
+            //Event of UART RX break detected
+            case UART_BREAK:
+                ESP_LOGD(TAG, "%s, uart rx break.", port_obj->base.descr.parent_name);
+                break;
+            //Event of UART parity check error
+            case UART_PARITY_ERR:
+                ESP_LOGD(TAG, "%s, uart parity error.", port_obj->base.descr.parent_name);
+                (void)mb_port_ser_rx_flush(&port_obj->base);
+                break;
+            //Event of UART frame error
+            case UART_FRAME_ERR:
+                ESP_LOGD(TAG, "%s, uart frame error.", port_obj->base.descr.parent_name);
+                (void)mb_port_ser_rx_flush(&port_obj->base);
+                break;
+            default:
+                ESP_LOGD(TAG, "%s, uart event type: %d.", port_obj->base.descr.parent_name, (int)event.type);
+                break;
             }
         }
     }
@@ -209,14 +208,14 @@ mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in
     mb_ser_port_t *ser_port = NULL;
     esp_err_t err = ESP_OK;
     __attribute__((unused)) mb_err_enum_t ret = MB_EILLSTATE;
-    ser_port = (mb_ser_port_t*)calloc(1, sizeof(mb_ser_port_t));
+    ser_port = (mb_ser_port_t *)calloc(1, sizeof(mb_ser_port_t));
     MB_GOTO_ON_FALSE((ser_port && in_out_obj), MB_EILLSTATE, error, TAG, "mb serial port creation error.");
 
     CRITICAL_SECTION_INIT(ser_port->base.lock);
     ser_port->base.descr = (*in_out_obj)->descr;
-    ser_opts->data_bits = ((ser_opts->data_bits > UART_DATA_5_BITS) 
-                                && (ser_opts->data_bits < UART_DATA_BITS_MAX)) 
-                                ? ser_opts->data_bits : UART_DATA_8_BITS;
+    ser_opts->data_bits = ((ser_opts->data_bits > UART_DATA_5_BITS)
+                           && (ser_opts->data_bits < UART_DATA_BITS_MAX))
+                          ? ser_opts->data_bits : UART_DATA_8_BITS;
     // Keep the UART communication options
     ser_port->ser_opts = *ser_opts;
     // Configure serial communication parameters
@@ -235,31 +234,31 @@ mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in
     };
     // Set UART config
     err = uart_param_config(ser_port->ser_opts.port, &uart_cfg);
-    MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG, 
-                            "%s, mb config failure, uart_param_config() returned (0x%x).", ser_port->base.descr.parent_name, (int)err);
+    MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG,
+                     "%s, mb config failure, uart_param_config() returned (0x%x).", ser_port->base.descr.parent_name, (int)err);
     // Install UART driver, and get the queue.
     err = uart_driver_install(ser_port->ser_opts.port, MB_BUFFER_SIZE, MB_BUFFER_SIZE,
-                                    MB_QUEUE_LENGTH, &ser_port->uart_queue, MB_PORT_SERIAL_ISR_FLAG);
+                              MB_QUEUE_LENGTH, &ser_port->uart_queue, MB_PORT_SERIAL_ISR_FLAG);
     MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG,
-                        "%s, mb serial driver failure, retuned (0x%x).", ser_port->base.descr.parent_name, (int)err);
+                     "%s, mb serial driver failure, retuned (0x%x).", ser_port->base.descr.parent_name, (int)err);
     err = uart_set_rx_timeout(ser_port->ser_opts.port, MB_SERIAL_TOUT);
     MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG,
-                        "%s, mb serial set rx timeout failure, returned (0x%x).", ser_port->base.descr.parent_name, (int)err);
+                     "%s, mb serial set rx timeout failure, returned (0x%x).", ser_port->base.descr.parent_name, (int)err);
     // Set always timeout flag to trigger timeout interrupt even after rx fifo full
     uart_set_always_rx_timeout(ser_port->ser_opts.port, true);
     MB_GOTO_ON_FALSE((mb_port_ser_bus_sema_init(&ser_port->base)), MB_EILLSTATE, error, TAG,
-                                "%s, mb serial bus semaphore create fail.", ser_port->base.descr.parent_name);
+                     "%s, mb serial bus semaphore create fail.", ser_port->base.descr.parent_name);
     // Suspend task on start and then resume when initialization is completed
     atomic_store(&(ser_port->enabled), false);
     // Create a task to handle UART events
     BaseType_t status = xTaskCreatePinnedToCore(mb_port_ser_task, "port_serial_task",
-                                                    MB_SERIAL_TASK_STACK_SIZE,
-                                                    &ser_port->base, CONFIG_FMB_PORT_TASK_PRIO,
-                                                    &ser_port->task_handle, CONFIG_FMB_PORT_TASK_AFFINITY);
+                        MB_SERIAL_TASK_STACK_SIZE,
+                        &ser_port->base, CONFIG_FMB_PORT_TASK_PRIO,
+                        &ser_port->task_handle, CONFIG_FMB_PORT_TASK_AFFINITY);
     // Force exit from function with failure
     MB_GOTO_ON_FALSE((status == pdPASS), MB_EILLSTATE, error, TAG,
-                                "%s, mb stack serial task creation error, returned (0x%x).",
-                                ser_port->base.descr.parent_name, (int)status);
+                     "%s, mb stack serial task creation error, returned (0x%x).",
+                     ser_port->base.descr.parent_name, (int)status);
     *in_out_obj = &(ser_port->base);
     ESP_LOGD(TAG, "created object @%p", ser_port);
     return MB_ENOERR;
@@ -302,9 +301,9 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *
         port_obj->recv_time_stamp = esp_timer_get_time();
         ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV", *ser_frame, counter, ESP_LOG_DEBUG);
-        int64_t time_delta = (port_obj->recv_time_stamp > port_obj->send_time_stamp) ? 
-                                (port_obj->recv_time_stamp - port_obj->send_time_stamp) :
-                                (port_obj->send_time_stamp - port_obj->recv_time_stamp);
+        int64_t time_delta = (port_obj->recv_time_stamp > port_obj->send_time_stamp) ?
+                             (port_obj->recv_time_stamp - port_obj->send_time_stamp) :
+                             (port_obj->send_time_stamp - port_obj->recv_time_stamp);
         ESP_LOGD(TAG, "%s, serial processing time[us] = %" PRId64, inst->descr.parent_name, time_delta);
         status = true;
         *p_ser_length = counter;
@@ -331,7 +330,7 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
         esp_err_t status = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
         ESP_LOGD(TAG, "%s, tx buffer sent: (%d) bytes.", inst->descr.parent_name, (int)count);
         MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
-                                inst->descr.parent_name);
+                           inst->descr.parent_name);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_SEND", p_ser_frame, ser_length, ESP_LOG_DEBUG);
         port_obj->send_time_stamp = esp_timer_get_time();
         res = true;

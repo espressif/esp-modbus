@@ -59,13 +59,13 @@ TEST_CASE("Test endianness conversion for all extended Modbus types.", "[MB_ENDI
 
     TEST_ASSERT(mb_set_uint8_a(&arr_16, (uint8_t)55) == TEST_UINT8_A);
     TEST_ASSERT(mb_get_uint8_a(&arr_16) == (uint8_t)55);
-    TEST_ASSERT(mb_set_int8_a(&arr_16, (int8_t)-10) == TEST_INT8_A);
-    TEST_ASSERT(mb_get_int8_a(&arr_16) == (int8_t)-10);
+    TEST_ASSERT(mb_set_int8_a(&arr_16, (int8_t) -10) == TEST_INT8_A);
+    TEST_ASSERT(mb_get_int8_a(&arr_16) == (int8_t) -10);
 
     TEST_ASSERT(mb_set_uint8_b(&arr_16, (uint8_t)55) == TEST_UINT8_B);
     TEST_ASSERT(mb_get_uint8_b(&arr_16) == (uint8_t)55);
-    TEST_ASSERT(mb_set_int8_b(&arr_16, (int8_t)-10) == TEST_INT8_B);
-    TEST_ASSERT(mb_get_int8_b(&arr_16) == (int8_t)-10);
+    TEST_ASSERT(mb_set_int8_b(&arr_16, (int8_t) -10) == TEST_INT8_B);
+    TEST_ASSERT(mb_get_int8_b(&arr_16) == (int8_t) -10);
 
     TEST_ASSERT(mb_set_uint16_ab(&arr_16, (uint16_t)12345) == TEST_UINT16_AB);
     TEST_ASSERT(mb_get_uint16_ab(&arr_16) == (uint16_t)12345);
@@ -113,34 +113,34 @@ TEST_CASE("Test endianness conversion for all extended Modbus types.", "[MB_ENDI
     TEST_ASSERT(mb_get_uint32_dcba(&arr_32) == (uint32_t)0x11223344);
     TEST_ASSERT(mb_set_int32_dcba(&arr_32, (int32_t)0x11223344) == TEST_UINT32_DCBA);
     TEST_ASSERT(mb_get_int32_dcba(&arr_32) == (int32_t)0x11223344);
-    
+
     TEST_ASSERT(mb_set_double_abcdefgh(&arr_64, (double)12345.0) == TEST_DOUBLE_ABCDEFGH);
     TEST_ASSERT(mb_get_double_abcdefgh(&arr_64) == (double)12345.0);
     TEST_ASSERT(mb_set_uint64_abcdefgh(&arr_64, (uint64_t)0x1122334455667788) == TEST_UINT64_ABCDEFGH);
     TEST_ASSERT(mb_get_uint64_abcdefgh(&arr_64) == (uint64_t)0x1122334455667788);
-    TEST_ASSERT(mb_set_int64_abcdefgh(&arr_64, (int64_t)-12345) == TEST_INT64_ABCDEFGH);
-    TEST_ASSERT(mb_get_int64_abcdefgh(&arr_64) == (int64_t)-12345);
+    TEST_ASSERT(mb_set_int64_abcdefgh(&arr_64, (int64_t) -12345) == TEST_INT64_ABCDEFGH);
+    TEST_ASSERT(mb_get_int64_abcdefgh(&arr_64) == (int64_t) -12345);
 
     TEST_ASSERT(mb_set_double_hgfedcba(&arr_64, (double)12345.0) == TEST_DOUBLE_HGFEDCBA);
     TEST_ASSERT(mb_get_double_hgfedcba(&arr_64) == (double)12345.0);
     TEST_ASSERT(mb_set_uint64_hgfedcba(&arr_64, (uint64_t)0x1122334455667788) == TEST_UINT64_HGFEDCBA);
     TEST_ASSERT(mb_get_uint64_hgfedcba(&arr_64) == (uint64_t)0x1122334455667788);
-    TEST_ASSERT(mb_set_int64_hgfedcba(&arr_64, (int64_t)-12345) == TEST_INT64_HGFEDCBA);
-    TEST_ASSERT(mb_get_int64_hgfedcba(&arr_64) == (int64_t)-12345);
+    TEST_ASSERT(mb_set_int64_hgfedcba(&arr_64, (int64_t) -12345) == TEST_INT64_HGFEDCBA);
+    TEST_ASSERT(mb_get_int64_hgfedcba(&arr_64) == (int64_t) -12345);
 
     TEST_ASSERT(mb_set_double_ghefcdab(&arr_64, (double)12345.0) == TEST_DOUBLE_GHEFCDAB);
     TEST_ASSERT(mb_get_double_ghefcdab(&arr_64) == (double)12345.0);
     TEST_ASSERT(mb_set_uint64_ghefcdab(&arr_64, (uint64_t)0x1122334455667788) == TEST_UINT64_GHEFCDAB);
     TEST_ASSERT(mb_get_uint64_ghefcdab(&arr_64) == (uint64_t)0x1122334455667788);
-    TEST_ASSERT(mb_set_int64_ghefcdab(&arr_64, (int64_t)-12345) == TEST_INT64_GHEFCDAB);
-    TEST_ASSERT(mb_get_int64_ghefcdab(&arr_64) == (int64_t)-12345);
+    TEST_ASSERT(mb_set_int64_ghefcdab(&arr_64, (int64_t) -12345) == TEST_INT64_GHEFCDAB);
+    TEST_ASSERT(mb_get_int64_ghefcdab(&arr_64) == (int64_t) -12345);
 
     TEST_ASSERT(mb_set_double_badcfehg(&arr_64, (double)12345.0) == TEST_DOUBLE_BADCFEHG);
     TEST_ASSERT(mb_get_double_badcfehg(&arr_64) == (double)12345.0);
     TEST_ASSERT(mb_set_uint64_badcfehg(&arr_64, (uint64_t)0x1122334455667788) == TEST_UINT64_BADCFEHG);
     TEST_ASSERT(mb_get_uint64_badcfehg(&arr_64) == (uint64_t)0x1122334455667788);
-    TEST_ASSERT(mb_set_int64_badcfehg(&arr_64, (int64_t)-12345) == TEST_INT64_BADCFEHG);
-    TEST_ASSERT(mb_get_int64_badcfehg(&arr_64) == (int64_t)-12345);
+    TEST_ASSERT(mb_set_int64_badcfehg(&arr_64, (int64_t) -12345) == TEST_INT64_BADCFEHG);
+    TEST_ASSERT(mb_get_int64_badcfehg(&arr_64) == (int64_t) -12345);
 }
 
 void app_main(void)

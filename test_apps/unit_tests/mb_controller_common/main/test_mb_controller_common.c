@@ -40,18 +40,30 @@ enum {
 
 // Example Data (Object) Dictionary for Modbus parameters
 static const mb_parameter_descriptor_t descriptors[] = {
-    {CID_DEV_REG0_INPUT, STR("MB_input_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 0, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ},
-    {CID_DEV_REG0_HOLD, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG1_INPUT, STR("MB_input_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 2, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG0_COIL, STR("MB_coil_reg-0"), STR("bit"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 3, 8,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG0_DISCRITE, STR("MB_discr_reg-0"), STR("bit"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 4, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
-    {CID_DEV_REG_CNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
-        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER},
+    {
+        CID_DEV_REG0_INPUT, STR("MB_input_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 0, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ
+    },
+    {
+        CID_DEV_REG0_HOLD, STR("MB_hold_reg-0"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 1, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG1_INPUT, STR("MB_input_reg-1"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 2, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG0_COIL, STR("MB_coil_reg-0"), STR("bit"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 3, 8,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG0_DISCRITE, STR("MB_discr_reg-0"), STR("bit"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 4, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DEV_REG_CNT, STR("CYCLE_COUNTER"), STR("Data"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 4, 1,
+        0, PARAM_TYPE_U16, 2, OPTS(0, 0, 0), PAR_PERMS_READ_WRITE_TRIGGER
+    },
 };
 
 // Calculate number of parameters in the table
@@ -117,9 +129,9 @@ TEST(unit_test_controller, test_setup_destroy_master_serial)
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US
     };
-    
+
     ESP_LOGI(TAG, "TEST: Verify master create-destroy sequence.");
-    
+
     void *mbm_handle = NULL;
     mb_base_t *mb_base = NULL;
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
@@ -154,7 +166,7 @@ TEST(unit_test_controller, test_setup_destroy_slave_serial)
         .ser_opts.response_tout_ms = TEST_MASTER_RESPOND_TOUT_MS,
         .ser_opts.test_tout_us = TEST_MASTER_SEND_TOUT_US
     };
-    
+
     ESP_LOGI(TAG, "TEST: Verify slave create-destroy sequence.");
     void *mbs_handle = NULL;
     mb_base_t *mb_base = mbs_handle;
@@ -186,7 +198,7 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
         .ser_opts.response_tout_ms = 1,
         .ser_opts.test_tout_us = TEST_SLAVE_SEND_TOUT_US
     };
-    mb_base_t *mb_base = NULL; // fake mb_base handle 
+    mb_base_t *mb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
 
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
@@ -201,54 +213,54 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
 
     const mb_parameter_descriptor_t *param_descriptor = NULL;
     esp_err_t err = mbc_master_get_cid_info(mbm_handle, par_index, &param_descriptor);
-    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL))
-    {
-        TEST_ASSERT_EQUAL_HEX32(&descriptors[par_index], param_descriptor);       
+    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
+        TEST_ASSERT_EQUAL_HEX32(&descriptors[par_index], param_descriptor);
         uint8_t type = 0; // type of parameter from dictionary
         uint8_t *data_ptr = (uint8_t *)calloc(1, param_descriptor->mb_size + 1);
         ESP_LOGI(TAG, "Test CID #%d, %s, %s", param_descriptor->cid, param_descriptor->param_key, param_descriptor->param_units);
         // This is to check the request function is called with appropriate params.
-        switch(param_descriptor->mb_param_type) { \
-            case MB_PARAM_INPUT: \
-                mbm_rq_read_inp_reg_ExpectAndReturn(mb_base, \
-                                                            param_descriptor->mb_slave_addr, \
-                                                            param_descriptor->mb_reg_start, \
-                                                            param_descriptor->mb_size, \
-                                                            1, \
-                                                            mb_err); \
-                mbm_rq_read_inp_reg_IgnoreArg_tout(); \
-                break; \
-            case MB_PARAM_HOLDING:
-                mbm_rq_read_holding_reg_ExpectAndReturn(mb_base, \
-                                                            param_descriptor->mb_slave_addr, \
-                                                            param_descriptor->mb_reg_start, \
-                                                            param_descriptor->mb_size, \
-                                                            1, \
-                                                            mb_err); \
-                mbm_rq_read_holding_reg_IgnoreArg_tout(); \
-                break; \
-            case MB_PARAM_COIL: \
-                mbm_rq_read_coils_ExpectAndReturn(mb_base, \
-                                                        param_descriptor->mb_slave_addr, \
-                                                        param_descriptor->mb_reg_start, \
-                                                        param_descriptor->mb_size, \
-                                                        1, \
-                                                        mb_err); \
-                mbm_rq_read_coils_IgnoreArg_tout(); \
-                break; \
-            case MB_PARAM_DISCRETE: \
-                mbm_rq_read_discrete_inputs_ExpectAndReturn(mb_base, \
-                                                        param_descriptor->mb_slave_addr, \
-                                                        param_descriptor->mb_reg_start, \
-                                                        param_descriptor->mb_size, \
-                                                        1, \
-                                                        mb_err); \
-                mbm_rq_read_discrete_inputs_IgnoreArg_tout(); \
-                break; \
-            default:
-                TEST_FAIL(); \
-                break; \
-        }    
+        switch (param_descriptor->mb_param_type) {
+            \
+        case MB_PARAM_INPUT: \
+            mbm_rq_read_inp_reg_ExpectAndReturn(mb_base, \
+                                                param_descriptor->mb_slave_addr, \
+                                                param_descriptor->mb_reg_start, \
+                                                param_descriptor->mb_size, \
+                                                1, \
+                                                mb_err); \
+            mbm_rq_read_inp_reg_IgnoreArg_tout(); \
+            break; \
+        case MB_PARAM_HOLDING:
+            mbm_rq_read_holding_reg_ExpectAndReturn(mb_base, \
+                                                    param_descriptor->mb_slave_addr, \
+                                                    param_descriptor->mb_reg_start, \
+                                                    param_descriptor->mb_size, \
+                                                    1, \
+                                                    mb_err); \
+            mbm_rq_read_holding_reg_IgnoreArg_tout(); \
+            break; \
+        case MB_PARAM_COIL: \
+            mbm_rq_read_coils_ExpectAndReturn(mb_base, \
+                                              param_descriptor->mb_slave_addr, \
+                                              param_descriptor->mb_reg_start, \
+                                              param_descriptor->mb_size, \
+                                              1, \
+                                              mb_err); \
+            mbm_rq_read_coils_IgnoreArg_tout(); \
+            break; \
+        case MB_PARAM_DISCRETE: \
+            mbm_rq_read_discrete_inputs_ExpectAndReturn(mb_base, \
+                    param_descriptor->mb_slave_addr, \
+                    param_descriptor->mb_reg_start, \
+                    param_descriptor->mb_size, \
+                    1, \
+                    mb_err); \
+            mbm_rq_read_discrete_inputs_IgnoreArg_tout(); \
+            break; \
+        default:
+            TEST_FAIL(); \
+            break; \
+        }
         err = mbc_master_get_parameter(mbm_handle, par_index, data_ptr, &type); \
         free(data_ptr);
     }
