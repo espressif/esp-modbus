@@ -16,8 +16,7 @@
 
 static const char *TAG = "mb_port.event";
 
-struct mb_port_event_t
-{
+struct mb_port_event_t {
     _Atomic(int) curr_err_type;
     SemaphoreHandle_t resource_hdl;
     EventGroupHandle_t event_group_hdl;
@@ -35,10 +34,10 @@ mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
     // Create modbus semaphore (mb resource).
     event_obj->resource_hdl = xSemaphoreCreateBinary();
     MB_GOTO_ON_FALSE((event_obj->resource_hdl), MB_EILLSTATE, error, TAG,
-                            "%s, mb resource create failure.", inst->descr.parent_name);
+                     "%s, mb resource create failure.", inst->descr.parent_name);
     event_obj->event_group_hdl = xEventGroupCreate();
     MB_GOTO_ON_FALSE((event_obj->event_group_hdl), MB_EILLSTATE, error, TAG,
-                        "%s, event group create error.", inst->descr.parent_name);
+                     "%s, event group create error.", inst->descr.parent_name);
     event_obj->event_hdl = xQueueCreate(MB_EVENT_QUEUE_SIZE, sizeof(mb_event_t));
     MB_GOTO_ON_FALSE((event_obj->event_hdl), MB_EILLSTATE, error,  TAG, "%s, event queue create error.", inst->descr.parent_name);
     vQueueAddToRegistry(event_obj->event_hdl, TAG);
@@ -48,7 +47,7 @@ mb_err_enum_t mb_port_event_create(mb_port_base_t *inst)
     return MB_ENOERR;
 
 error:
-    if(event_obj->event_hdl) {
+    if (event_obj->event_hdl) {
         vQueueDelete(event_obj->event_hdl);
         event_obj->event_hdl = NULL;
     }
@@ -64,7 +63,7 @@ error:
     inst->event_obj = NULL;
     return ret;
 }
- 
+
 inline void mb_port_event_set_err_type(mb_port_base_t *inst, mb_err_event_t event)
 {
     MB_RETURN_ON_FALSE((inst && inst->event_obj), ;, TAG, "incorrect object handle.");
@@ -86,9 +85,9 @@ uint64_t mb_port_get_trans_id(mb_port_base_t *inst)
 bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 {
     MB_RETURN_ON_FALSE((inst), false, TAG, "incorrect object handle for transaction %" PRIu64, event.trans_id);
-    MB_RETURN_ON_FALSE((inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
-                            "Wrong event handle for transaction: %" PRIu64" %d, %p, %s.", 
-                            event.trans_id, (int)(event.event), inst, inst->descr.parent_name);
+    MB_RETURN_ON_FALSE((inst->event_obj && inst->event_obj->event_hdl), false, TAG,
+                       "Wrong event handle for transaction: %" PRIu64" %d, %p, %s.",
+                       event.trans_id, (int)(event.event), inst, inst->descr.parent_name);
     BaseType_t result = pdFALSE;
     mb_event_t temp_event;
     temp_event = event;
@@ -101,13 +100,13 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 
     if (xPortInIsrContext()) {
         BaseType_t high_prio_task_woken = pdFALSE;
-        result = xQueueSendFromISR(inst->event_obj->event_hdl, 
-                                    (const void*)&temp_event, &high_prio_task_woken);
+        result = xQueueSendFromISR(inst->event_obj->event_hdl,
+                                   (const void *)&temp_event, &high_prio_task_woken);
         // Was the message posted successfully?
         if (result != pdPASS) {
             ESP_EARLY_LOGV(TAG, "%s, post message %x failure .", inst->descr.parent_name, temp_event.event);
             return false;
-        }    
+        }
         // If high_prio_task_woken is now set to pdTRUE
         // then a context switch should be requested.
         if (high_prio_task_woken) {
@@ -115,7 +114,7 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
         }
         return true;
     }
-    result = xQueueSend(inst->event_obj->event_hdl, (const void*)&temp_event, MB_EVENT_QUEUE_TIMEOUT_MAX);
+    result = xQueueSend(inst->event_obj->event_hdl, (const void *)&temp_event, MB_EVENT_QUEUE_TIMEOUT_MAX);
     if (result != pdTRUE) {
         xQueueReset(inst->event_obj->event_hdl);
         ESP_LOGE(TAG, "%s, post message failure.", inst->descr.parent_name);
@@ -126,8 +125,8 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
 
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 {
-    MB_RETURN_ON_FALSE((inst && event && inst->event_obj && inst->event_obj->event_hdl), false, TAG, 
-                            "incorrect object handle.");
+    MB_RETURN_ON_FALSE((inst && event && inst->event_obj && inst->event_obj->event_hdl), false, TAG,
+                       "incorrect object handle.");
     bool event_happened = false;
 
     if (xQueueReceive(inst->event_obj->event_hdl, event, MB_EVENT_QUEUE_TIMEOUT_MAX) == pdTRUE) {
@@ -142,8 +141,8 @@ bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 {
-    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), false, TAG, 
-                            "incorrect object handle.");
+    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), false, TAG,
+                       "incorrect object handle.");
     BaseType_t status = pdFALSE;
     status = xSemaphoreTake(inst->event_obj->resource_hdl, timeout);
     ESP_LOGD(TAG, "%s, mb take resource, (%" PRIu32 " ticks).", inst->descr.parent_name, timeout);
@@ -152,8 +151,8 @@ bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 
 void mb_port_event_res_release(mb_port_base_t *inst)
 {
-    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), ;, TAG, 
-                            "incorrect object handle.");
+    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), ;, TAG,
+                       "incorrect object handle.");
     BaseType_t status = pdFALSE;
     status = xSemaphoreGive(inst->event_obj->resource_hdl);
     if (status != pdTRUE) {
@@ -169,16 +168,16 @@ void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_err_event_t event_mask
 
 mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 {
-    MB_RETURN_ON_FALSE((inst), MB_EINVAL, TAG, 
-                            "incorrect object handle.");
+    MB_RETURN_ON_FALSE((inst), MB_EINVAL, TAG,
+                       "incorrect object handle.");
     mb_err_enum_t err_status = MB_ETIMEDOUT;
     mb_err_event_t rcv_event;
     EventBits_t bits = EV_ERROR_INIT;
     bits = xEventGroupWaitBits(inst->event_obj->event_group_hdl,                        // The event group being tested.
-                                                MB_EVENT_REQ_MASK,                      // The bits within the event group to wait for.
-                                                pdTRUE,                                 // Masked bits should be cleared before returning.
-                                                pdFALSE,                                // Don't wait for both bits, either bit will do.
-                                                MB_EVENT_QUEUE_TIMEOUT_MAX);            // Wait forever for either bit to be set.
+                               MB_EVENT_REQ_MASK,                      // The bits within the event group to wait for.
+                               pdTRUE,                                 // Masked bits should be cleared before returning.
+                               pdFALSE,                                // Don't wait for both bits, either bit will do.
+                               MB_EVENT_QUEUE_TIMEOUT_MAX);            // Wait forever for either bit to be set.
     rcv_event = (mb_err_event_t)(bits);
     if (rcv_event) {
         ESP_LOGD(TAG, "%s, %s: returned event = 0x%x", inst->descr.parent_name, __func__, (int)rcv_event);
@@ -221,15 +220,15 @@ mb_err_enum_t mb_port_event_wait_req_finish(mb_port_base_t *inst)
 
 void mb_port_event_delete(mb_port_base_t *inst)
 {
-    MB_RETURN_ON_FALSE((inst), ;, TAG, 
-                            "incorrect event object handle.");
+    MB_RETURN_ON_FALSE((inst), ;, TAG,
+                       "incorrect event object handle.");
     if (inst->event_obj->resource_hdl) {
         vSemaphoreDelete(inst->event_obj->resource_hdl);
     }
     if (inst->event_obj->event_group_hdl) {
         vEventGroupDelete(inst->event_obj->event_group_hdl);
     }
-    if(inst->event_obj->event_hdl) {
+    if (inst->event_obj->event_hdl) {
         vQueueDelete(inst->event_obj->event_hdl);
         inst->event_obj->event_hdl = NULL;
     }

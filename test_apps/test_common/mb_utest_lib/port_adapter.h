@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
- 
+
 #pragma once
 
 #include <sdkconfig.h>
@@ -14,8 +14,7 @@
 #include "port_tcp_utils.h"
 #include "port_common.h"
 
-typedef enum
-{
+typedef enum {
     MB_QUEUE_FLAG_EMPTY = 0x0000,
     MB_QUEUE_FLAG_SENT = 0x0001,
     MB_QUEUE_FLAG_RECV = 0x0002,

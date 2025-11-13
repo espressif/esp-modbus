@@ -24,8 +24,7 @@ typedef void (*mb_get_rx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_bu
 typedef void (*mb_get_tx_frm_fp) (mb_trans_base_t *transport, uint8_t **frame_buf);
 typedef bool (*mb_get_fp)(mb_trans_base_t *inst);
 
-struct mb_trans_base_t
-{
+struct mb_trans_base_t {
     obj_descr_t descr;
 
     _lock_t lock;

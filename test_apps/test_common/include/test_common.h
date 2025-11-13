@@ -22,8 +22,7 @@
 }
 
 // Enumeration of modbus slave addresses accessed by master device
-enum
-{
+enum {
     MB_DEVICE_ADDR1 = 1,
     MB_DEVICE_ADDR2 = 200
 };
@@ -66,7 +65,7 @@ void test_common_stop();
 // TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig);
 
 TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, uint32_t priority);
-TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig,uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size);
+TaskHandle_t test_common_master_serial_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size);
 TaskHandle_t test_common_slave_tcp_create(mb_communication_info_t *pconfig, uint32_t priority);
 TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uint32_t priority, const mb_parameter_descriptor_t *descr, uint16_t descr_size);
 TaskHandle_t test_common_start_busy_task(uint32_t priority);
@@ -97,5 +96,3 @@ int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick);
 void test_common_task_delete(TaskHandle_t task_handle);
 void test_common_task_delete_all();
 void *test_common_task_get_instance(TaskHandle_t task_handle);
-
-

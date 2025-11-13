@@ -110,8 +110,7 @@ void unlock_obj(_lock_t *lock_ptr);
 
 typedef struct mb_port_base_t mb_port_base_t;
 
-typedef struct
-{
+typedef struct {
     mb_port_base_t *mb_base;
 } mb_common_iface_t;
 
@@ -127,8 +126,7 @@ typedef struct
 typedef bool (*mb_port_cb_fp)(void *arg);
 
 //!< port callback table for interrupts
-typedef struct
-{
+typedef struct {
     mb_port_cb_fp byte_rcvd;
     mb_port_cb_fp tx_empty;
     mb_port_cb_fp tmr_expired;
@@ -138,8 +136,7 @@ typedef struct mb_port_event_t mb_port_event_t;
 typedef struct mb_port_timer_t mb_port_timer_t;
 typedef struct obj_descr_s obj_descr_t;
 
-typedef struct frame_queue_entry_s
-{
+typedef struct frame_queue_entry_s {
     uint16_t tid;  /*!< Transaction identifier (TID) for slave */
     uint16_t pid;  /*!< Protocol ID field of MBAP frame */
     uint16_t uid;  /*!< Slave unit ID (UID) field for MBAP frame  */
@@ -148,8 +145,7 @@ typedef struct frame_queue_entry_s
     bool check;    /*!< Checked flag */
 } frame_entry_t;
 
-struct mb_port_base_t
-{
+struct mb_port_base_t {
     obj_descr_t descr;
     _lock_t lock;
     mb_port_cb_t cb; //!< Port callbacks.

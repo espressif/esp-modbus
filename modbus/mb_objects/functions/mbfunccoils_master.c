@@ -175,7 +175,7 @@ mb_exception_t mbm_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *
 mb_err_enum_t mbm_rq_write_coil(mb_base_t *inst, uint8_t snd_addr, uint16_t coil_addr, uint16_t coil_data, uint32_t tout)
 {
     uint8_t *mb_frame_ptr;
-    
+
     if (!inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
@@ -313,8 +313,8 @@ mb_exception_t mbm_fn_write_multi_coils(mb_base_t *inst, uint8_t *frame_ptr, uin
 
         if ((coil_cnt >= 1) && (byte_cnt_verify == byte_cnt)) {
             if (inst->rw_cbs.reg_coils_cb) {
-                reg_status = inst->rw_cbs.reg_coils_cb(inst, &mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_VALUES_OFF], 
-                                                            reg_address, coil_cnt, MB_REG_WRITE);
+                reg_status = inst->rw_cbs.reg_coils_cb(inst, &mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_VALUES_OFF],
+                                                       reg_address, coil_cnt, MB_REG_WRITE);
             }
             /* If an error occured, convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {

@@ -11,8 +11,7 @@
 
 static const char *TAG = "mb_transp.tcp_slave";
 
-typedef struct
-{
+typedef struct {
     mb_trans_base_t base;
     mb_port_base_t *port_obj;
     uint8_t recv_buf[MB_TCP_BUF_SIZE];
@@ -180,35 +179,35 @@ static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused,
 static bool mbs_tcp_transp_timer_expired(void *inst)
 {
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
-    
+
     bool need_poll = false;
     mb_timer_mode_enum_t timer_mode = mb_port_get_cur_timer_mode(transp->base.port_obj);
 
     mb_port_timer_disable(transp->base.port_obj);
 
-    switch(timer_mode) {
-        case MB_TMODE_T35:
-            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
-            ESP_EARLY_LOGD(TAG, "EV_READY");
-            break;
+    switch (timer_mode) {
+    case MB_TMODE_T35:
+        need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
+        ESP_EARLY_LOGD(TAG, "EV_READY");
+        break;
 
-        case MB_TMODE_RESPOND_TIMEOUT:
-            mb_port_event_set_err_type(transp->base.port_obj, EV_ERROR_RESPOND_TIMEOUT);
-            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_ERROR_PROCESS));
-            ESP_EARLY_LOGD(TAG, "EV_ERROR_RESPOND_TIMEOUT");
-            break;
+    case MB_TMODE_RESPOND_TIMEOUT:
+        mb_port_event_set_err_type(transp->base.port_obj, EV_ERROR_RESPOND_TIMEOUT);
+        need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_ERROR_PROCESS));
+        ESP_EARLY_LOGD(TAG, "EV_ERROR_RESPOND_TIMEOUT");
+        break;
 
-        case MB_TMODE_CONVERT_DELAY:
-            /* If timer mode is convert delay, the master event then turns EV_MASTER_EXECUTE status. */
-            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_EXECUTE));
-            ESP_EARLY_LOGD(TAG, "MB_TMODE_CONVERT_DELAY");
-            break;
+    case MB_TMODE_CONVERT_DELAY:
+        /* If timer mode is convert delay, the master event then turns EV_MASTER_EXECUTE status. */
+        need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_EXECUTE));
+        ESP_EARLY_LOGD(TAG, "MB_TMODE_CONVERT_DELAY");
+        break;
 
-        default:
-            need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
-            break;
+    default:
+        need_poll = mb_port_event_post(transp->base.port_obj, EVENT(EV_READY));
+        break;
     }
-    
+
     return need_poll;
 }
 

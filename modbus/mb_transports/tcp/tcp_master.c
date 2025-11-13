@@ -12,8 +12,7 @@
 
 static const char *TAG = "mb_transp.tcp_master";
 
-typedef struct
-{
+typedef struct {
     mb_trans_base_t base;
     mb_port_base_t *port_obj;
     uint8_t recv_buf[MB_TCP_BUF_SIZE];
@@ -177,7 +176,7 @@ static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address,
 #else
     frame_ptr[MB_TCP_UID] = 0x00;
 #endif
-    
+
     if (mbm_port_tcp_send_data(inst->port_obj, address, frame_ptr, tcp_len) == false) {
         status = MB_EIO;
     }
@@ -207,4 +206,3 @@ static bool mbm_tcp_transp_rq_is_bcast(mb_trans_base_t *inst)
 }
 
 #endif
-

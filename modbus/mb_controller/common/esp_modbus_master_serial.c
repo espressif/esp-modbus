@@ -20,13 +20,13 @@ esp_err_t mbc_master_create_serial(mb_communication_info_t *config, void **ctx)
 {
     void *obj = NULL;
     esp_err_t error = ESP_ERR_NOT_SUPPORTED;
-    switch(config->mode) {
-        case MB_RTU:
-        case MB_ASCII:
-            error = mbc_serial_master_create(config, &obj);
-            break;
-        default:
-            return ESP_ERR_NOT_SUPPORTED;
+    switch (config->mode) {
+    case MB_RTU:
+    case MB_ASCII:
+        error = mbc_serial_master_create(config, &obj);
+        break;
+    default:
+        return ESP_ERR_NOT_SUPPORTED;
     }
     if ((obj) && (error == ESP_OK)) {
         *ctx = obj;

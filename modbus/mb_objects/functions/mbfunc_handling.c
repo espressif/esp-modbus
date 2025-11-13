@@ -14,7 +14,7 @@ mb_err_enum_t mb_set_handler(handler_descriptor_t *descriptor, uint8_t func_code
 {
     MB_RETURN_ON_FALSE((descriptor && handler && descriptor->instance), MB_EINVAL, TAG, "invalid arguments.");
     MB_RETURN_ON_FALSE(MB_IS_VALID_FUNC_CODE(func_code), MB_EINVAL, TAG,
-                        "invalid function code (0x%x)", (int)func_code);
+                       "invalid function code (0x%x)", (int)func_code);
 
     mb_command_entry_t *item_ptr = NULL;
     LIST_FOREACH(item_ptr, &descriptor->head, entries) {
@@ -31,7 +31,7 @@ mb_err_enum_t mb_set_handler(handler_descriptor_t *descriptor, uint8_t func_code
         return MB_ENORES;
     }
     descriptor->count += 1;
-    item_ptr = (mb_command_entry_t *) heap_caps_malloc(sizeof(mb_command_entry_t), MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    item_ptr = (mb_command_entry_t *) heap_caps_malloc(sizeof(mb_command_entry_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
     MB_RETURN_ON_FALSE(item_ptr, MB_ENORES, TAG, "mb can not allocate memory for command handler 0x%x.", func_code);
     item_ptr->func_code = func_code;
@@ -46,7 +46,7 @@ mb_err_enum_t mb_get_handler(handler_descriptor_t *descriptor, uint8_t func_code
 {
     MB_RETURN_ON_FALSE((descriptor && handler && descriptor->instance), MB_EINVAL, TAG, "invalid arguments.");
     MB_RETURN_ON_FALSE(MB_IS_VALID_FUNC_CODE(func_code), MB_EINVAL, TAG,
-                        "invalid function code (0x%x)", (int)func_code);
+                       "invalid function code (0x%x)", (int)func_code);
 
     mb_command_entry_t *item_ptr = NULL;
     LIST_FOREACH(item_ptr, &descriptor->head, entries) {
@@ -64,12 +64,12 @@ mb_err_enum_t mb_delete_handler(handler_descriptor_t *descriptor, uint8_t func_c
 {
     MB_RETURN_ON_FALSE((descriptor && descriptor->instance), MB_EINVAL, TAG, "invalid arguments.");
     MB_RETURN_ON_FALSE(MB_IS_VALID_FUNC_CODE(func_code), MB_EINVAL, TAG,
-                        "invalid function code (0x%x)", (int)func_code);
+                       "invalid function code (0x%x)", (int)func_code);
 
     if (LIST_EMPTY(&descriptor->head)) {
         return MB_EINVAL;
     }
-    
+
     mb_command_entry_t *item_ptr = NULL;
     mb_command_entry_t *ptemp = NULL;
     LIST_FOREACH_SAFE(item_ptr, &descriptor->head, entries, ptemp) {
@@ -91,7 +91,7 @@ mb_err_enum_t mb_delete_handler(handler_descriptor_t *descriptor, uint8_t func_c
 mb_err_enum_t mb_delete_command_handlers(handler_descriptor_t *descriptor)
 {
     MB_RETURN_ON_FALSE((descriptor), MB_EINVAL, TAG, "invalid arguments.");
-    
+
     if (LIST_EMPTY(&descriptor->head)) {
         return MB_EINVAL;
     }

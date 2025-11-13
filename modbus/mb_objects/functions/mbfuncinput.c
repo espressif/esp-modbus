@@ -65,7 +65,7 @@ mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16
          * return Modbus illegal data value exception.
          */
         if ((reg_cnt >= 1)
-            && (reg_cnt <= MB_PDU_FUNC_READ_REGCNT_MAX)) {
+                && (reg_cnt <= MB_PDU_FUNC_READ_REGCNT_MAX)) {
             /* Set the current PDU data pointer to the beginning. */
             frame_cur = &frame_ptr[MB_PDU_FUNC_OFF];
             *len_buf = MB_PDU_FUNC_OFF;

@@ -41,10 +41,9 @@ extern "C" {
  * Modbus serial supports two transmission modes. Either ASCII or RTU. RTU
  * is faster but has more hardware requirements and requires a network with
  * a low jitter. ASCII is slower and more reliable on slower links (E.g. modems)
- * The TCP or UDP mode is used for communication over ethernet. 
+ * The TCP or UDP mode is used for communication over ethernet.
  */
-typedef enum mb_comm_mode_enum
-{
+typedef enum mb_comm_mode_enum {
     MB_RTU,                     /*!< RTU transmission mode. */
     MB_ASCII,                   /*!< ASCII transmission mode. */
     MB_TCP,                     /*!< TCP mode. */
@@ -62,8 +61,7 @@ typedef enum mb_comm_mode_enum
  * \see mbs_reg_holding_cb(), mbs_reg_coils_cb(), mbs_reg_holding_cb() and
  *   mbs_reg_input_cb().
  */
-typedef enum
-{
+typedef enum {
     MB_REG_READ = 0x0001,   /*!< Read register values and pass to protocol stack. */
     MB_REG_WRITE = 0x0002,  /*!< Update register values. */
 } mb_reg_mode_enum_t;
@@ -84,8 +82,7 @@ typedef enum mb_event_enum {
 /*! \ingroup modbus
  * \brief Modbus exception types used in the stack.
  */
-typedef enum mb_exception_enum
-{
+typedef enum mb_exception_enum {
     MB_EX_NONE = 0x00,
     MB_EX_ILLEGAL_FUNCTION = 0x01,
     MB_EX_ILLEGAL_DATA_ADDRESS = 0x02,
@@ -115,7 +112,7 @@ typedef enum mb_err_event_enum {
 typedef struct mb_event_s {
     mb_event_enum_t event;      /*!< event itself. */
     uint64_t trans_id;          /*!< unique transaction id */
-    uint16_t length;            /*!< length of data accociated with the event */ 
+    uint16_t length;            /*!< length of data accociated with the event */
     void *data_ptr;             /*!< data accociated with the event */
     mb_err_event_t type;        /*!< error type accociated with the event */
     uint64_t post_ts;           /*!< timestamp of event posted */
@@ -125,8 +122,7 @@ typedef struct mb_event_s {
 /*! \ingroup modbus
  * \brief Errorcodes used by all function in the protocol stack.
  */
-typedef enum
-{
+typedef enum {
     MB_ENOERR,                  /*!< no error. */
     MB_ENOREG,                  /*!< illegal register address. */
     MB_EINVAL,                  /*!< illegal argument. */
@@ -144,8 +140,7 @@ typedef enum
 /*! \ingroup modbus
  *  \brief TimerMode is Master 3 kind of Timer modes.
  */
-typedef enum
-{
+typedef enum {
     MB_TMODE_T35,                   /*!< Master receive frame T3.5 timeout. */
     MB_TMODE_RESPOND_TIMEOUT,       /*!< Master wait respond for slave. */
     MB_TMODE_CONVERT_DELAY          /*!< Master sent broadcast , then delay sometime.*/
@@ -154,4 +149,3 @@ typedef enum
 #ifdef __cplusplus
 }
 #endif
-

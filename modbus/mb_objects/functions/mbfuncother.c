@@ -125,7 +125,7 @@ mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t 
     if (!inst || !frame || !len_buf || !inst->obj_id || !inst->obj_id_len) {
         status = MB_EX_SLAVE_DEVICE_FAILURE;
     } else if ((inst->obj_id_len <= MB_BUFFER_SIZE - 2)
-                && (*len_buf == MB_CMD_SL_ID_LEN)) {
+               && (*len_buf == MB_CMD_SL_ID_LEN)) {
         CRITICAL_SECTION(inst->lock) {
             frame[MB_PDU_FUNC_OFF] = MB_FUNC_OTHER_REPORT_SLAVEID; // rewrite the FC
             *len_buf = inst->obj_id_len;
@@ -180,7 +180,7 @@ mb_err_enum_t mbs_get_slave_id(mb_base_t *inst, uint8_t *data_ptr, uint8_t *data
         }
         if (data_ptr && (*data_len >= inst->obj_id_len)) {
             CRITICAL_SECTION(inst->lock) {
-                memcpy(data_ptr, &inst->obj_id[0],(size_t)inst->obj_id_len);
+                memcpy(data_ptr, &inst->obj_id[0], (size_t)inst->obj_id_len);
             }
         } else {
             status = MB_ENORES;

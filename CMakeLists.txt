@@ -72,6 +72,7 @@ set(requires driver)
 set(priv_requires esp_timer esp_event esp_netif vfs)
 endif()
 
+
 idf_component_register(SRCS "${srcs}"
                         INCLUDE_DIRS "${include_dirs}"
                         PRIV_INCLUDE_DIRS "${priv_include_dirs}"

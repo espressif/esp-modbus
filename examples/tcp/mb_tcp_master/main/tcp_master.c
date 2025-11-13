@@ -141,125 +141,179 @@ enum {
 // Access Mode - can be used to implement custom options for processing of characteristic (Read/Write restrictions, factory mode values and etc).
 const mb_parameter_descriptor_t device_parameters[] = {
     // { CID, Param Name, Units, Modbus Slave Addr, Modbus Reg Type, Reg Start, Reg Size, Instance Offset, Data Type, Data Size, Parameter Options, Access Mode}
-    { CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
-            TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
-            INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
-            HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
-            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
-            TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
-            INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
-            HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
-            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT,
-            TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
-            INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
-            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR3, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
-            HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4, 
-            OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_CUSTOM1, STR("CustomHoldReg"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_area1_end), 1,
-            HOLD_OFFSET(holding_area1_end), PARAM_TYPE_U16, 2,
-            OPTS( 0x03, 0x06, 0x5555 ), PAR_PERMS_READ_WRITE_CUST_CMD },
-    { CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,
-            HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, (TEST_ARR_REG_SZ * 2),
-            OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
-            COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1, 
-            OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 10, 6,
-            COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1, 
-            OPTS( 0x55, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 2, 7,
-            DISCR_OFFSET(discrete_input_port1), PARAM_TYPE_U8, 1, 
-            OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
+    {
+        CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
+        INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
+        HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
+        INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
+        HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT,
+        TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
+        INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR3, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
+        HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4,
+        OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_CUSTOM1, STR("CustomHoldReg"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_area1_end), 1,
+        HOLD_OFFSET(holding_area1_end), PARAM_TYPE_U16, 2,
+        OPTS( 0x03, 0x06, 0x5555 ), PAR_PERMS_READ_WRITE_CUST_CMD
+    },
+    {
+        CID_HOLD_TEST_REG, STR("Test_regs"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(test_regs), TEST_ARR_REG_SZ,
+        HOLD_OFFSET(test_regs), PARAM_TYPE_ASCII, (TEST_ARR_REG_SZ * 2),
+        OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
+        COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1,
+        OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 10, 6,
+        COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1,
+        OPTS( 0x55, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 2, 7,
+        DISCR_OFFSET(discrete_input_port1), PARAM_TYPE_U8, 1,
+        OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
 #if CONFIG_FMB_EXT_TYPE_SUPPORT
-    { CID_HOLD_U8_A, STR("U8_A"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_u8_a), TEST_HOLD_REG_SIZE(holding_u8_a),
-            HOLD_OFFSET(holding_u8_a), PARAM_TYPE_U8_A, (TEST_HOLD_REG_SIZE(holding_u8_a) << 1), 
-            OPTS( CHAR_MIN, 0x0055, 0x0055 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_U8_B, STR("U8_B"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_u8_b), TEST_HOLD_REG_SIZE(holding_u8_b),
-            HOLD_OFFSET(holding_u8_b), PARAM_TYPE_U8_B, (TEST_HOLD_REG_SIZE(holding_u8_b) << 1), 
-            OPTS( 0, 0x5500, 0x5500 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_U16_AB, STR("U16_AB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_u16_ab), TEST_HOLD_REG_SIZE(holding_u16_ab),
-            HOLD_OFFSET(holding_u16_ab), PARAM_TYPE_U16_AB, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_U16_BA, STR("U16_BA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_u16_ba), TEST_HOLD_REG_SIZE(holding_u16_ba),
-            HOLD_OFFSET(holding_u16_ba), PARAM_TYPE_U16_BA, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_UINT32_ABCD, STR("UINT32_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_uint32_abcd), TEST_HOLD_REG_SIZE(holding_uint32_abcd),
-            HOLD_OFFSET(holding_uint32_abcd), PARAM_TYPE_U32_ABCD, (TEST_HOLD_REG_SIZE(holding_uint32_abcd) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_UINT32_CDAB, STR("UINT32_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_uint32_cdab), TEST_HOLD_REG_SIZE(holding_uint32_cdab),
-            HOLD_OFFSET(holding_uint32_cdab), PARAM_TYPE_U32_CDAB, (TEST_HOLD_REG_SIZE(holding_uint32_cdab) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_UINT32_BADC, STR("UINT32_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_uint32_badc), TEST_HOLD_REG_SIZE(holding_uint32_badc),
-            HOLD_OFFSET(holding_uint32_badc), PARAM_TYPE_U32_BADC, (TEST_HOLD_REG_SIZE(holding_uint32_badc) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_UINT32_DCBA, STR("UINT32_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_uint32_dcba), TEST_HOLD_REG_SIZE(holding_uint32_dcba),
-            HOLD_OFFSET(holding_uint32_dcba), PARAM_TYPE_U32_DCBA, (TEST_HOLD_REG_SIZE(holding_uint32_dcba) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_FLOAT_ABCD, STR("FLOAT_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-            TEST_HOLD_REG_START(holding_float_abcd), TEST_HOLD_REG_SIZE(holding_float_abcd),
-            HOLD_OFFSET(holding_float_abcd), PARAM_TYPE_FLOAT_ABCD, (TEST_HOLD_REG_SIZE(holding_float_abcd) << 1),
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_FLOAT_CDAB, STR("FLOAT_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_float_cdab), TEST_HOLD_REG_SIZE(holding_float_cdab),
-            HOLD_OFFSET(holding_float_cdab), PARAM_TYPE_FLOAT_CDAB, (TEST_HOLD_REG_SIZE(holding_float_cdab) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_FLOAT_BADC, STR("FLOAT_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_float_badc), TEST_HOLD_REG_SIZE(holding_float_badc),
-            HOLD_OFFSET(holding_float_badc), PARAM_TYPE_FLOAT_BADC, (TEST_HOLD_REG_SIZE(holding_float_badc) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_FLOAT_DCBA, STR("FLOAT_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_float_dcba), TEST_HOLD_REG_SIZE(holding_float_dcba),
-            HOLD_OFFSET(holding_float_dcba), PARAM_TYPE_FLOAT_DCBA, (TEST_HOLD_REG_SIZE(holding_float_dcba) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DOUBLE_ABCDEFGH, STR("DOUBLE_ABCDEFGH"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_double_abcdefgh), TEST_HOLD_REG_SIZE(holding_double_abcdefgh),
-            HOLD_OFFSET(holding_double_abcdefgh), PARAM_TYPE_DOUBLE_ABCDEFGH, (TEST_HOLD_REG_SIZE(holding_double_abcdefgh) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DOUBLE_HGFEDCBA, STR("DOUBLE_HGFEDCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_double_hgfedcba), TEST_HOLD_REG_SIZE(holding_double_hgfedcba),
-            HOLD_OFFSET(holding_double_hgfedcba), PARAM_TYPE_DOUBLE_HGFEDCBA, (TEST_HOLD_REG_SIZE(holding_double_hgfedcba) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DOUBLE_GHEFCDAB, STR("DOUBLE_GHEFCDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_double_ghefcdab), TEST_HOLD_REG_SIZE(holding_double_ghefcdab),
-            HOLD_OFFSET(holding_double_ghefcdab), PARAM_TYPE_DOUBLE_GHEFCDAB, (TEST_HOLD_REG_SIZE(holding_double_ghefcdab) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER },
-    { CID_HOLD_DOUBLE_BADCFEHG, STR("DOUBLE_BADCFEHG"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-            TEST_HOLD_REG_START(holding_double_badcfehg), TEST_HOLD_REG_SIZE(holding_double_badcfehg),
-            HOLD_OFFSET(holding_double_badcfehg), PARAM_TYPE_DOUBLE_BADCFEHG, (TEST_HOLD_REG_SIZE(holding_double_badcfehg) << 1), 
-            OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER }
+    {
+        CID_HOLD_U8_A, STR("U8_A"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_u8_a), TEST_HOLD_REG_SIZE(holding_u8_a),
+        HOLD_OFFSET(holding_u8_a), PARAM_TYPE_U8_A, (TEST_HOLD_REG_SIZE(holding_u8_a) << 1),
+        OPTS( CHAR_MIN, 0x0055, 0x0055 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_U8_B, STR("U8_B"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_u8_b), TEST_HOLD_REG_SIZE(holding_u8_b),
+        HOLD_OFFSET(holding_u8_b), PARAM_TYPE_U8_B, (TEST_HOLD_REG_SIZE(holding_u8_b) << 1),
+        OPTS( 0, 0x5500, 0x5500 ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_U16_AB, STR("U16_AB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_u16_ab), TEST_HOLD_REG_SIZE(holding_u16_ab),
+        HOLD_OFFSET(holding_u16_ab), PARAM_TYPE_U16_AB, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_U16_BA, STR("U16_BA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_u16_ba), TEST_HOLD_REG_SIZE(holding_u16_ba),
+        HOLD_OFFSET(holding_u16_ba), PARAM_TYPE_U16_BA, (TEST_HOLD_REG_SIZE(holding_u16_ab) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_UINT32_ABCD, STR("UINT32_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_uint32_abcd), TEST_HOLD_REG_SIZE(holding_uint32_abcd),
+        HOLD_OFFSET(holding_uint32_abcd), PARAM_TYPE_U32_ABCD, (TEST_HOLD_REG_SIZE(holding_uint32_abcd) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_UINT32_CDAB, STR("UINT32_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_uint32_cdab), TEST_HOLD_REG_SIZE(holding_uint32_cdab),
+        HOLD_OFFSET(holding_uint32_cdab), PARAM_TYPE_U32_CDAB, (TEST_HOLD_REG_SIZE(holding_uint32_cdab) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_UINT32_BADC, STR("UINT32_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_uint32_badc), TEST_HOLD_REG_SIZE(holding_uint32_badc),
+        HOLD_OFFSET(holding_uint32_badc), PARAM_TYPE_U32_BADC, (TEST_HOLD_REG_SIZE(holding_uint32_badc) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_UINT32_DCBA, STR("UINT32_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_uint32_dcba), TEST_HOLD_REG_SIZE(holding_uint32_dcba),
+        HOLD_OFFSET(holding_uint32_dcba), PARAM_TYPE_U32_DCBA, (TEST_HOLD_REG_SIZE(holding_uint32_dcba) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_FLOAT_ABCD, STR("FLOAT_ABCD"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_float_abcd), TEST_HOLD_REG_SIZE(holding_float_abcd),
+        HOLD_OFFSET(holding_float_abcd), PARAM_TYPE_FLOAT_ABCD, (TEST_HOLD_REG_SIZE(holding_float_abcd) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_FLOAT_CDAB, STR("FLOAT_CDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_float_cdab), TEST_HOLD_REG_SIZE(holding_float_cdab),
+        HOLD_OFFSET(holding_float_cdab), PARAM_TYPE_FLOAT_CDAB, (TEST_HOLD_REG_SIZE(holding_float_cdab) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_FLOAT_BADC, STR("FLOAT_BADC"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_float_badc), TEST_HOLD_REG_SIZE(holding_float_badc),
+        HOLD_OFFSET(holding_float_badc), PARAM_TYPE_FLOAT_BADC, (TEST_HOLD_REG_SIZE(holding_float_badc) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_FLOAT_DCBA, STR("FLOAT_DCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_float_dcba), TEST_HOLD_REG_SIZE(holding_float_dcba),
+        HOLD_OFFSET(holding_float_dcba), PARAM_TYPE_FLOAT_DCBA, (TEST_HOLD_REG_SIZE(holding_float_dcba) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DOUBLE_ABCDEFGH, STR("DOUBLE_ABCDEFGH"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_double_abcdefgh), TEST_HOLD_REG_SIZE(holding_double_abcdefgh),
+        HOLD_OFFSET(holding_double_abcdefgh), PARAM_TYPE_DOUBLE_ABCDEFGH, (TEST_HOLD_REG_SIZE(holding_double_abcdefgh) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DOUBLE_HGFEDCBA, STR("DOUBLE_HGFEDCBA"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_double_hgfedcba), TEST_HOLD_REG_SIZE(holding_double_hgfedcba),
+        HOLD_OFFSET(holding_double_hgfedcba), PARAM_TYPE_DOUBLE_HGFEDCBA, (TEST_HOLD_REG_SIZE(holding_double_hgfedcba) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DOUBLE_GHEFCDAB, STR("DOUBLE_GHEFCDAB"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_double_ghefcdab), TEST_HOLD_REG_SIZE(holding_double_ghefcdab),
+        HOLD_OFFSET(holding_double_ghefcdab), PARAM_TYPE_DOUBLE_GHEFCDAB, (TEST_HOLD_REG_SIZE(holding_double_ghefcdab) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    },
+    {
+        CID_HOLD_DOUBLE_BADCFEHG, STR("DOUBLE_BADCFEHG"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        TEST_HOLD_REG_START(holding_double_badcfehg), TEST_HOLD_REG_SIZE(holding_double_badcfehg),
+        HOLD_OFFSET(holding_double_badcfehg), PARAM_TYPE_DOUBLE_BADCFEHG, (TEST_HOLD_REG_SIZE(holding_double_badcfehg) << 1),
+        OPTS( 0, TEST_VALUE, TEST_VALUE ), PAR_PERMS_READ_WRITE_TRIGGER
+    }
 #endif
 };
 
 // Calculate number of parameters in the table
 const uint16_t num_device_parameters = (sizeof(device_parameters) / sizeof(device_parameters[0]));
 
-static void* master_handle = NULL;
+static void *master_handle = NULL;
 
 const size_t ip_table_sz;
 
 // This table represents slave IP addresses that correspond to the short address field of the slave in device_parameters structure
 // Modbus TCP stack shall use these addresses to be able to connect and read parameters from slave
-char* slave_ip_address_table[MB_DEVICE_COUNT + 1] = {
+char *slave_ip_address_table[MB_DEVICE_COUNT + 1] = {
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
     "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR1 and set to predefined value by user
     "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR2 and set to predefined value by user
@@ -317,7 +371,7 @@ static int master_get_slave_ip_stdin(char **addr_table)
     }
 
     ESP_ERROR_CHECK(example_configure_stdin_stdout());
-    while(1) {
+    while (1) {
         if (addr_table[ip_cnt] && strcmp(addr_table[ip_cnt], "FROM_STDIN") == 0) {
             printf("Waiting IP%d from stdin:\r\n", (int)ip_cnt);
             while (fgets(buf, sizeof(buf), stdin) == NULL) {
@@ -374,24 +428,23 @@ static void *master_get_param_data(const mb_parameter_descriptor_t *param_descri
     assert(param_descriptor != NULL);
     void *instance_ptr = NULL;
     if (param_descriptor->param_offset != 0) {
-       switch(param_descriptor->mb_param_type)
-       {
-           case MB_PARAM_HOLDING:
-               instance_ptr = ((void *)&holding_reg_params + param_descriptor->param_offset - 1);
-               break;
-           case MB_PARAM_INPUT:
-               instance_ptr = ((void *)&input_reg_params + param_descriptor->param_offset - 1);
-               break;
-           case MB_PARAM_COIL:
-               instance_ptr = ((void *)&coil_reg_params + param_descriptor->param_offset - 1);
-               break;
-           case MB_PARAM_DISCRETE:
-               instance_ptr = ((void *)&discrete_reg_params + param_descriptor->param_offset - 1);
-               break;
-           default:
-               instance_ptr = NULL;
-               break;
-       }
+        switch (param_descriptor->mb_param_type) {
+        case MB_PARAM_HOLDING:
+            instance_ptr = ((void *)&holding_reg_params + param_descriptor->param_offset - 1);
+            break;
+        case MB_PARAM_INPUT:
+            instance_ptr = ((void *)&input_reg_params + param_descriptor->param_offset - 1);
+            break;
+        case MB_PARAM_COIL:
+            instance_ptr = ((void *)&coil_reg_params + param_descriptor->param_offset - 1);
+            break;
+        case MB_PARAM_DISCRETE:
+            instance_ptr = ((void *)&discrete_reg_params + param_descriptor->param_offset - 1);
+            break;
+        default:
+            instance_ptr = NULL;
+            break;
+        }
     } else {
         ESP_LOGE(TAG, "Wrong parameter offset for CID #%u", param_descriptor->cid);
         assert(instance_ptr != NULL);
@@ -472,7 +525,7 @@ static void master_operation_func(void *arg)
         ESP_LOGE("CUSTOM_DATA", "Send custom request fail.");
     }
 
-    for(uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
+    for (uint16_t retry = 0; retry <= MASTER_MAX_RETRY && (!alarm_state); retry++) {
         // Read all found characteristics from slave(s)
         for (uint16_t cid = 0; (err != ESP_ERR_NOT_FOUND) && cid < MASTER_MAX_CIDS; cid++) {
             // Get data from parameters description table
@@ -482,84 +535,84 @@ static void master_operation_func(void *arg)
             if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
                 void *temp_data_ptr = master_get_param_data(param_descriptor);
                 assert(temp_data_ptr);
-                if ((param_descriptor->cid >= CID_HOLD_CUSTOM1) 
-                            && (param_descriptor->cid <= CID_HOLD_TEST_REG)) {
+                if ((param_descriptor->cid >= CID_HOLD_CUSTOM1)
+                        && (param_descriptor->cid <= CID_HOLD_TEST_REG)) {
                     // Check test parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        *(uint32_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(uint32_t *)temp_data_ptr);
                     }
 #if CONFIG_FMB_EXT_TYPE_SUPPORT
-                } else if ((param_descriptor->cid >= CID_HOLD_U16_AB) 
-                            && (param_descriptor->cid <= CID_HOLD_U16_BA)) {
+                } else if ((param_descriptor->cid >= CID_HOLD_U16_AB)
+                           && (param_descriptor->cid <= CID_HOLD_U16_BA)) {
                     // Check the uint16 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        *(uint16_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(uint16_t *)temp_data_ptr);
                     }
-                } else if ((param_descriptor->cid >= CID_HOLD_U8_A) 
-                            && (param_descriptor->cid <= CID_HOLD_U8_B)) {
+                } else if ((param_descriptor->cid >= CID_HOLD_U8_A)
+                           && (param_descriptor->cid <= CID_HOLD_U8_B)) {
                     // Check the uint8 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint16_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx16 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        *(uint16_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(uint16_t *)temp_data_ptr);
                     }
                 } else if ((param_descriptor->cid >= CID_HOLD_UINT32_ABCD)
-                            && (param_descriptor->cid <= CID_HOLD_UINT32_DCBA)) {
+                           && (param_descriptor->cid <= CID_HOLD_UINT32_DCBA)) {
                     // Check the uint32 parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint32_t *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %" PRIu32 " (0x%" PRIx32 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        *(uint32_t *)temp_data_ptr,
-                                        *(uint32_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(uint32_t *)temp_data_ptr,
+                                 *(uint32_t *)temp_data_ptr);
                     }
                 } else if ((param_descriptor->cid >= CID_HOLD_FLOAT_ABCD)
-                            && (param_descriptor->cid <= CID_HOLD_FLOAT_DCBA)) {
+                           && (param_descriptor->cid <= CID_HOLD_FLOAT_DCBA)) {
                     // Check the float parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        *(float *)temp_data_ptr,
-                                        *(uint32_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(float *)temp_data_ptr,
+                                 *(uint32_t *)temp_data_ptr);
                     }
                 } else if (param_descriptor->cid >= CID_HOLD_DOUBLE_ABCDEFGH) {
                     // Check the double parameters
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (double *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %lf (0x%" PRIx64 ") read successful.",
-                                    (int)param_descriptor->cid,
-                                    (char *)param_descriptor->param_key,
-                                    (char *)param_descriptor->param_units,
-                                    *(double *)temp_data_ptr,
-                                    *(uint64_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(double *)temp_data_ptr,
+                                 *(uint64_t *)temp_data_ptr);
                     }
 #endif
                 } else  if (cid <= CID_HOLD_DATA_2) {
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (float *)temp_data_ptr) == ESP_OK) {
                         ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %f (0x%" PRIx32 ") read successful.",
-                                (int)param_descriptor->cid,
-                                (char *)param_descriptor->param_key,
-                                (char *)param_descriptor->param_units,
-                                *(float *)temp_data_ptr,
-                                *(uint32_t *)temp_data_ptr);
+                                 (int)param_descriptor->cid,
+                                 (char *)param_descriptor->param_key,
+                                 (char *)param_descriptor->param_units,
+                                 *(float *)temp_data_ptr,
+                                 *(uint32_t *)temp_data_ptr);
                     }
                     float value = *(float *)temp_data_ptr;
                     if (((value > param_descriptor->param_opts.max) ||
-                        (value < param_descriptor->param_opts.min))) {
-                            alarm_state = true;
-                            break;
+                            (value < param_descriptor->param_opts.min))) {
+                        alarm_state = true;
+                        break;
                     }
                 } else if ((cid >= CID_RELAY_P1) && (cid <= CID_DISCR_P1)) {
                     if (TEST_VERIFY_VALUES(master_handle, param_descriptor, (uint8_t *)temp_data_ptr) == ESP_OK) {
@@ -567,18 +620,18 @@ static void master_operation_func(void *arg)
                         const char *rw_str = (state & param_descriptor->param_opts.opt1) ? "ON" : "OFF";
                         if ((state & param_descriptor->param_opts.opt2) == param_descriptor->param_opts.opt2) {
                             ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 ") read successful.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        (const char *)rw_str,
-                                        *(uint8_t *)temp_data_ptr);
+                                     (int)param_descriptor->cid,
+                                     (char *)param_descriptor->param_key,
+                                     (char *)param_descriptor->param_units,
+                                     (const char *)rw_str,
+                                     *(uint8_t *)temp_data_ptr);
                         } else {
                             ESP_LOGE(TAG, "Characteristic #%d %s (%s) value = %s (0x%" PRIx8 "), unexpected value.",
-                                        (int)param_descriptor->cid,
-                                        (char *)param_descriptor->param_key,
-                                        (char *)param_descriptor->param_units,
-                                        (const char *)rw_str,
-                                        *(uint8_t *)temp_data_ptr);
+                                     (int)param_descriptor->cid,
+                                     (char *)param_descriptor->param_key,
+                                     (char *)param_descriptor->param_units,
+                                     (const char *)rw_str,
+                                     *(uint8_t *)temp_data_ptr);
                             alarm_state = true;
                             break;
                         }
@@ -598,7 +651,7 @@ static void master_operation_func(void *arg)
         ESP_LOGI(TAG, "Alarm triggered by cid #%u.", param_descriptor->cid);
     } else {
         ESP_LOGE(TAG, "Alarm is not triggered after %u retries.",
-                                        MASTER_MAX_RETRY);
+                 MASTER_MAX_RETRY);
     }
     ESP_LOGI(TAG, "Destroy master...");
     vTaskDelay(1);
@@ -608,37 +661,37 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
 {
     esp_err_t result = nvs_flash_init();
     if (result == ESP_ERR_NVS_NO_FREE_PAGES || result == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      result = nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        result = nvs_flash_init();
     }
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "nvs_flash_init fail, returns(0x%x).",
-                            (int)result);
+                       TAG,
+                       "nvs_flash_init fail, returns(0x%x).",
+                       (int)result);
     result = esp_netif_init();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "esp_netif_init fail, returns(0x%x).",
-                            (int)result);
+                       TAG,
+                       "esp_netif_init fail, returns(0x%x).",
+                       (int)result);
     result = esp_event_loop_create_default();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "esp_event_loop_create_default fail, returns(0x%x).",
-                            (int)result);
+                       TAG,
+                       "esp_event_loop_create_default fail, returns(0x%x).",
+                       (int)result);
     // This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
     // Read "Establishing Wi-Fi or Ethernet Connection" section in
     // examples/protocols/README.md for more information about this function.
     result = example_connect();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "example_connect fail, returns(0x%x).",
-                                (int)result);
+                       TAG,
+                       "example_connect fail, returns(0x%x).",
+                       (int)result);
 #if CONFIG_EXAMPLE_CONNECT_WIFI
-   result = esp_wifi_set_ps(WIFI_PS_NONE);
-   MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                                   TAG,
-                                   "esp_wifi_set_ps fail, returns(0x%x).",
-                                   (int)result);
+    result = esp_wifi_set_ps(WIFI_PS_NONE);
+    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                       TAG,
+                       "esp_wifi_set_ps fail, returns(0x%x).",
+                       (int)result);
 #endif
 
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
@@ -660,36 +713,36 @@ static esp_err_t destroy_services(void)
 
     err = example_disconnect();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                                   TAG,
-                                   "example_disconnect fail, returns(0x%x).",
-                                   (int)err);
+                       TAG,
+                       "example_disconnect fail, returns(0x%x).",
+                       (int)err);
     err = esp_event_loop_delete_default();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                                       TAG,
-                                       "esp_event_loop_delete_default fail, returns(0x%x).",
-                                       (int)err);
+                       TAG,
+                       "esp_event_loop_delete_default fail, returns(0x%x).",
+                       (int)err);
     err = esp_netif_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_NOT_SUPPORTED), ESP_ERR_INVALID_STATE,
-                                        TAG,
-                                        "esp_netif_deinit fail, returns(0x%x).",
-                                        (int)err);
+                       TAG,
+                       "esp_netif_deinit fail, returns(0x%x).",
+                       (int)err);
     err = nvs_flash_deinit();
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "nvs_flash_deinit fail, returns(0x%x).",
-                                (int)err);
+                       TAG,
+                       "nvs_flash_deinit fail, returns(0x%x).",
+                       (int)err);
     return err;
 }
 
 // This is the custom function handler for the command.
 // The handler is executed from the context of modbus controller event task and should be as simple as possible.
 // Parameters: frame_ptr - the pointer to the incoming ADU frame from slave starting from function code,
-// len - the pointer to length of the frame. After return from the handler the modbus object will 
+// len - the pointer to length of the frame. After return from the handler the modbus object will
 // handle the end of transaction according to the exception returned.
 mb_exception_t my_custom_fc_handler(void *inst, uint8_t *frame_ptr, uint16_t *len)
 {
     MB_RETURN_ON_FALSE((frame_ptr && len && *len && *len < (MB_CUST_DATA_LEN - 1)), MB_EX_ILLEGAL_DATA_VALUE, TAG,
-                            "incorrect custom frame buffer");
+                       "incorrect custom frame buffer");
     ESP_LOGI(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *len);
     strncpy((char *)&my_custom_data[0], (char *)&frame_ptr[1], MB_CUST_DATA_LEN);
     ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*len - 1), ESP_LOG_INFO);
@@ -701,39 +754,39 @@ static esp_err_t master_init(mb_communication_info_t *pcomm_info)
 {
     esp_err_t err = mbc_master_create_tcp(pcomm_info, &master_handle);
     MB_RETURN_ON_FALSE((master_handle != NULL), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "mb controller initialization fail.");
+                       TAG,
+                       "mb controller initialization fail.");
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "mb controller initialization fail, returns(0x%x).",
-                            (int)err);
+                       TAG,
+                       "mb controller initialization fail, returns(0x%x).",
+                       (int)err);
 
     // Add custom command handler
     uint8_t custom_command = 0x41;
     // Delete the handler for specified command, if available
     err = mbc_delete_handler(master_handle, custom_command);
     MB_RETURN_ON_FALSE((err == ESP_OK || err == ESP_ERR_INVALID_STATE), ESP_ERR_INVALID_STATE, TAG,
-                        "could not override handler, returned (0x%x).", (int)err);
+                       "could not override handler, returned (0x%x).", (int)err);
     err = mbc_set_handler(master_handle, custom_command, my_custom_fc_handler);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                            "could not override handler, returned (0x%x).", (int)err);
+                       "could not override handler, returned (0x%x).", (int)err);
     mb_fn_handler_fp handler = NULL;
     err = mbc_get_handler(master_handle, custom_command, &handler);
     MB_RETURN_ON_FALSE((err == ESP_OK && handler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
-                            "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
+                       "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 
     err = mbc_master_set_descriptor(master_handle, &device_parameters[0], num_device_parameters);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "mb controller set descriptor fail, returns(0x%x).",
-                                (int)err);
+                       TAG,
+                       "mb controller set descriptor fail, returns(0x%x).",
+                       (int)err);
     ESP_LOGI(TAG, "Modbus master stack initialized...");
 
     err = mbc_master_start(master_handle);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG,
-                            "mb controller start fail, returns(0x%x).",
-                            (int)err);
+                       TAG,
+                       "mb controller start fail, returns(0x%x).",
+                       (int)err);
     vTaskDelay(5);
     return err;
 }
@@ -742,9 +795,9 @@ static esp_err_t master_destroy(void)
 {
     esp_err_t err = mbc_master_delete(master_handle);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                                TAG,
-                                "mbc_master_destroy fail, returns(0x%x).",
-                                (int)err);
+                       TAG,
+                       "mbc_master_destroy fail, returns(0x%x).",
+                       (int)err);
     ESP_LOGI(TAG, "Modbus master stack destroy...");
     return err;
 }
@@ -767,7 +820,7 @@ void app_main(void)
         .tcp_opts.uid = 0,
         .tcp_opts.start_disconnected = false,
         .tcp_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
-        .tcp_opts.ip_netif_ptr = (void*)get_example_netif()
+        .tcp_opts.ip_netif_ptr = (void *)get_example_netif()
     };
 
     ESP_ERROR_CHECK(master_init(&tcp_master_config));

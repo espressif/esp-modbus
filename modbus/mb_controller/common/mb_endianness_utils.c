@@ -260,7 +260,7 @@ static INLINE uint64_t mb_set_double_generic(int n0, int n1, int n2, int n3, int
 
 int8_t mb_get_int8_a(val_16_arr *pi16)
 {
-    return((int8_t)(*pi16)[MB_BO16_0]);
+    return ((int8_t)(*pi16)[MB_BO16_0]);
 }
 
 uint16_t mb_set_int8_a(val_16_arr *pi16, int8_t i8)
@@ -272,7 +272,7 @@ uint16_t mb_set_int8_a(val_16_arr *pi16, int8_t i8)
 
 int8_t mb_get_int8_b(val_16_arr *pi16)
 {
-    return((int8_t)(*pi16)[MB_BO16_1]);
+    return ((int8_t)(*pi16)[MB_BO16_1]);
 }
 
 uint16_t mb_set_int8_b(val_16_arr *pi16, int8_t i8)
@@ -284,7 +284,7 @@ uint16_t mb_set_int8_b(val_16_arr *pi16, int8_t i8)
 
 uint8_t mb_get_uint8_a(val_16_arr *pu16)
 {
-    return((*pu16)[MB_BO16_0]);
+    return ((*pu16)[MB_BO16_0]);
 }
 
 uint16_t mb_set_uint8_a(val_16_arr *pu16, uint8_t u8)
@@ -296,7 +296,7 @@ uint16_t mb_set_uint8_a(val_16_arr *pu16, uint8_t u8)
 
 uint8_t mb_get_uint8_b(val_16_arr *pu16)
 {
-    return((*pu16)[MB_BO16_1]);
+    return ((*pu16)[MB_BO16_1]);
 }
 
 uint16_t mb_set_uint8_b(val_16_arr *pu16, uint8_t u8)

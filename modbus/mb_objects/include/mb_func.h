@@ -23,13 +23,13 @@ mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t 
 #endif
 
 #if MB_FUNC_READ_INPUT_ENABLED
-mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
-mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
+mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
 #endif
 
 #if MB_FUNC_READ_HOLDING_ENABLED
-mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
-mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
+mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
 #endif
 
 #if MB_FUNC_WRITE_HOLDING_ENABLED
@@ -43,8 +43,8 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
 #endif
 
 #if MB_FUNC_READ_COILS_ENABLED
-mb_exception_t mbs_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
-mb_exception_t mbm_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+mb_exception_t mbs_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
+mb_exception_t mbm_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
 #endif
 
 #if MB_FUNC_WRITE_COIL_ENABLED
@@ -63,7 +63,7 @@ mb_exception_t mbm_fn_read_discrete_inputs(mb_base_t *inst, uint8_t *frame_ptr, 
 #endif
 
 #if MB_FUNC_READWRITE_HOLDING_ENABLED
-mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr,uint16_t *len_buf);
+mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
 mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf);
 #endif
 

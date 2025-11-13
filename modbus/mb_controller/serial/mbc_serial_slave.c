@@ -29,16 +29,14 @@ static void mbc_ser_slave_task(void *param)
     mbs_controller_iface_t *mbs_iface = MB_SLAVE_GET_IFACE(param);
 
     // Main Modbus stack processing cycle
-    for (;;)
-    {
+    for (;;) {
         BaseType_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
                                                 (BaseType_t)(MB_EVENT_STACK_STARTED),
                                                 pdFALSE, // do not clear bits
                                                 pdFALSE,
                                                 portMAX_DELAY);
         // Check if stack started then poll for data
-        if (status & MB_EVENT_STACK_STARTED)
-        {
+        if (status & MB_EVENT_STACK_STARTED) {
             (void)mbs_iface->mb_base->poll(mbs_iface->mb_base);
         }
         // esp_task_wdt_reset();
@@ -105,8 +103,7 @@ static esp_err_t mbc_serial_slave_get_param_info(void *ctx, mb_param_info_t *reg
     MB_RETURN_ON_FALSE((reg_info), ESP_ERR_INVALID_ARG, TAG, "mb register information is invalid.");
     BaseType_t status = xQueueReceive(mbs_opts->notification_queue_handle,
                                       reg_info, pdMS_TO_TICKS(timeout));
-    if (status == pdTRUE)
-    {
+    if (status == pdTRUE) {
         err = ESP_OK;
     }
     return err;
@@ -125,8 +122,7 @@ static esp_err_t mbc_serial_slave_delete(void *ctx)
                                             pdFALSE,
                                             pdFALSE,
                                             MB_CONTROLLER_NOTIFY_TIMEOUT);
-    if (mbs_iface->is_active || (status & MB_EVENT_STACK_STARTED))
-    {
+    if (mbs_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
         ESP_LOGV(TAG, "mb stack is active, try to disable.");
         if (mbc_serial_slave_stop(ctx) != ESP_OK) {
             ESP_LOGE(TAG, "mb stack stop failure.");
@@ -140,7 +136,7 @@ static esp_err_t mbc_serial_slave_delete(void *ctx)
     mbs_opts->notification_queue_handle = NULL;
     mbs_opts->event_group_handle = NULL;
     mbs_opts->task_handle = NULL;
-    mb_error = mbs_iface->mb_base->delete(mbs_iface->mb_base);
+    mb_error = mbs_iface->mb_base->delete (mbs_iface->mb_base);
     MB_RETURN_ON_FALSE((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack close failure returned (0x%x).", (int)mb_error);
     // free the controller will be performed in common slave object
@@ -150,24 +146,20 @@ static esp_err_t mbc_serial_slave_delete(void *ctx)
 static void mbc_serial_slave_iface_free(void *ctx)
 {
     mbs_controller_iface_t *mbs_iface = (mbs_controller_iface_t *)(ctx);
-    if (mbs_iface)
-    {
-        if (mbs_iface->opts.task_handle)
-        {
+    if (mbs_iface) {
+        if (mbs_iface->opts.task_handle) {
             vTaskDelete(mbs_iface->opts.task_handle);
             mbs_iface->opts.task_handle = NULL;
         }
-        if (mbs_iface->opts.event_group_handle)
-        {
+        if (mbs_iface->opts.event_group_handle) {
             vEventGroupDelete(mbs_iface->opts.event_group_handle);
             mbs_iface->opts.event_group_handle = NULL;
         }
-        if (mbs_iface->opts.notification_queue_handle)
-        {
+        if (mbs_iface->opts.notification_queue_handle) {
             vQueueDelete(mbs_iface->opts.notification_queue_handle);
         }
         free(mbs_iface); // free the memory allocated for interface
-    }   
+    }
 }
 
 static esp_err_t mbc_serial_slave_controller_create(void **ctx)
@@ -254,8 +246,7 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
     void *inst = (void *)mbs_controller_iface;
 
     // Initialize Modbus stack using mbcontroller parameters
-    if (pcomm_info->mode == MB_RTU)
-    {
+    if (pcomm_info->mode == MB_RTU) {
 #if (CONFIG_FMB_COMM_MODE_RTU_EN)
         err = mbs_rtu_create(pcomm_info, &inst);
 #else
@@ -263,9 +254,7 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
         ret = ESP_ERR_NOT_SUPPORTED;
         goto error;
 #endif
-    }
-    else if (pcomm_info->mode == MB_ASCII)
-    {
+    } else if (pcomm_info->mode == MB_ASCII) {
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN)
         err = mbs_ascii_create(pcomm_info, &inst);
 #else

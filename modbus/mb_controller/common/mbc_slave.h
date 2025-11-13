@@ -51,14 +51,13 @@ typedef struct {
 } mb_slave_options_t;
 
 typedef mb_event_group_t (*iface_check_event_fp)(void *, mb_event_group_t);          /*!< Interface method check_event */
-typedef esp_err_t (*iface_get_param_info_fp)(void *, mb_param_info_t*, uint32_t);    /*!< Interface method get_param_info */
+typedef esp_err_t (*iface_get_param_info_fp)(void *, mb_param_info_t *, uint32_t);   /*!< Interface method get_param_info */
 typedef esp_err_t (*iface_mbs_set_descriptor_fp)(void *, mb_register_area_descriptor_t); /*!< Interface method set_descriptor */
 
 /**
  * @brief Request mode for parameter to use in data dictionary
  */
-typedef struct
-{
+typedef struct {
     mb_base_t *mb_base;
     mb_slave_options_t opts;                /*!< Modbus slave options */
     bool is_active;                         /*!< Modbus controller interface is active */

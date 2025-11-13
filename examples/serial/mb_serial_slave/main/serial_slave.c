@@ -156,7 +156,7 @@ mb_exception_t my_custom_fc_handler(void *inst, uint8_t *frame_ptr, uint16_t *le
 {
     char *str_append = ":Slave";
     MB_RETURN_ON_FALSE((frame_ptr && len && *len < (MB_CUST_DATA_MAX_LEN - strlen(str_append))), MB_EX_ILLEGAL_DATA_VALUE, TAG,
-                            "incorrect custom frame");
+                       "incorrect custom frame");
     frame_ptr[*len] = '\0';
     strcat((char *)&frame_ptr[1], str_append);
     *len = (strlen(str_append) + *len); // the length of (response + command)
@@ -196,14 +196,14 @@ void app_main(void)
     // Try to delete the handler for specified command.
     esp_err_t err = mbc_delete_handler(mbc_slave_handle, custom_command);
     MB_RETURN_ON_FALSE((err == ESP_OK  || err == ESP_ERR_INVALID_STATE), ;, TAG,
-                        "could not delete handler, returned (0x%x).", (int)err);
+                       "could not delete handler, returned (0x%x).", (int)err);
     err = mbc_set_handler(mbc_slave_handle, custom_command, my_custom_fc_handler);
     MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
-                        "could not set or override handler, returned (0x%x).", (int)err);
+                       "could not set or override handler, returned (0x%x).", (int)err);
     mb_fn_handler_fp handler = NULL;
     err = mbc_get_handler(mbc_slave_handle, custom_command, &handler);
     MB_RETURN_ON_FALSE((err == ESP_OK && handler == my_custom_fc_handler), ;, TAG,
-                        "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
+                       "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
 
     // The code below initializes Modbus register area descriptors
     // for Modbus Holding Registers, Input Registers, Coils and Discrete Inputs
@@ -213,16 +213,16 @@ void app_main(void)
     // will send exception response for this register area.
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
     reg_area.start_offset = MB_REG_HOLDING_START_AREA0; // Offset of register area in Modbus protocol
-    reg_area.address = (void*)&holding_reg_params.holding_data0; // Set pointer to storage instance
+    reg_area.address = (void *)&holding_reg_params.holding_data0; // Set pointer to storage instance
     // Set the size of register storage instance in bytes
     reg_area.size = MB_REG_HOLDING_START_AREA0_SIZE;
     reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
-    
+
     // The second register area
     reg_area.type = MB_PARAM_HOLDING; // Set type of register area
     reg_area.start_offset = MB_REG_HOLDING_START_AREA1;
-    reg_area.address = (void*)&holding_reg_params.holding_data4;
+    reg_area.address = (void *)&holding_reg_params.holding_data4;
     reg_area.size = MB_REG_HOLDING_START_AREA1_SIZE;
     reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
@@ -231,7 +231,7 @@ void app_main(void)
     // The extended parameters register area
     reg_area.type = MB_PARAM_HOLDING;
     reg_area.start_offset = MB_REG_HOLDING_START_AREA2;
-    reg_area.address = (void*)&holding_reg_params.holding_u8_a;
+    reg_area.address = (void *)&holding_reg_params.holding_u8_a;
     reg_area.size = MB_REG_HOLDING_START_AREA2_SIZE;
     reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
@@ -240,19 +240,19 @@ void app_main(void)
     // Initialization of Input Registers area
     reg_area.type = MB_PARAM_INPUT;
     reg_area.start_offset = MB_REG_INPUT_START_AREA0;
-    reg_area.address = (void*)&input_reg_params.input_data0;
+    reg_area.address = (void *)&input_reg_params.input_data0;
     reg_area.size = sizeof(float) << 2;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
     reg_area.type = MB_PARAM_INPUT;
     reg_area.start_offset = MB_REG_INPUT_START_AREA1;
-    reg_area.address = (void*)&input_reg_params.input_data4;
+    reg_area.address = (void *)&input_reg_params.input_data4;
     reg_area.size = sizeof(float) << 2;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
 
     // Initialization of Coils register area
     reg_area.type = MB_PARAM_COIL;
     reg_area.start_offset = MB_REG_COILS_START;
-    reg_area.address = (void*)&coil_reg_params;
+    reg_area.address = (void *)&coil_reg_params;
     reg_area.size = sizeof(coil_reg_params);
     reg_area.access = MB_ACCESS_RW;
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
@@ -260,7 +260,7 @@ void app_main(void)
     // Initialization of Discrete Inputs register area
     reg_area.type = MB_PARAM_DISCRETE;
     reg_area.start_offset = MB_REG_DISCRETE_INPUT_START;
-    reg_area.address = (void*)&discrete_reg_params;
+    reg_area.address = (void *)&discrete_reg_params;
     reg_area.size = sizeof(discrete_reg_params);
     ESP_ERROR_CHECK(mbc_slave_set_descriptor(mbc_slave_handle, reg_area));
 
@@ -268,12 +268,12 @@ void app_main(void)
 
     // Set UART pin numbers
     ESP_ERROR_CHECK(uart_set_pin(MB_PORT_NUM, CONFIG_MB_UART_TXD,
-                            CONFIG_MB_UART_RXD, CONFIG_MB_UART_RTS,
-                            UART_PIN_NO_CHANGE));
+                                 CONFIG_MB_UART_RXD, CONFIG_MB_UART_RTS,
+                                 UART_PIN_NO_CHANGE));
 
     // Set UART driver mode to Half Duplex
     ESP_ERROR_CHECK(uart_set_mode(MB_PORT_NUM, UART_MODE_RS485_HALF_DUPLEX));
-    
+
     // Starts of modbus controller and stack
     err = mbc_slave_start(mbc_slave_handle);
 
@@ -285,8 +285,8 @@ void app_main(void)
     // This is the way to set Slave ID fields to retrieve it by master using report slave ID command.
     err = mbc_set_slave_id(mbc_slave_handle, comm_config.ser_opts.uid, is_running, &new_id_struct.length, new_id_struct.length);
     if (err == ESP_OK) {
-        ESP_LOGW("SET_SLAVE_ID", "dev_name: %s", (char*)new_id_struct.dev_name);
-        ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void*)&new_id_struct.length, new_id_struct.length, ESP_LOG_WARN);
+        ESP_LOGW("SET_SLAVE_ID", "dev_name: %s", (char *)new_id_struct.dev_name);
+        ESP_LOG_BUFFER_HEX_LEVEL("SET_SLAVE_ID", (void *)&new_id_struct.length, new_id_struct.length, ESP_LOG_WARN);
     } else {
         ESP_LOGE("SET_SLAVE_ID", "Set slave ID fail, err=%d.", err);
     }
@@ -297,24 +297,23 @@ void app_main(void)
 
     // The cycle below will be terminated when parameter holdingRegParams.dataChan0
     // incremented each access cycle reaches the CHAN_DATA_MAX_VAL value.
-    for(;holding_reg_params.holding_data0 < MB_CHAN_DATA_MAX_VAL;) {
+    for (; holding_reg_params.holding_data0 < MB_CHAN_DATA_MAX_VAL;) {
         // Check for read/write events of Modbus master for certain events
         (void)mbc_slave_check_event(mbc_slave_handle, MB_READ_WRITE_MASK);
         // Get parameter information from parameter queue
         ESP_ERROR_CHECK(mbc_slave_get_param_info(mbc_slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));
-        const char* rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
+        const char *rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";
 
         // Filter events and process them accordingly
-        if(reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
+        if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
             ESP_LOGI(TAG, "HOLDING %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                            rw_str,
-                            reg_info.time_stamp,
-                            (unsigned)reg_info.mb_offset,
-                            (unsigned)reg_info.type,
-                            (uint32_t)reg_info.address,
-                            (unsigned)reg_info.size);
-            if (reg_info.address == (uint8_t*)&holding_reg_params.holding_data0)
-            {
+                     rw_str,
+                     reg_info.time_stamp,
+                     (unsigned)reg_info.mb_offset,
+                     (unsigned)reg_info.type,
+                     (uint32_t)reg_info.address,
+                     (unsigned)reg_info.size);
+            if (reg_info.address == (uint8_t *)&holding_reg_params.holding_data0) {
                 (void)mbc_slave_lock(mbc_slave_handle);
                 holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
                 if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
@@ -324,26 +323,26 @@ void app_main(void)
             }
         } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
             ESP_LOGI(TAG, "INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                            reg_info.time_stamp,
-                            (unsigned)reg_info.mb_offset,
-                            (unsigned)reg_info.type,
-                            (uint32_t)reg_info.address,
-                            (unsigned)reg_info.size);
+                     reg_info.time_stamp,
+                     (unsigned)reg_info.mb_offset,
+                     (unsigned)reg_info.type,
+                     (uint32_t)reg_info.address,
+                     (unsigned)reg_info.size);
         } else if (reg_info.type & MB_EVENT_DISCRETE_RD) {
             ESP_LOGI(TAG, "DISCRETE READ (%" PRIu32 " us): ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                            reg_info.time_stamp,
-                            (unsigned)reg_info.mb_offset,
-                            (unsigned)reg_info.type,
-                            (uint32_t)reg_info.address,
-                            (unsigned)reg_info.size);
+                     reg_info.time_stamp,
+                     (unsigned)reg_info.mb_offset,
+                     (unsigned)reg_info.type,
+                     (uint32_t)reg_info.address,
+                     (unsigned)reg_info.size);
         } else if (reg_info.type & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
             ESP_LOGI(TAG, "COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                            rw_str,
-                            reg_info.time_stamp,
-                            (unsigned)reg_info.mb_offset,
-                            (unsigned)reg_info.type,
-                            (uint32_t)reg_info.address,
-                            (unsigned)reg_info.size);
+                     rw_str,
+                     reg_info.time_stamp,
+                     (unsigned)reg_info.mb_offset,
+                     (unsigned)reg_info.type,
+                     (uint32_t)reg_info.address,
+                     (unsigned)reg_info.size);
             if (coil_reg_params.coils_port1 == 0xFF) {
                 ESP_LOGI(TAG, "Stop polling.");
                 break;
@@ -351,7 +350,7 @@ void app_main(void)
         }
     }
     // Destroy of Modbus controller on alarm
-    ESP_LOGI(TAG,"Modbus controller destroyed.");
+    ESP_LOGI(TAG, "Modbus controller destroyed.");
     vTaskDelay(100);
     ESP_ERROR_CHECK(mbc_slave_delete(mbc_slave_handle));
 }

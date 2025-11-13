@@ -77,7 +77,7 @@ mb_err_enum_t mbm_rq_read_inp_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t re
 
     mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF]       = reg_addr >> 8;
     mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1]   = reg_addr;
-    
+
     mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF]     = reg_num >> 8;
     mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF + 1] = reg_num;
 
@@ -93,7 +93,7 @@ mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t
     mb_err_enum_t reg_status = MB_EILLFUNC;
     uint16_t reg_cnt;
     uint16_t reg_address;
-    uint8_t *mb_frame_ptr;    
+    uint8_t *mb_frame_ptr;
 
     /* If this request is broadcast, and it's read mode. This request don't need execute. */
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {

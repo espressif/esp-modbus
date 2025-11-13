@@ -90,12 +90,10 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 mb_err_enum_t mbm_rq_write_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t reg_addr, uint16_t reg_data, uint32_t tout)
 {
     uint8_t *mb_frame_ptr;
-    if (snd_addr > MB_ADDRESS_MAX)
-    {
+    if (snd_addr > MB_ADDRESS_MAX) {
         return MB_EINVAL;
     }
-    if (!mb_port_event_res_take(inst->port_obj, tout))
-    {
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
     inst->get_send_buf(inst, &mb_frame_ptr);
@@ -120,27 +118,22 @@ mb_exception_t mbm_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
     mb_exception_t status = MB_EX_NONE;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    if (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_SIZE))
-    {
+    if (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_SIZE)) {
         uint16_t reg_address;
         reg_address = (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF + 1]);
         reg_address++;
 
         /* Make callback to update the value. */
-        if (inst->rw_cbs.reg_holding_cb)
-        {
+        if (inst->rw_cbs.reg_holding_cb) {
             reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_WRITE_VALUE_OFF], reg_address, 1, MB_REG_WRITE);
         }
 
         /* If an error occured convert it into a Modbus exception. */
-        if (reg_status != MB_ENOERR)
-        {
+        if (reg_status != MB_ENOERR) {
             status = mb_error_to_exception(reg_status);
         }
-    }
-    else
-    {
+    } else {
         /* Can't be a valid request because the length is incorrect. */
         status = MB_EX_ILLEGAL_DATA_VALUE;
     }
@@ -166,12 +159,10 @@ mb_err_enum_t mbm_rq_write_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, 
     uint8_t *mb_frame_ptr;
     uint16_t reg_idx = 0;
 
-    if (!data_ptr || !inst || (snd_addr > MB_ADDRESS_MAX))
-    {
+    if (!data_ptr || !inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
-    if (!mb_port_event_res_take(inst->port_obj, tout))
-    {
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
 
@@ -190,8 +181,7 @@ mb_err_enum_t mbm_rq_write_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, 
 
     mb_frame_ptr += MB_PDU_REQ_WRITE_MUL_VALUES_OFF;
 
-    while (reg_num > reg_idx)
-    {
+    while (reg_num > reg_idx) {
         *mb_frame_ptr++ = data_ptr[reg_idx] >> 8;
         *mb_frame_ptr++ = data_ptr[reg_idx++];
     }
@@ -212,8 +202,7 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
     /* If this request is broadcast, the *len_buf is not need check. */
-    if ((*len_buf == MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_MUL_SIZE) || inst->transp_obj->frm_is_bcast(inst->transp_obj))
-    {
+    if ((*len_buf == MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_MUL_SIZE) || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF + 1]);
@@ -224,27 +213,20 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
 
         byte_count = mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_BYTECNT_OFF];
 
-        if (byte_count == 2 * reg_count)
-        {
+        if (byte_count == 2 * reg_count) {
             /* Make callback to update the register values. */
-            if (inst->rw_cbs.reg_holding_cb)
-            {
+            if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_VALUES_OFF],
-                                                         reg_address, reg_count, MB_REG_WRITE);
+                             reg_address, reg_count, MB_REG_WRITE);
             }
             /* If an error occured convert it into a Modbus exception. */
-            if (reg_status != MB_ENOERR)
-            {
+            if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             }
-        }
-        else
-        {
+        } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;
         }
-    }
-    else
-    {
+    } else {
         /* Can't be a valid request because the length is incorrect. */
         status = MB_EX_ILLEGAL_DATA_VALUE;
     }
@@ -268,12 +250,10 @@ mb_err_enum_t mbm_rq_read_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_
 {
     uint8_t *mb_frame_ptr;
 
-    if (!inst || (snd_addr > MB_ADDRESS_MAX))
-    {
+    if (!inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
-    if (!mb_port_event_res_take(inst->port_obj, tout))
-    {
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
     inst->get_send_buf(inst, &mb_frame_ptr);
@@ -306,12 +286,9 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
 
     is_broadcast = inst->transp_obj->frm_is_bcast(inst->transp_obj);
 
-    if (is_broadcast == true)
-    {
+    if (is_broadcast == true) {
         status = MB_EX_NONE;
-    }
-    else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN)
-    {
+    } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1]);
@@ -322,27 +299,20 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
         /* Check if the number of registers to read is valid. If not
          * return Modbus illegal data value exception.
          */
-        if ((reg_count >= 1) && (2 * reg_count == frame_ptr[MB_PDU_FUNC_READ_BYTECNT_OFF]))
-        {
+        if ((reg_count >= 1) && (2 * reg_count == frame_ptr[MB_PDU_FUNC_READ_BYTECNT_OFF])) {
             /* Make callback to update the register values. */
-            if (inst->rw_cbs.reg_holding_cb)
-            {
+            if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_READ_VALUES_OFF],
-                                                         reg_address, reg_count, MB_REG_READ);
+                             reg_address, reg_count, MB_REG_READ);
             }
             /* If an error occured convert it into a Modbus exception. */
-            if (reg_status != MB_ENOERR)
-            {
+            if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             }
-        }
-        else
-        {
+        } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;
         }
-    }
-    else
-    {
+    } else {
         /* Can't be a valid request because the length is incorrect. */
         status = MB_EX_ILLEGAL_DATA_VALUE;
     }
@@ -367,17 +337,15 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
  * @return error code
  */
 mb_err_enum_t mbm_rq_rw_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t rd_reg_addr,
-                                          uint16_t rd_reg_num, uint16_t *data_ptr, uint16_t wr_reg_addr, uint16_t wr_reg_num, uint32_t tout)
+        uint16_t rd_reg_num, uint16_t *data_ptr, uint16_t wr_reg_addr, uint16_t wr_reg_num, uint32_t tout)
 {
     uint8_t *mb_frame_ptr;
     uint16_t reg_idx = 0;
 
-    if (!data_ptr || !inst || (snd_addr > MB_ADDRESS_MAX))
-    {
+    if (!data_ptr || !inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
-    if (!mb_port_event_res_take(inst->port_obj, tout))
-    {
+    if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
     inst->get_send_buf(inst, &mb_frame_ptr);
@@ -400,8 +368,7 @@ mb_err_enum_t mbm_rq_rw_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, uin
 
     mb_frame_ptr += MB_PDU_REQ_READWRITE_WRITE_VALUES_OFF;
 
-    while (wr_reg_num > reg_idx)
-    {
+    while (wr_reg_num > reg_idx) {
         *mb_frame_ptr++ = data_ptr[reg_idx] >> 8;
         *mb_frame_ptr++ = data_ptr[reg_idx++];
     }
@@ -421,12 +388,9 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
     uint8_t *mb_frame_ptr;
 
     /* If this request is broadcast, and it's read mode. This request don't need execute. */
-    if (inst->transp_obj->frm_is_bcast(inst->transp_obj))
-    {
+    if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
         status = MB_EX_NONE;
-    }
-    else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN)
-    {
+    } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_rd_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF] << 8);
         reg_rd_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF + 1]);
@@ -442,31 +406,24 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
         reg_wr_cnt = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_REGCNT_OFF] << 8U);
         reg_wr_cnt |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_REGCNT_OFF + 1]);
 
-        if ((2 * reg_rd_cnt) == frame_ptr[MB_PDU_FUNC_READWRITE_READ_BYTECNT_OFF])
-        {
+        if ((2 * reg_rd_cnt) == frame_ptr[MB_PDU_FUNC_READWRITE_READ_BYTECNT_OFF]) {
             /* Make callback to update the register values. */
-            if (inst->rw_cbs.reg_holding_cb)
-            {
+            if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_VALUES_OFF],
-                                                         reg_wr_address, reg_wr_cnt, MB_REG_WRITE);
+                             reg_wr_address, reg_wr_cnt, MB_REG_WRITE);
             }
 
-            if (reg_status == MB_ENOERR)
-            {
+            if (reg_status == MB_ENOERR) {
                 /* Make the read callback. */
-                if (inst->rw_cbs.reg_holding_cb)
-                {
+                if (inst->rw_cbs.reg_holding_cb) {
                     reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_READWRITE_READ_VALUES_OFF],
-                                                             reg_rd_address, reg_rd_cnt, MB_REG_READ);
+                                 reg_rd_address, reg_rd_cnt, MB_REG_READ);
                 }
             }
-            if (reg_status != MB_ENOERR)
-            {
+            if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             }
-        }
-        else
-        {
+        } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;
         }
     }

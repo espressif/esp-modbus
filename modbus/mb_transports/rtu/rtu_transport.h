@@ -46,8 +46,7 @@ extern "C" {
 #define MB_RTU_SER_PDU_ADDR_OFF     0                       /*!< Offset of slave address in Ser-PDU. */
 #define MB_RTU_SER_PDU_PDU_OFF      1                       /*!< Offset of Modbus-PDU in Ser-PDU. */
 
-typedef enum
-{
+typedef enum {
     MB_RTU_STATE_INIT,              /*!< Receiver is in initial state. */
     MB_RTU_STATE_ACTIVE,            /*!< Receiver is in active state. */
     MB_RTU_STATE_ERROR              /*!< If the frame is invalid. */

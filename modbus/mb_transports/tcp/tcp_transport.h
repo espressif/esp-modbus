@@ -25,8 +25,7 @@ extern "C" {
 
 #define MB_TCP_TIMEOUT_MS       (1000)
 
-typedef enum
-{
+typedef enum {
     MB_TCP_STATE_INIT,              /*!< Receiver is in initial state. */
     MB_TCP_STATE_ACTIVE,            /*!< Receiver is in active state. */
     MB_TCP_STATE_ERROR              /*!< If the frame is invalid. */

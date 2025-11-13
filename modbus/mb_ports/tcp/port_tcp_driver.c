@@ -118,8 +118,8 @@ static esp_err_t mb_drv_event_loop_init(void *ctx)
     };
     if (!mb_drv_loop_handle && !mb_drv_loop_inst_counter) {
         err = esp_event_loop_create(&loop_args, &mb_drv_loop_handle);
-        MB_RETURN_ON_FALSE(((err == ESP_OK) && mb_drv_loop_handle), ESP_ERR_INVALID_STATE, 
-                                TAG, "create event loop failed, err=%d.", (int)err);
+        MB_RETURN_ON_FALSE(((err == ESP_OK) && mb_drv_loop_handle), ESP_ERR_INVALID_STATE,
+                           TAG, "create event loop failed, err=%d.", (int)err);
     }
     drv_obj->event_loop_hdl = mb_drv_loop_handle;
     if (asprintf(&drv_obj->loop_name, "loop:%p", ctx) == -1) {
@@ -133,8 +133,8 @@ static esp_err_t mb_drv_event_loop_deinit(void *ctx)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     esp_err_t err = ESP_OK;
     // delete event loop
-    MB_RETURN_ON_FALSE((mb_drv_loop_handle), ESP_ERR_INVALID_STATE, 
-                                    TAG, "delete event loop failed.");
+    MB_RETURN_ON_FALSE((mb_drv_loop_handle), ESP_ERR_INVALID_STATE,
+                       TAG, "delete event loop failed.");
     if (mb_drv_loop_inst_counter) {
         ESP_LOGD(TAG, "delete loop inst: %s.", drv_obj->loop_name);
         free(drv_obj->loop_name);
@@ -145,8 +145,8 @@ static esp_err_t mb_drv_event_loop_deinit(void *ctx)
         err = esp_event_loop_delete(mb_drv_loop_handle);
         ESP_LOGD(TAG, "delete event loop: %p.", mb_drv_loop_handle);
         mb_drv_loop_handle = NULL;
-        MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, 
-                                TAG, "delete event loop failed, error=%d.", (int)err);
+        MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
+                           TAG, "delete event loop failed, error=%d.", (int)err);
     }
     return err;
 }
@@ -159,14 +159,14 @@ esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_num_t event_num, mb
 
     ESP_LOGD(TAG, "%p, event #%d, 0x%x, register.", drv_obj, (int)event_num, (int)event);
     MB_RETURN_ON_FALSE((drv_obj->event_handler[event_num] == NULL), ESP_ERR_INVALID_ARG,
-                        TAG, "%p, event handler %p, for event %x, is not empty.", drv_obj, drv_obj->event_handler[event_num], (int)event);
+                       TAG, "%p, event handler %p, for event %x, is not empty.", drv_obj, drv_obj->event_handler[event_num], (int)event);
 
     ret = esp_event_handler_instance_register_with(mb_drv_loop_handle, MB_EVENT_BASE(ctx), event,
-                                                                fp, ctx, &drv_obj->event_handler[event_num]);
+            fp, ctx, &drv_obj->event_handler[event_num]);
     ESP_LOGD(TAG, "%p, registered event handler %p, event 0x%x", drv_obj, drv_obj->event_handler[event_num], (int)event);
     MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE,
-                            TAG, "%p, event handler %p, registration error.", drv_obj, drv_obj->event_handler[event_num]);
-    
+                       TAG, "%p, event handler %p, registration error.", drv_obj, drv_obj->event_handler[event_num]);
+
     return ESP_OK;
 }
 
@@ -178,13 +178,13 @@ esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_num_t event_num)
 
     ESP_LOGD(TAG, "%p, event handler %p, event 0x%x, unregister.", drv_obj, drv_obj->event_handler[event_num], (int)event);
     MB_RETURN_ON_FALSE((drv_obj->event_handler[event_num]), ESP_ERR_INVALID_ARG,
-                        TAG, "%p, event handler %p, for event %x, is incorrect.", drv_obj, drv_obj->event_handler[event_num], (int)event);
+                       TAG, "%p, event handler %p, for event %x, is incorrect.", drv_obj, drv_obj->event_handler[event_num], (int)event);
 
     ret = esp_event_handler_instance_unregister_with(mb_drv_loop_handle,
-                                                      MB_EVENT_BASE(ctx), (int32_t)event, drv_obj->event_handler[event_num]);
+            MB_EVENT_BASE(ctx), (int32_t)event, drv_obj->event_handler[event_num]);
     drv_obj->event_handler[event_num] = NULL;
-    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE ,
-                        TAG, "%p, event handler %p, instance unregister with, error = %d", drv_obj, drv_obj->event_handler[event_num], (int)ret);
+    MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE,
+                       TAG, "%p, event handler %p, instance unregister with, error = %d", drv_obj, drv_obj->event_handler[event_num], (int)ret);
 
     return ESP_OK;
 }
@@ -273,10 +273,10 @@ mb_status_flags_t mb_drv_wait_status_flag(void *ctx, mb_status_flags_t mask, Tic
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     return (mb_status_flags_t)xEventGroupWaitBits(drv_obj->status_flags_hdl,
-                                            (BaseType_t)(mask),
-                                            pdFALSE,
-                                            pdFALSE,
-                                            ticks);
+            (BaseType_t)(mask),
+            pdFALSE,
+            pdFALSE,
+            ticks);
 }
 
 int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
@@ -294,8 +294,8 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
                 goto err;
             }
             ESP_LOGD(TAG, "%p, open vfd: %d, sl_addr: %02x, node: %s:%u",
-                        ctx, fd, (int8_t)addr_info.uid,
-                        addr_info.ip_addr_str, (unsigned)addr_info.port);
+                     ctx, fd, (int8_t)addr_info.uid,
+                     addr_info.ip_addr_str, (unsigned)addr_info.port);
             if (init_queues(node_ptr) != ESP_OK) {
                 goto err;
             }
@@ -417,11 +417,9 @@ int mb_drv_close(void *ctx, int fd)
     // stop socket
     if (MB_GET_NODE_STATE(node_ptr) != MB_SOCK_STATE_CLOSED) {
         // Do we need to close connection, if the close event is not run
-        if ((node_ptr->sock_id > 0) && (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)))
-        {
+        if ((node_ptr->sock_id > 0) && (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
             FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
-            if (drv_obj->node_conn_count)
-            {
+            if (drv_obj->node_conn_count) {
                 drv_obj->node_conn_count--;
             }
         }
@@ -456,8 +454,8 @@ mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fd
     for (int fd = *fd_ptr; fd < MB_MAX_FDS; fd++) {
         node_ptr = drv_obj->mb_nodes[fd];
         if (node_ptr && (node_ptr->sock_id > 0)
-            && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED) 
-            && (FD_ISSET(node_ptr->index, fdset) || (FD_ISSET(node_ptr->sock_id, fdset)))) {
+                && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)
+                && (FD_ISSET(node_ptr->index, fdset) || (FD_ISSET(node_ptr->sock_id, fdset)))) {
             *fd_ptr = fd;
             //FD_CLR(node_ptr->sock_id, fdset);
             return node_ptr;
@@ -526,7 +524,7 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
         ret = ERR_TIMEOUT;
     } else if (ret < 0) {
         ret = -1;
-    } 
+    }
     *fdset = readset;
     return ret;
 }
@@ -549,10 +547,10 @@ esp_err_t mb_drv_stop_task(void *ctx)
     }
     (void)mb_drv_set_status_flag(ctx, MB_FLAG_SUSPEND);
     // Check if we can safely suspend the port task (workaround for issue with deadlock in suspend)
-    if (!drv_obj->close_done_sema 
-            || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SUSPEND, 1) & MB_FLAG_SUSPEND) 
+    if (!drv_obj->close_done_sema
+            || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SUSPEND, 1) & MB_FLAG_SUSPEND)
             || (xSemaphoreTake(drv_obj->close_done_sema, pdMS_TO_TICKS(MB_WAIT_DONE_MS)) != pdTRUE)
-            ) {
+       ) {
         ESP_LOGD(TAG, "%p, could not stop driver task during timeout.", ctx);
         vTaskSuspend(drv_obj->mb_tcp_task_handle);
         err = ESP_OK;
@@ -575,12 +573,12 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
     if (pnode && FD_ISSET(pnode->sock_id, &drv_obj->conn_set)) {
         uint64_t last_read_div_us = (esp_timer_get_time() - pnode->recv_time);
         ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection timeout = %" PRId64 ", rcv_time: %" PRId64 " %" PRIu32,
-                    ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
-                    (esp_timer_get_time() / 1000), pnode->recv_time / 1000, timeout_ms);
+                 ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
+                 (esp_timer_get_time() / 1000), pnode->recv_time / 1000, timeout_ms);
         if (last_read_div_us >= (uint64_t)(timeout_ms * 1000)) {
             ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection state, time = %" PRId64 ", rcv_time: %" PRId64,
-                        ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
-                        (esp_timer_get_time() / 1000), pnode->recv_time / 1000);
+                     ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
+                     (esp_timer_get_time() / 1000), pnode->recv_time / 1000);
             err = port_check_alive(pnode, 1); // minimize blocking time
             if ((err < 0) && (err != ERR_INPROGRESS)) {
                 ESP_LOGD(TAG, "Node #%d (%s), connection error, err=(%d).", pnode->index, pnode->addr_info.ip_addr_str, (int)err);
@@ -617,8 +615,8 @@ void mb_drv_tcp_task(void *ctx)
             if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
                 mb_event_info_t mb_event = {0};
                 int32_t event_id = read_event(ctx, &mb_event);
-                ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s", 
-                            ctx, (int)event_id, (int)mb_event.opt_fd, driver_event_to_name_r(event_id));
+                ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
+                         ctx, (int)event_id, (int)mb_event.opt_fd, driver_event_to_name_r(event_id));
                 mb_drv_check_suspend_shutdown(ctx);
                 // Drive the event loop
                 esp_err_t err = esp_event_loop_run(mb_drv_loop_handle, pdMS_TO_TICKS(MB_TCP_EVENT_LOOP_TICK_MS));
@@ -656,35 +654,35 @@ void mb_drv_tcp_task(void *ctx)
                 int curr_fd = 0;
                 mb_node_info_t *node_ptr = NULL;
                 ESP_LOGD(TAG, "%p, socket event active: %" PRIx64, ctx, *(uint64_t *)&readset);
-                while(((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
-                           && (curr_fd < MB_MAX_FDS))) {
+                while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
+                        && (curr_fd < MB_MAX_FDS))) {
                     if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
                         // The data is ready in the socket, read frame and queue
                         FD_CLR(node_ptr->sock_id, &readset);
                         int ret = port_read_packet(node_ptr);
                         if (ret > 0) {
                             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame received."), ctx, (int)node_ptr->fd,
-                                        (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                             mb_drv_lock(ctx);
                             node_ptr->recv_time = esp_timer_get_time();
                             mb_drv_unlock(ctx);
                             DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, node_ptr->index);
                         } else if (ret == ERR_TIMEOUT) {
                             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame read timeout or closed connection."), ctx, (int)node_ptr->fd,
-                                        (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                         } else if (ret == ERR_BUF) {
                             // After retries a response with incorrect TID received, process failure.
                             drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_FAIL);
                             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame error."), ctx, (int)node_ptr->fd,
-                                        (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                         } else {
                             if (ret == ERR_CONN) {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,
-                                            (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                                         (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                                 DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             } else {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)node_ptr->fd,
-                                        (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
+                                         (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
                                 DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             }
                         }
@@ -702,7 +700,7 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
     port_driver_t driver_config = MB_DRIVER_CONFIG_DEFAULT;
     esp_err_t ret = ESP_ERR_INVALID_STATE;
     int i = 0;
-    
+
     port_driver_t *pctx = (port_driver_t *)calloc(1, sizeof(port_driver_t));
     MB_GOTO_ON_FALSE((pctx), ESP_ERR_NO_MEM, error, TAG, "%p, driver allocation fail.", pctx);
     *pctx = driver_config;
@@ -722,29 +720,29 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
     }
 
     ret = init_event_fd((void *)pctx);
-    MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE , error, 
-                        TAG, "%p, vfs eventfd init error.", pctx);
+    MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE, error,
+                     TAG, "%p, vfs eventfd init error.", pctx);
 
     ret = mb_drv_event_loop_init((void *)pctx);
-    MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE , error, 
-                        TAG, "%p, event loop init error.", pctx);
+    MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE, error,
+                     TAG, "%p, event loop init error.", pctx);
 
     pctx->status_flags_hdl = xEventGroupCreate();
-    MB_GOTO_ON_FALSE((pctx->status_flags_hdl), ESP_ERR_INVALID_STATE, error, 
-                        TAG, "%p, mb event group error.", pctx);
+    MB_GOTO_ON_FALSE((pctx->status_flags_hdl), ESP_ERR_INVALID_STATE, error,
+                     TAG, "%p, mb event group error.", pctx);
 
     mb_drv_loop_inst_counter++;
 
     // Create task for packet processing
     BaseType_t state = xTaskCreatePinnedToCore(mb_drv_tcp_task,
-                                                "mb_drv_tcp_task",
-                                                MB_TASK_STACK_SZ,
-                                                pctx,
-                                                MB_TASK_PRIO,
-                                                &pctx->mb_tcp_task_handle,
-                                                MB_PORT_TASK_AFFINITY);
-    MB_GOTO_ON_FALSE((state == pdTRUE), ESP_ERR_INVALID_STATE , error, 
-                        TAG, "%p, event task creation error.", pctx);
+                       "mb_drv_tcp_task",
+                       MB_TASK_STACK_SZ,
+                       pctx,
+                       MB_TASK_PRIO,
+                       &pctx->mb_tcp_task_handle,
+                       MB_PORT_TASK_AFFINITY);
+    MB_GOTO_ON_FALSE((state == pdTRUE), ESP_ERR_INVALID_STATE, error,
+                     TAG, "%p, event task creation error.", pctx);
     (void)mb_drv_stop_task(pctx);
 
     *ctx = pctx;
@@ -786,10 +784,10 @@ esp_err_t mb_drv_unregister(void *ctx)
     drv_obj->close_done_sema = xSemaphoreCreateBinary();
 
     // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
-    if (!drv_obj->close_done_sema 
-            || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SHUTDOWN, 0) & MB_FLAG_SHUTDOWN) 
+    if (!drv_obj->close_done_sema
+            || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SHUTDOWN, 0) & MB_FLAG_SHUTDOWN)
             || (xSemaphoreTake(drv_obj->close_done_sema, pdMS_TO_TICKS(MB_WAIT_DONE_MS)) != pdTRUE)
-            ) {
+       ) {
         ESP_LOGD(TAG, "%p, driver tasks couldn't exit within timeout -> abruptly deleting the task.", drv_obj);
         vTaskDelete(drv_obj->mb_tcp_task_handle);
     }

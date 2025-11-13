@@ -85,9 +85,8 @@ int mb_ascii_get_binary_buf(uint8_t *data_ptr, int length)
             lrc += data_ptr[bin_idx++];
         }
     }
-    
+
     lrc = (uint8_t)(-((char)lrc));
     bin_idx = ((lrc == 0) && (bin_idx == ((length - 3) >> 1))) ? bin_idx : -1;
     return bin_idx;
 }
-
