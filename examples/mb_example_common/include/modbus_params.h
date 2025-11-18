@@ -17,7 +17,7 @@
 #include "sdkconfig.h"
 
 // This file defines structure of modbus parameters which reflect correspond modbus address space
-// for each modbus register type (coils, discreet inputs, holding registers, input registers)
+// for each modbus register type (coils, discrete inputs, holding registers, input registers)
 #pragma pack(push, 1)
 typedef struct {
     uint8_t discrete_input0: 1;

@@ -28,8 +28,8 @@ extern "C" {
 
 /* ----------------------- Defines ------------------------------------------*/
 
-// Set the maximum resource waiting time, the actual time of resouce release
-// will be dependent on response time set by timer + convertion time if the command is received
+// Set the maximum resource waiting time, the actual time of resource release
+// will be dependent on response time set by timer + conversion time if the command is received
 #define MB_MAX_RESP_DELAY_MS (3000)
 
 /**

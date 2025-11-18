@@ -75,7 +75,7 @@ E (1692332) MB_CONTROLLER_MASTER: mbc_master_get_parameter(111): SERIAL master g
 ESP_ERR_TIMEOUT (0x107) - Modbus slave device does not respond during configured timeout. Check the connection and ability for communication using uart_echo_rs485 example or increase
 Kconfig value CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND (CONFIG_FMB_SERIAL_ASCII_TIMEOUT_RESPOND_MS).
 
-ESP_ERR_NOT_SUPPORTED (0x106), ESP_ERR_INVALID_RESPONSE (0x108) - Modbus slave device does not support requested command or register and sent exeption response. 
+ESP_ERR_NOT_SUPPORTED (0x106), ESP_ERR_INVALID_RESPONSE (0x108) - Modbus slave device does not support requested command or register and sent exception response.
 
 ESP_ERR_INVALID_STATE (0x103) - Modbus stack is not configured correctly or can't work correctly due to critical failure.
  

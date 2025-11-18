@@ -39,7 +39,7 @@ mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t 
  *   - mb_err_enum_t::MB_ENOERR If no error occurred. In this case a normal
  *       Modbus response is sent.
  *   - mb_err_enum_t::MB_ENOREG if can not map the data of the registers
- *   - mb_err_enum_t::MB_EILLSTATE if can not procceed with data transfer due to critical error
+ *   - mb_err_enum_t::MB_EILLSTATE if can not proceed with data transfer due to critical error
  *   - mb_err_enum_t::MB_EINVAL if value data can not be transferred
  */
 mb_err_enum_t mbc_reg_common_cb(mb_base_t *inst, uint8_t *data_ptr, uint16_t address, uint16_t bytes);

@@ -709,7 +709,7 @@ esp_err_t mbc_master_set_param_data(void *dest, void *src, mb_descr_type_t param
 
 // Helper function to get configured Modbus command for each type of Modbus register area.
 // Supports custom command options using the PAR_PERMS_CUST_CMD permission.
-// The MB_PARAM_CUSTOM register type mimics the custom commands specificly handled with
+// The MB_PARAM_CUSTOM register type mimics the custom commands specifically handled with
 // custom command handlers which have to be defined in command handling table.
 uint8_t mbc_master_get_command(const mb_parameter_descriptor_t *descr, mb_param_mode_t mode)
 {

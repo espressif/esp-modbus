@@ -24,6 +24,3 @@ COMPONENT_SRCDIRS = $(addprefix freemodbus/, \
 COMPONENT_ADD_INCLUDEDIRS = $(addprefix freemodbus/, \
 	$(INCLUDEDIRS) \
 	)
-
-
-

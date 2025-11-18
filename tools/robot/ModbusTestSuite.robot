@@ -11,7 +11,7 @@ Suite Teardown    Disconnect
 ${suiteConnection}    None
 
 *** Test Cases ***
-Test Cusom Command Request
+Test Custom Command Request
     [Documentation]    Test reading slave UID, running status, identificator structure (use custom frame template)
     [Template]    Custom Command
     0x01    [0x41]    0    ${None}                                                              # Try to send shortest request for custom command, do not check the buffer

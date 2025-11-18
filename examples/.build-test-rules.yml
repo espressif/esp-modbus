@@ -23,5 +23,3 @@ serial/mb_serial_slave:
   disable_test:
     - if: IDF_TARGET != "esp32" or CONFIG_NAME == "dummy_config"
       reason: only manual test is performed
-
-

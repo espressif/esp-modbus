@@ -1,6 +1,12 @@
 /*
- * FreeRTOS Modbus Libary: A Modbus serial implementation for FreeRTOS
- * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * SPDX-FileCopyrightText: 2006 Christian Walter
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeRTOS Modbus Library: A Modbus serial implementation for FreeRTOS
  * Copyright (C) 2006 Christian Walter <wolti@sil.at>
  *
  * This library is free software; you can redistribute it and/or
@@ -82,7 +88,7 @@ mbs_fn_read_discrete_inp(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
                 reg_status = inst->rw_cbs.reg_discrete_cb(inst, frame_cur, reg_addr, discrete_cnt);
             }
 
-            /* If an error occured convert it into a Modbus exception. */
+            /* If an error occurred convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {

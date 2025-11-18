@@ -84,7 +84,7 @@ struct port_tcp_opts_s {
 
 typedef struct port_tcp_opts_s mb_tcp_opts_t;
 
-// The common object descriptor struture (common for mb, transport, port objects)
+// The common object descriptor structure (common for mb, transport, port objects)
 struct obj_descr_s {
     char *parent_name;              /*!< Name of the parent (base) object */
     char *obj_name;                 /*!< Name of the object */

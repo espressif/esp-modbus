@@ -240,7 +240,7 @@ mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in
     err = uart_driver_install(ser_port->ser_opts.port, MB_BUFFER_SIZE, MB_BUFFER_SIZE,
                               MB_QUEUE_LENGTH, &ser_port->uart_queue, MB_PORT_SERIAL_ISR_FLAG);
     MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG,
-                     "%s, mb serial driver failure, retuned (0x%x).", ser_port->base.descr.parent_name, (int)err);
+                     "%s, mb serial driver failure, returned (0x%x).", ser_port->base.descr.parent_name, (int)err);
     err = uart_set_rx_timeout(ser_port->ser_opts.port, MB_SERIAL_TOUT);
     MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error, TAG,
                      "%s, mb serial set rx timeout failure, returned (0x%x).", ser_port->base.descr.parent_name, (int)err);

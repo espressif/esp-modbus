@@ -3,10 +3,8 @@
 cmake_minimum_required(VERSION 3.5)
 
 # The workaround to expliciply remove the component from dependency list.
-# This should allow to avoid GNU static analizer warnings for the esp_http_server component.
+# This should allow to avoid GNU static analyzer warnings for the esp_http_server component.
 set(EXCLUDE_COMPONENTS esp_http_server)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(mb_serial_cpp)
-
-

@@ -4,9 +4,9 @@ menu "Modbus Test Configuration"
         bool "Enable Modbus port adapter to substitute hardware layer for test."
         default y
         help
-                When option is enabled the port communication layer is substituted by 
+                When option is enabled the port communication layer is substituted by
                 port adapter layer to allow testing of higher layers without access to physical layer.
-    
+
     config MB_TEST_SLAVE_TASK_PRIO
         int "Modbus master test task priority"
         range 4 23

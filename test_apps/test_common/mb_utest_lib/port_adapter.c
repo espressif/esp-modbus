@@ -50,7 +50,7 @@ typedef struct _mb_adapter_port_entry {
     mb_uid_info_t addr_info;
     QueueHandle_t rx_queue;
     QueueHandle_t tx_queue;
-    QueueHandle_t conn_queue;                   /*!< conection queue handle */
+    QueueHandle_t conn_queue;                   /*!< connection queue handle */
     SemaphoreHandle_t conn_sema_handle;         /*!< connection blocking semaphore handle */
     esp_timer_handle_t timer_handle;
     EventGroupHandle_t event_group_handle;
@@ -380,7 +380,7 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     int res = asprintf(&string_ptr, "%d;%s;%u", (unsigned)addr_info->uid,
                        adapter_obj->base.descr.parent_name, (unsigned)addr_info->port);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
-                     TAG, "object adress info alloc fail, err: %d", (int)res);
+                     TAG, "object address info alloc fail, err: %d", (int)res);
     adapter_obj->base.cb.tmr_expired = mb_port_adapter_timer_expired;
     adapter_obj->base.cb.tx_empty = NULL;
     adapter_obj->base.cb.byte_rcvd = NULL;
@@ -571,7 +571,7 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t addrets, uint8_t *f
                            false, TAG, "%s, could not send the data into queue.", inst->descr.parent_name);
         MB_RETURN_ON_FALSE((mb_port_adapter_set_timer(inst, time_diff) == ESP_OK),
                            false, TAG, "%s, could not set output timer.", inst->descr.parent_name);
-        // Wait for send buffer complition
+        // Wait for send buffer completion
         uint16_t flags = mb_port_adapter_wait_flag(inst, MB_QUEUE_FLAG_SENT, MB_EVENT_QUEUE_TIMEOUT_MAX);
         port_obj->send_time_stamp = esp_timer_get_time();
         // Print sent packet, the tag used is more clear to see

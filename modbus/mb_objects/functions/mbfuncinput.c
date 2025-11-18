@@ -1,6 +1,12 @@
 /*
- * FreeModbus Libary: A portable Modbus implementation for Modbus ASCII/RTU.
- * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * SPDX-FileCopyrightText: 2006 Christian Walter
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
  * Copyright (c) 2006 Christian Walter <wolti@sil.at>
  * All rights reserved.
  *
@@ -81,7 +87,7 @@ mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16
                 reg_status = inst->rw_cbs.reg_input_cb(inst, frame_cur, reg_addr, reg_cnt);
             }
 
-            /* If an error occured convert it into a Modbus exception. */
+            /* If an error occurred convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {

@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Match, Optional, TextIO, Tuple
 
 import pexpect
 import pytest
+from pytest_embedded_idf import CaseTester
 from _pytest.fixtures import FixtureRequest
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_embedded.plugin import multi_dut_argument, multi_dut_fixture
@@ -107,7 +108,9 @@ class ModbusTestDut(IdfDut):
                 return None
 
     def expect_any(
-        self, *expect_items: Tuple[str, Callable], timeout: Optional[int]
+        self,
+        *expect_items: Tuple[str, Callable],
+        timeout: Optional[int] = TEST_EXPECT_STR_TIMEOUT,
     ) -> None:
         """
         expect_any(*expect_items, timeout=DEFAULT_TIMEOUT)
@@ -147,16 +150,16 @@ class ModbusTestDut(IdfDut):
         expect_proc: Optional[object] = self.get_expect_proc()
 
         if expect_proc is not None:
-            match_index = expect_proc.expect(expect_patterns, timeout)
+            match_index = expect_proc.expect(expect_patterns, timeout)  # type: ignore [attr-defined]
 
             if isinstance(match_index, int):
-                match_item = expect_items_list[match_index]  # type: ignore
-                match_item["index"] = match_index  # type: ignore , keep match index
+                match_item = expect_items_list[match_index]  # type: ignore [attr-defined]
+                match_item["index"] = match_index
                 if (
-                    isinstance(expect_proc.match, Match)
-                    and len(expect_proc.match.groups()) > 0
+                    isinstance(expect_proc.match, Match)  # type: ignore [attr-defined]
+                    and len(expect_proc.match.groups()) > 0  # type: ignore [attr-defined]
                 ):
-                    match_item["ret"] = expect_proc.match.groups()
+                    match_item["ret"] = expect_proc.match.groups()  # type: ignore [attr-defined]
                 if match_item["callback"]:
                     match_item["callback"](
                         match_item["ret"]
@@ -169,7 +172,7 @@ class ModbusTestDut(IdfDut):
             raise RuntimeError from None
 
     def dut_test_start(
-        self, dictionary: Dict, timeout_value=TEST_EXPECT_STR_TIMEOUT
+        self, dictionary: Dict, timeout_value: Optional[int] = TEST_EXPECT_STR_TIMEOUT
     ) -> None:  # type: ignore
         """The method to initialize and handle test stages"""
 
@@ -271,6 +274,11 @@ class ModbusTestDut(IdfDut):
 ############
 
 
+@pytest.fixture
+def case_tester(dut: IdfDut, **kwargs):  # type: ignore
+    yield CaseTester(dut, **kwargs)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def session_tempdir() -> str:
     _tmpdir = os.path.join(
@@ -313,7 +321,9 @@ def config(request: FixtureRequest) -> str:
 
 @pytest.fixture
 @multi_dut_fixture
-def build_dir(app_path: str, target: Optional[str], config: Optional[str]) -> str:
+def build_dir(
+    app_path: str, target: Optional[str], config: Optional[str]
+) -> Optional[str]:
     """
     Check local build dir with the following priority:
 

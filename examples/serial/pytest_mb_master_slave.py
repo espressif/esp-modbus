@@ -101,5 +101,5 @@ def test_modbus_serial_communication(
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize("config", ["dummy_config"])
-def test_modbus_serial_generic(config) -> None:
+def test_modbus_serial_generic(config: str) -> None:
     print("The generic serial example tests are not provided yet.")

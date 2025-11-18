@@ -456,18 +456,18 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                 int node_id = 0;
                 (void)transaction_item_get_data(item, NULL, &msg_id, &node_id);
                 pnode = mb_drv_get_node(drv_obj, node_id);
-                ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknoledged packet TID: 0x%04" PRIx16 ", start transaction."),
+                ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknowledged packet TID: 0x%04" PRIx16 ", start transaction."),
                          drv_obj, pnode->index, pnode->sock_id,
                          pnode->addr_info.ip_addr_str, (unsigned)msg_id);
                 if (ESP_OK == transaction_item_set_state(item, ACKNOWLEDGED)) {
-                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknoledged packet TID: 0x%04" PRIx16 "."),
+                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknowledged packet TID: 0x%04" PRIx16 "."),
                              drv_obj, pnode->index, pnode->sock_id,
                              pnode->addr_info.ip_addr_str, (unsigned)msg_id);
                 }
                 mb_drv_unlock(drv_obj);
             } else {
                 if (transaction_item_get_state(item) != TRANSMITTED) {
-                    // Transaction procesing is ongoing, just delete expired transactions
+                    // Transaction processing is ongoing, just delete expired transactions
                     mb_drv_lock(drv_obj);
                     transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
                     mb_drv_unlock(drv_obj);

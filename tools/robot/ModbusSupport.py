@@ -1,5 +1,8 @@
+# SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+# SPDX-License-Identifier: Apache-2.0
 import struct
-from scapy.packet import Packet, Raw
+from typing import Any
+from scapy.packet import Packet
 from scapy.fields import (
     ShortField,
     XShortField,
@@ -30,7 +33,7 @@ modbus_exceptions = {
 
 
 # The common CRC16 checksum calculation method for Modbus Serial RTU frames
-def mb_crc(frame: Raw, length) -> int:
+def mb_crc(frame: bytes, length: int) -> int:
     crc = 0xFFFF
     for n in range(length):
         crc ^= frame[n]
@@ -329,17 +332,17 @@ class ModbusPDU10_Write_Multiple_Registers_Serial(ModbusPDU10_Write_Multiple_Reg
     def get_crc(self) -> int:
         return self._crc
 
-    def post_build(self, p, pay):
+    def post_build(self, p: bytes, pay: bytes) -> bytes:
         self._crc = 0
         if self.outputsValue is not None and len(self.outputsValue) > 0:
             self._crc = mb_crc(p, len(p))
             p = p + struct.pack("<H", self._crc)  # apply CRC16 network format
-            self.add_payload(bytes(self._crc))
+            # self.add_payload(bytes(self._crc))
             # self.checksum = self._crc
-        print(f"post build p={p}, checksum = {self._crc}")
+        print(f"post build p={p!r}, checksum = {self._crc!r}")
         return p
 
-    def guess_payload_class(self, payload):
+    def guess_payload_class(self, payload: bytes) -> Any:
         if len(payload) >= 2:
             if mb_crc(payload, len(payload)) == 0:
                 # if self._crc == mb_crc(payload[:-2], len(payload)-2):
@@ -439,7 +442,7 @@ class ModbusPDU11_Report_Slave_Id_Exception(Packet):
 
 class ModbusADU_Request(ModbusMBAP):
     name = "ModbusADU Request"
-    _mb_exception: modbus_exceptions = 0
+    _mb_exception: int = 0
     fields_desc = [
         XShortField("transId", 0x0000),  # needs to be unique
         XShortField("protoId", 0x0000),  # needs to be zero (Modbus)
@@ -449,11 +452,11 @@ class ModbusADU_Request(ModbusMBAP):
         ),  # 0xFF or 0x00 should be used for Modbus over TCP/IP
     ]
 
-    def mb_get_last_exception(self):
+    def mb_get_last_exception(self) -> int:
         return self._mb_exception
 
     # Dissects packets
-    def guess_payload_class(self, payload):
+    def guess_payload_class(self, payload: bytes) -> Packet:
         funcCode = int(payload[0])
         # print(f'Request guess payload class func: {funcCode}')
         self._mb_exception = 0
@@ -522,19 +525,27 @@ class ModbusADU_Request(ModbusMBAP):
             return ModbusPDU10_Write_Multiple_Registers_Exception
 
         else:
-            return Packet.guess_payload_class(self, payload)
+            if funcCode < 0x80 and len(payload) > 0:  # Check for non-exception packets
+                # Assume custom request if it's not a known function code
+                return ModbusPDUXX_Custom_Request
+            elif funcCode & 0x80:
+                # Assume custom exception if it's an exception but unknown
+                self._mb_exception = int(payload[1]) if len(payload) > 1 else 0
+                return ModbusPDUXX_Custom_Exception
 
-    def post_build(self, p, pay):
+        return Packet.guess_payload_class(self, payload)
+
+    def post_build(self, p: bytes, pay: bytes) -> bytes:  # Added type hints
         if self.len is None:
             length = len(pay) + 1  # +len(p)
             p = p[:4] + struct.pack("!H", length) + p[6:]
         return p + pay
 
-    def my_show(self, p):
+    def my_show(self, p: Packet) -> str:
         for f in p.fields_desc:
             fvalue = p.getfieldval(f.name)
             reprval = f.i2repr(p, fvalue)
-            return "%s" % (reprval)
+        return "%s" % (reprval)
 
 
 # If we know the packet is an Modbus answer, we can dissect it with
@@ -542,9 +553,9 @@ class ModbusADU_Request(ModbusMBAP):
 # Scapy will dissect it on it's own if the TCP stream is available
 class ModbusADU_Response(ModbusMBAP):
     name = "ModbusADU Response"
-    _mb_exception: modbus_exceptions = 0
-    _current_main_packet: Packet = None
-    _modbus_pdu: Packet = None
+    _mb_exception: int = 0
+    _current_main_packet: Any = None
+    _modbus_pdu: Any = None
     fields_desc = [
         XShortField("transId", 0x0000),  # needs to be unique
         XShortField("protoId", 0x0000),  # needs to be zero (Modbus)
@@ -552,20 +563,20 @@ class ModbusADU_Response(ModbusMBAP):
         XByteField("unitId", 0x01),
     ]  # 0xFF or 0x00 should be used for Modbus over TCP/IP
 
-    def mb_get_last_exception(self):
+    def mb_get_last_exception(self) -> int:
         return self._mb_exception
 
     # def extract_padding(self, s):
     #     print(f'Extract pedding: {self, s, self.len, self.underlayer}')
     #     return self.guess_payload_class( s) #, s #self.extract_pedding(self, s)
 
-    def pre_dissect(self, s):
+    def pre_dissect(self, s: bytes) -> bytes:
         print(f"Pre desect: {self, s, self.len, self.underlayer}")
         _current_main_packet = self
         return s
 
     # Dissects packets
-    def guess_payload_class(self, payload):
+    def guess_payload_class(self, payload: bytes) -> Packet:
         funcCode = int(payload[0])
 
         self._mb_exception = 0
@@ -632,7 +643,7 @@ class ModbusADU_Response(ModbusMBAP):
 
         else:
             if funcCode & 0x80:
-                self._mb_exception = int(payload[1])
+                self._mb_exception = int(payload[1]) if len(payload) > 1 else 0
                 return ModbusPDUXX_Custom_Exception
             return ModbusPDUXX_Custom_Answer
             # return Packet.guess_payload_class(self, payload)

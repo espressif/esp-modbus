@@ -101,7 +101,7 @@ The format of slave definition following the notation `UID;slave_host_ip_or_dns_
         .tcp_opts.uid = 0,                                          // the UID unused for master
         .tcp_opts.start_disconnected = false,                       // false - manage connections to all slaves before start
         .tcp_opts.response_tout_ms = 2000,                          // slave response time in milliseconds for master, 0 - use default konfig
-        .tcp_opts.ip_netif_ptr = (void*)get_example_netif(),        // the pointer to netif inteface
+        .tcp_opts.ip_netif_ptr = (void*)get_example_netif(),        // the pointer to netif interface
     };
     esp_err_t err = mbc_master_create_tcp(pcomm_info, &master_handle);
     if (master_handler == NULL || err != ESP_OK) {
@@ -159,7 +159,7 @@ This example code to initialize Modbus TCP slave:
         .tcp_opts.mode = MB_TCP,                            // mode of communication for slave
         .tcp_opts.addr_type = MB_IPV4,                      // type of addressing being used
         .tcp_opts.ip_addr_table = NULL,                     // Bind to any address
-        .tcp_opts.ip_netif_ptr = (void*)get_example_netif(),// the pointer to netif inteface
+        .tcp_opts.ip_netif_ptr = (void*)get_example_netif(),// the pointer to netif interface
         .tcp_opts.uid = MB_SLAVE_ADDR                       // Modbus slave Unit Identifier
     };
     esp_err_t err = mbc_slave_create_tcp(&tcp_slave_config, &slave_handle);

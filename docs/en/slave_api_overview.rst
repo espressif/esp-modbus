@@ -76,7 +76,7 @@ At least one area descriptor per each Modbus register type must be set in order 
 
 The stack supports the extended data types when enabled through the option ``CONFIG_FMB_EXT_TYPE_SUPPORT`` in kconfig menu.
 In this case the mapped data values can be initialized to specific format using :ref:`modbus_api_endianness_conversion`.
-Please refer to secton :ref:`modbus_mapping_complex_data_types` for more information about data types.
+Please refer to section :ref:`modbus_mapping_complex_data_types` for more information about data types.
 
 Example initialization of mapped values:
 
@@ -93,7 +93,7 @@ Example initialization of mapped values:
     mb_set_double_ghefcdab(&holding_double_ghefcdab[0], (double)12345.0);
     portEXIT_CRITICAL(&param_lock);
     ...
-    // The actual abcd formatted value can be converted to actual float represenatation as below
+    // The actual abcd formatted value can be converted to actual float representation as below
     ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[0]));
     ESP_LOGI("TEST", "Test value abcd: %f", mb_get_float_abcd(&holding_float_abcd[1]));
     ESP_LOGI("TEST", "Test value ghefcdab: %lf", mb_get_double_ghefcdab(&holding_double_ghefcdab[0]));
@@ -183,7 +183,7 @@ The function allows to delete the handler for specified command and free the han
 
 :cpp:func:`mbc_get_handler_count`
 
-The function returns the actual number of command handlers registered for the object reffered by parameter.
+The function returns the actual number of command handlers registered for the object referred by parameter.
 
 The following example allows to override the standard command to read input registers. Refer to standard handler function :cpp:func:`mbs_fn_read_input_reg` for more information on how to handle custom commands.
 

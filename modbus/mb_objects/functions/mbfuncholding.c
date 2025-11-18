@@ -1,6 +1,12 @@
 /*
- * FreeModbus Libary: A portable Modbus implementation for Modbus ASCII/RTU.
- * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * SPDX-FileCopyrightText: 2006 Christian Walter
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
  * Copyright (c) 2006 Christian Walter <wolti@sil.at>
  * All rights reserved.
  *
@@ -77,7 +83,7 @@ mb_exception_t mbs_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
         if (inst->rw_cbs.reg_holding_cb) {
             reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_WRITE_VALUE_OFF], reg_addr, 1, MB_REG_WRITE);
         }
-        /* If an error occured convert it into a Modbus exception. */
+        /* If an error occurred convert it into a Modbus exception. */
         if (reg_status != MB_ENOERR) {
             status = mb_error_to_exception(reg_status);
         }
@@ -117,7 +123,7 @@ mb_exception_t mbs_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_WRITE_MUL_VALUES_OFF], reg_addr, reg_cnt, MB_REG_WRITE);
             }
 
-            /* If an error occured convert it into a Modbus exception. */
+            /* If an error occurred convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {
@@ -177,7 +183,7 @@ mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
             if (inst->rw_cbs.reg_holding_cb) {
                 reg_status = inst->rw_cbs.reg_holding_cb(inst, frame_cur, reg_addr, reg_cnt, MB_REG_READ);
             }
-            /* If an error occured convert it into a Modbus exception. */
+            /* If an error occurred convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {

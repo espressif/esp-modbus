@@ -380,7 +380,7 @@ static void master_operation_func(void *arg)
         .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
     };
 
-    // Send the request with custom command (vendor speciic)
+    // Send the request with custom command (vendor specific)
     // This function supports sending of only even number of bytes
     // as instructed by req.reg_size (Modbus register = 2 bytes)
     err = mbc_master_send_request(master_handle, &req, pcustom_string);

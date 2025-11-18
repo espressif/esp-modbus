@@ -161,7 +161,7 @@ static mb_err_enum_t mbm_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
     /* Check length and CRC checksum */
     if ((length >= MB_RTU_SER_PDU_SIZE_MIN)
             && (mb_crc16(buf, length) == 0)) {
-        /* Save the address field. All frames are passed to the upper layed
+        /* Save the address field. All frames are passed to the upper layer.
          * and the decision if a frame is used is done there.
          */
         *rcv_addr_buf = buf[MB_SER_PDU_ADDR_OFF];

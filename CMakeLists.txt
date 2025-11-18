@@ -80,7 +80,7 @@ idf_component_register(SRCS "${srcs}"
                         PRIV_REQUIRES ${priv_requires}
                         LDFRAGMENTS linker.lf)
 
-# This is an alternative of macro `idf_component_optional_requires(PUBLIC mdns)` to support all versions of esp-idf 
+# This is an alternative of macro `idf_component_optional_requires(PUBLIC mdns)` to support all versions of esp-idf
 if(CONFIG_FMB_MDNS_INTEGRATION_ENABLE)
     set(optional_reqs mdns espressif__mdns)
     idf_build_get_property(build_components BUILD_COMPONENTS)

@@ -116,7 +116,7 @@ I (5664) example_connect: - IPv6 address: fe80:0000:0000:0000:bedd:c2ff:fed1:b21
 I (5674) uart: ESP_INTR_FLAG_IRAM flag not set while CONFIG_UART_ISR_IN_IRAM is enabled, flag updated
 I (5684) MASTER_TEST: Leave IP(0) = [192.168.1.21] set by user.
 I (5694) MASTER_TEST: IP(1) is not set in the table.
-I (5694) MASTER_TEST: Configured 1 IP addresse(s).
+I (5694) MASTER_TEST: Configured 1 IP address.
 I (5704) MASTER_TEST: Modbus master stack initialized...
 I (5704) MB_TCP_MASTER_PORT: TCP master stack initialized.
 I (5724) MB_TCP_MASTER_PORT: Host[IP]: "192.168.1.21"[192.168.1.21]

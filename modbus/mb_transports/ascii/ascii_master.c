@@ -155,7 +155,7 @@ static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *re
 
     /* Check length and LRC checksum */
     if (ret >= MB_ASCII_SER_PDU_SIZE_MIN) {
-        /* Save the address field. All frames are passed to the upper layed
+        /* Save the address field. All frames are passed to the upper layer
          * and the decision if a frame is used is done there.
          */
         *recv_addr = buf[MB_SER_PDU_ADDR_OFF];
