@@ -262,7 +262,7 @@ typedef struct _port_driver {
  * This function must be called prior usage of ESP-MODBUS Interface
  *
  * @param ctx - pointer to pointer of driver interface structure to be created.
- * @param config MODBUS virtual filesystem driver configuration. Default base path /dev/net/modbus/tcp is used when this paramenter is NULL.
+ * @param config MODBUS virtual filesystem driver configuration. Default base path /dev/net/modbus/tcp is used when this parameter is NULL.
  * @return esp_err_t
  *          - ESP_OK on success
  */

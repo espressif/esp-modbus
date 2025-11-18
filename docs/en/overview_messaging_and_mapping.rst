@@ -77,7 +77,7 @@ The Modbus protocol allows devices to map data to four types of registers (Holdi
 Mapping Of Complex Data Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As per section 4.2 of Modbus specification, "MODBUS uses a ``big-Endian`` representation for addresses and data items. This means that when a numerical quantity larger than a single byte is transmitted, the most significant byte is sent first". The biggest official structure defined by the Modbus specification is a 16-bit word register, which is 2 bytes. However, vendors sometimes group two or even four 16-bit registers together to be interpretted as 32-bit or 64-bit values, respectively. It is also possible when the Modbus vendors group many registers together for serial numbers, text strings, time/date, etc. Regardless of how the vendor intends the data to be interpreted, the Modbus protocol itself simply transfers 16-bit word registers. These values grouped from registers may use either little-endian or big-endian register order.
+As per section 4.2 of Modbus specification, "MODBUS uses a ``big-Endian`` representation for addresses and data items. This means that when a numerical quantity larger than a single byte is transmitted, the most significant byte is sent first". The biggest official structure defined by the Modbus specification is a 16-bit word register, which is 2 bytes. However, vendors sometimes group two or even four 16-bit registers together to be interpreted as 32-bit or 64-bit values, respectively. It is also possible when the Modbus vendors group many registers together for serial numbers, text strings, time/date, etc. Regardless of how the vendor intends the data to be interpreted, the Modbus protocol itself simply transfers 16-bit word registers. These values grouped from registers may use either little-endian or big-endian register order.
 
 .. note:: Each individual 16-bit register, is encoded in big-endian order (assuming the Modbus device abides by the Modbus specification). However, the 32-bit and 64-bit types naming conventions like ABCD or ABCDEFGH, does not take into account the network format byte order of frame. For example: the ABCD prefix for 32-bit values means the common Modbus mapping format and corresponds to the CDAB on network format (order in the frame).
 
@@ -119,7 +119,7 @@ Common Data Types Supported By Modbus Vendors
     - +/-5.0E-324 to +/-1.7E+308 is allowed.
     - Stored in four consecutive 16-bit register per IEEE754. The values can be stored with ABCDEFGH - BADCFEHG endianness.
 
-As showed in the table above the float and double types do not fit to the 16-bit register and reguire several consecutive registers be used to store the value. However, different manufacturers store the consecutive bytes in different order (not standardized). For example: The DCBA prefix means inversed Modbus format (BADC order on network format).
+As showed in the table above the float and double types do not fit to the 16-bit register and require several consecutive registers be used to store the value. However, different manufacturers store the consecutive bytes in different order (not standardized). For example: The DCBA prefix means inversed Modbus format (BADC order on network format).
 
 .. list-table:: Table 2 Modbus byte order for extended types
   :widths: 3 28
@@ -136,7 +136,7 @@ As showed in the table above the float and double types do not fit to the 16-bit
   * - DCBA
     - Little endian (Low order byte first)
 
-The extended data types are used to define all possible combinations of groupped values are represented below and correspond to ``param_type`` field of the data dictionary as described in the table below:
+The extended data types are used to define all possible combinations of grouped values are represented below and correspond to ``param_type`` field of the data dictionary as described in the table below:
 
 .. list-table:: Table 3 Modbus extended data types of characteristics
   :widths: 6 28 10

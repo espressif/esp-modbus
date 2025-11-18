@@ -519,7 +519,7 @@ static void master_operation_func(void *arg)
         .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
     };
 
-    // Send the request with custom command (vendor speciic)
+    // Send the request with custom command (vendor specific)
     err = mbc_master_send_request(master_handle, &req, pcustom_string);
     if (err != ESP_OK) {
         ESP_LOGE("CUSTOM_DATA", "Send custom request fail.");
@@ -697,7 +697,7 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
     int ip_cnt = master_get_slave_ip_stdin(slave_ip_address_table);
     if (ip_cnt) {
-        ESP_LOGI(TAG, "Configured %d IP addresse(s).", ip_cnt);
+        ESP_LOGI(TAG, "Configured %d IP address.", ip_cnt);
     } else {
         ESP_LOGE(TAG, "Fail to get IP address from stdin. Continue.");
         return ESP_ERR_NOT_FOUND;

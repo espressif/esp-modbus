@@ -1,6 +1,6 @@
-minimum_pre_commit_version: 4.2.0                        # Specifies the minimum version of pre-commit required for this configuration
-default_install_hook_types: [pre-commit,commit-msg]      # Default hook types to install if not specified in individual hooks
-default_stages: [pre-commit]
+minimum_pre_commit_version: 2.17.0                        # Specifies the minimum version of pre-commit required for this configuration
+default_install_hook_types: [commit-msg]                  # Default hook types to install if not specified in individual hooks
+default_stages: [commit-msg]
 
 repos:
 -   repo: https://github.com/igrr/astyle_py.git
@@ -75,3 +75,9 @@ repos:
         additional_dependencies: ['PyYAML', 'types-PyYAML']
         files: \.py$
         exclude: ^docs/.*/conf\.py$
+
+-   repo: https://github.com/espressif/check-copyright/
+    rev: v1.1.1
+    hooks:
+      - id: check-copyright
+        args: ['--config', 'tools/ci/check_copyright_config.yaml']

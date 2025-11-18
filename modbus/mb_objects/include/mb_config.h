@@ -18,7 +18,7 @@ extern "C" {
 /* ----------------------- Defines ------------------------------------------*/
 /*! \defgroup modbus_cfg Modbus Configuration
  *
- * Most modules in the protocol stack are completly optional and can be
+ * Most modules in the protocol stack are completely optional and can be
  * excluded. This is specially important if target resources are very small
  * and program memory space should be saved.<br>
  *

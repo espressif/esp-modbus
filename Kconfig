@@ -35,7 +35,7 @@ menu "Modbus configuration"
                 Once expired the current connection with the client will be closed
                 and Modbus TCP slave will be waiting for new connection to accept.
                 This timeout is applicable for Modbus TCP master when it tries to connect to the Modbus TCP slaves.
-    
+
     config FMB_TCP_KEEP_ALIVE_TOUT_SEC
         int "Modbus TCP keep alive timeout (seconds)"
         default 4
@@ -233,7 +233,7 @@ menu "Modbus configuration"
         default n
         help
                 If this option is set the Modbus stack supports extended list of types
-                in data dictionary and conversion API to work with the extended types 
+                in data dictionary and conversion API to work with the extended types
                 otherwise the only legacy types are supported. The extended types include
                 integer, float, double types with different endianness and size.
 
@@ -250,7 +250,7 @@ menu "Modbus configuration"
         default "n"
         depends on IDF_TOOLCHAIN_GCC
         help
-            Enable compiler static analyzer for Modbus library. 
+            Enable compiler static analyzer for Modbus library.
             This is workaround to avoid false-positives for some IDF related components.
             When enabled, the library files will be analysed with GCC static analyzer.
 

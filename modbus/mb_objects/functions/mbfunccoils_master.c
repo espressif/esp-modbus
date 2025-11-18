@@ -1,6 +1,12 @@
 /*
- * FreeModbus Libary: A portable Modbus implementation for Modbus ASCII/RTU.
- * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * SPDX-FileCopyrightText: 2013 Armink
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
  * Copyright (C) 2013 Armink <armink.ztl@gmail.com>
  * All rights reserved.
  *
@@ -142,7 +148,7 @@ mb_exception_t mbm_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *
                 reg_status = inst->rw_cbs.reg_coils_cb(inst, &frame_ptr[MB_PDU_FUNC_READ_VALUES_OFF], reg_addr, coil_cnt, MB_REG_READ);
             }
 
-            /* If an error occured convert it into a Modbus exception. */
+            /* If an error occurred convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             }
@@ -316,7 +322,7 @@ mb_exception_t mbm_fn_write_multi_coils(mb_base_t *inst, uint8_t *frame_ptr, uin
                 reg_status = inst->rw_cbs.reg_coils_cb(inst, &mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_VALUES_OFF],
                                                        reg_address, coil_cnt, MB_REG_WRITE);
             }
-            /* If an error occured, convert it into a Modbus exception. */
+            /* If an error occurred, convert it into a Modbus exception. */
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             }

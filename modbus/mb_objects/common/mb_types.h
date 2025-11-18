@@ -1,5 +1,12 @@
 /*
- * FreeModbus Libary: A portable Modbus implementation for Modbus ASCII/RTU.
+ * SPDX-FileCopyrightText: 2006 Christian Walter
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2023 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -112,11 +119,11 @@ typedef enum mb_err_event_enum {
 typedef struct mb_event_s {
     mb_event_enum_t event;      /*!< event itself. */
     uint64_t trans_id;          /*!< unique transaction id */
-    uint16_t length;            /*!< length of data accociated with the event */
-    void *data_ptr;             /*!< data accociated with the event */
-    mb_err_event_t type;        /*!< error type accociated with the event */
+    uint16_t length;            /*!< length of data associated with the event */
+    void *data_ptr;             /*!< data associated with the event */
+    mb_err_event_t type;        /*!< error type associated with the event */
     uint64_t post_ts;           /*!< timestamp of event posted */
-    uint64_t get_ts;            /*!< timestamp of event receved */
+    uint64_t get_ts;            /*!< timestamp of event received */
 } mb_event_t;
 
 /*! \ingroup modbus

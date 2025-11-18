@@ -82,7 +82,7 @@ static esp_err_t mbc_tcp_master_start(void *ctx)
     status = mbm_iface->mb_base->enable(mbm_iface->mb_base);
     MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack start fail, returned (0x%x).", (uint16_t)status);
-    // Wait the connection esteblished before start polling according to the option
+    // Wait the connection established before start polling according to the option
     if (!mbm_opts->comm_opts.tcp_opts.start_disconnected) {
         BaseType_t start = xEventGroupWaitBits(mbm_opts->event_group_handle,
                                                (BaseType_t)(MB_EVENT_STACK_CONNECTED),

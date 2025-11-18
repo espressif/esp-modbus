@@ -602,11 +602,11 @@ void mb_drv_tcp_task(void *ctx)
         // check all active socket and fd events
         int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, MB_SELECT_WAIT_MS);
         if (ret == ERR_TIMEOUT) {
-            // timeout occured waiting for the vfds
+            // timeout occurred waiting for the vfds
             DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
-            // error occured during waiting for vfds activation
+            // error occurred during waiting for vfds activation
             ESP_LOGD(TAG, "%p, task select error.", ctx);
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);

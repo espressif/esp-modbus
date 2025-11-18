@@ -7,4 +7,3 @@ dependencies:
     version: "^1.0.0"
   protocol_examples_common:
     path: ${IDF_PATH}/examples/common_components/protocol_examples_common
-

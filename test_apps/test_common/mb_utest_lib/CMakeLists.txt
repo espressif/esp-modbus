@@ -4,7 +4,7 @@ add_library(mb_ut_lib "${CMAKE_CURRENT_LIST_DIR}/port_adapter.c"
                         "${CMAKE_CURRENT_LIST_DIR}/port_stubs.c")
 
 idf_component_get_property(dir esp-modbus COMPONENT_DIR)
-target_include_directories(mb_ut_lib PUBLIC 
+target_include_directories(mb_ut_lib PUBLIC
                             "${CMAKE_CURRENT_LIST_DIR}"
                             "${CMAKE_CURRENT_LIST_DIR}/include"
                             "${dir}/modbus/mb_controller/common"

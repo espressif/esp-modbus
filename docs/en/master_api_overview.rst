@@ -308,7 +308,7 @@ Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial
 
 The Data Dictionary and related API functions (:cpp:func:`mbc_master_get_parameter`, :cpp:func:`mbc_master_set_parameter`) support custom commands to be defined for read and write operations separately. In this case, the first two options (``param_opts.cust_cmd_read`` and ``param_opts.cust_cmd_write``) are treated as read/write Modbus commands accordingly if the :cpp:enumerator:`PAR_PERMS_CUST_CMD` flag is set in the ``access`` field for the characteristic.
 
-.. note:: Please make sure that the requred commands are configured correctly in Modbus master and slave before using this feature. Refer to :ref:`modbus_api_master_handler_customization` for more information.
+.. note:: Please make sure that the required commands are configured correctly in Modbus master and slave before using this feature. Refer to :ref:`modbus_api_master_handler_customization` for more information.
 
 The below example explains this use case:
 
@@ -359,7 +359,7 @@ The function allows to delete the handler for specified command and free the han
 
 :cpp:func:`mbc_get_handler_count`
 
-The function returns the actual number of command handlers registered for the object reffered by parameter.
+The function returns the actual number of command handlers registered for the object referred by parameter.
 
 The example code to override the handler routine for the command `<0x04 - Read Input Registers>` is below. This example allows to perform a custom action and then calls the standard handler, which maps the device data to the command buffer from the actual parameter. This is just recommended behavior for handling functions, but users can change the order of the calls if absolutely required. Please refer to the existing handler :cpp:func:`mbm_fn_read_inp_reg` for more information.
 
@@ -439,7 +439,7 @@ The example code to handle custom vendor specific command is below. This example
         .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
     };
 
-    // Send the request with custom command (vendor speciic)
+    // Send the request with custom command (vendor specific)
     // This function supports sending of even number of bytes
     // as instructed by req.reg_size (Modbus register = 2 bytes)
     err = mbc_master_send_request(master_handle, &req, pcustom_string);
@@ -527,7 +527,7 @@ The function writes characteristic's value defined as `cid` parameter in corresp
 
 :cpp:func:`mbc_master_set_parameter_with`
 
-The function is similar to previous function but allows to set the data of a characteristic in any slave device addressed by `uid` parameter of the function instead of the slave address ``mb_slave_addr`` field defined in the data dictionary. The corresponded ``mb_slave_addr`` field for the characteristic in the object disctionary shall be defined as ``MB_SLAVE_ADDR_PLACEHOLDER``. 
+The function is similar to previous function but allows to set the data of a characteristic in any slave device addressed by `uid` parameter of the function instead of the slave address ``mb_slave_addr`` field defined in the data dictionary. The corresponded ``mb_slave_addr`` field for the characteristic in the object dictionary shall be defined as ``MB_SLAVE_ADDR_PLACEHOLDER``. 
 
 .. note:: When the TCP mode of communication is used the functions above additionally check the connection state of the slave being accessed and return error if the slave connection is not actual.
 
@@ -555,7 +555,7 @@ The example to retrieve the slave identificator from slave:
     ...
     static void *master_handle = NULL; // the master handler is initialized previously
     ...
-    // Set the request stucture for the master to send the <Report Slave ID> command
+    // Set the request structure for the master to send the <Report Slave ID> command
     mb_param_request_t req = {
         .slave_addr = MB_DEVICE_ADDR1,  // the UID of the device to get the information,
         .command = 0x11,                // the <Report Slave ID> command,
@@ -584,7 +584,7 @@ This function stops Modbus communication stack and destroys controller interface
 
 .. code:: c
 
-    // Pointer to allocated interface structure, must be intitialized by constructor
+    // Pointer to allocated interface structure, must be initialized by constructor
     static void *master_handle = NULL;
     ...
     ESP_ERROR_CHECK(mbc_master_destroy(master_handle));

@@ -1,6 +1,12 @@
 /*
- * FreeModbus Libary: A portable Modbus implementation for Modbus ASCII/RTU.
- * Copyright (c) 2016, 2017 Nucleron R&D LLC <main@nucleron.ru>
+ * SPDX-FileCopyrightText: 2013 Armink
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ */
+/*
+ * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
  * Copyright (c) 2006 Christian Walter <wolti@sil.at>
  * All rights reserved.
  *
@@ -108,7 +114,7 @@ mb_exception_t mbm_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t 
         byte_count = frame[MB_PDU_BYTECNT_OFF];
         // Transfer data from command buffer.
         err = mbc_reg_common_cb(inst, &frame[MB_PDU_FUNC_DATA_OFF], 0, byte_count);
-        // If an err occured convert it into a Modbus exception.
+        // If an err occurred convert it into a Modbus exception.
         if (err != MB_ENOERR) {
             status = mb_error_to_exception(err);
         }

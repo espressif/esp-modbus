@@ -20,4 +20,3 @@ entries:
         ascii_slave: mbs_ascii_transp_timer_expired (noflash_text)
         rtu_master: mbm_rtu_transp_timer_expired (noflash_text)
         rtu_slave: mbs_rtu_transp_timer_expired (noflash_text)
-

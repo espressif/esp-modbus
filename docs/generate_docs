@@ -13,7 +13,7 @@ exit_if_error() {
 rm -rf _build
 build-docs --target esp32 --language en || exit_if_error $? "Documentation build fail."
 
-# Modifes target field of html files
+# Modifies target field of html files
 ELEMENT="<script type='text/javascript'>
 window.onload =(function() {
     var myAnchor = document.getElementById('target-select');

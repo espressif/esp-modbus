@@ -46,7 +46,7 @@ static void IRAM_ATTR timer_alarm_cb(void *param)
 mb_err_enum_t mb_port_timer_create(mb_port_base_t *inst, uint16_t t35_timer_ticks)
 {
     MB_RETURN_ON_FALSE((t35_timer_ticks > 0), MB_EILLSTATE, TAG,
-                       "modbus timeout discreet is incorrect.");
+                       "modbus timeout discrete is incorrect.");
     // MB_RETURN_ON_FALSE((inst && !inst->timer_obj), MB_EILLSTATE, TAG,
     //                    "modbus timer is already created.");
     mb_err_enum_t ret = MB_EILLSTATE;
@@ -130,7 +130,7 @@ void mb_port_timer_enable(mb_port_base_t *inst)
 
 void mb_port_timer_convert_delay_enable(mb_port_base_t *inst)
 {
-    // Covert time in milliseconds into ticks
+    // Convert time in milliseconds into ticks
     uint64_t tout_us = (MB_MASTER_DELAY_MS_CONVERT * 1000);
 
     // Set current timer mode

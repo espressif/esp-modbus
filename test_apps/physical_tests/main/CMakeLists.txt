@@ -1,12 +1,12 @@
 set(PROJECT_NAME "test_modbus_comm_multi_dev")
 
-set(srcs "test_app_main.c" 
+set(srcs "test_app_main.c"
             "test_modbus_rs485_comm_master_slave.c"
             "test_modbus_tcp_comm_master_slave.c"
 )
 
 # In order for the cases defined by `TEST_CASE` to be linked into the final elf,
-idf_component_register(SRCS ${srcs} 
+idf_component_register(SRCS ${srcs}
                         PRIV_REQUIRES cmock test_utils test_common unity nvs_flash esp_event esp_eth
                         )
 

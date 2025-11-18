@@ -4,6 +4,3 @@
 idf_component_mock(INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
                     REQUIRES cmock test_common
                     MOCK_HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/test_mbm_object.h)
-
-
-

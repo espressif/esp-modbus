@@ -51,7 +51,7 @@ Check ability for communication pinging each slave configured in the master para
 where XX is the short slave address (index) of the slave configured in the Kconfig of slave example. 
 Also it is possible to increase Kconfig value `CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND` to compensate network communication delays between master and slaves.
 
-ESP_ERR_NOT_SUPPORTED (0x106), ESP_ERR_INVALID_RESPONSE (0x108) - Modbus slave device does not support requested command or register and sent exeption response. 
+ESP_ERR_NOT_SUPPORTED (0x106), ESP_ERR_INVALID_RESPONSE (0x108) - Modbus slave device does not support requested command or register and sent exception response.
 
 ESP_ERR_INVALID_STATE (0x103) - Modbus stack is not configured correctly or can't work correctly due to critical failure.
  

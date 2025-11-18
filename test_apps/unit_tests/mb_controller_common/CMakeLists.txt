@@ -13,4 +13,3 @@ else()
 endif()
 
 project(test_mb_controller_common_unit)
-

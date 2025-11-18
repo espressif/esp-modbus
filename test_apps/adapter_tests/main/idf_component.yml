@@ -3,4 +3,3 @@ dependencies:
   espressif/esp-modbus:
     version: "^2"
     override_path: "../../../"
-

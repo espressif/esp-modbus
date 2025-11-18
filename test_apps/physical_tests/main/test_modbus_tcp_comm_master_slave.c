@@ -199,7 +199,7 @@ static void test_modbus_tcp_slave(void)
     TEST_ASSERT_EQUAL(test_common_task_start_all(1),
                       test_common_task_wait_done_delete_all(TEST_TCP_TASK_TIMEOUT_MS));
 
-    ESP_LOGI(TAG, "Slave TCP test is complited. (%s).", __func__);
+    ESP_LOGI(TAG, "Slave TCP test is completed. (%s).", __func__);
 
     test_common_stop();
 
@@ -241,7 +241,7 @@ static void test_modbus_tcp_master(void)
     test_common_stop();
 
     test_tcp_services_destroy();
-    ESP_LOGI(TAG, "Master TCP is complited. (%s).", __func__);
+    ESP_LOGI(TAG, "Master TCP is completed. (%s).", __func__);
 }
 
 /*

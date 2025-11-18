@@ -9,4 +9,3 @@ if(CONFIG_FMB_COMPILER_STATIC_ANALYZER_ENABLE AND CMAKE_C_COMPILER_ID STREQUAL "
     target_compile_options(${COMPONENT_LIB} PRIVATE "-fanalyzer")
     message(STATUS "Static analyzer build for ${PROJECT_NAME}.")
 endif()
-

@@ -28,7 +28,7 @@ extern "C" {
  * ChTimeValue = Ticks_per_1s / (Baudrate / 11)
  *             = 11 * Ticks_per_1s / Baudrate
  *             = 220000 / Baudrate
- * The reload for t3.5 is 1.5 times this value and similary
+ * The reload for t3.5 is 1.5 times this value and similarly
  * for t3.5.
  */
 #define MB_RTU_GET_T35_VAL(baudrate) (__extension__(            \

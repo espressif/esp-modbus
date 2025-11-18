@@ -20,5 +20,3 @@ Checks: >
   readability-inconsistent-declaration-parameter-name,
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(examples|include|src).*(?<!third_party.*repo)'
-
-
