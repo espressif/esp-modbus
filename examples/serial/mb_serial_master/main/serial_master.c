@@ -603,9 +603,9 @@ static esp_err_t master_init(void)
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
                        "mb serial set pin failure, uart_set_pin() returned (0x%x).", (int)err);
 
-    err = mbc_master_start(master_handle);
+    err = mbc_master_set_descriptor(master_handle, &device_parameters[0], num_device_parameters);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                       "mb controller start fail, returned (0x%x).", (int)err);
+                       "mb controller set descriptor fail, returns(0x%x).", (int)err);
 
     // Set driver mode to Half Duplex
     err = uart_set_mode(MB_PORT_NUM, UART_MODE_RS485_HALF_DUPLEX);
@@ -613,9 +613,11 @@ static esp_err_t master_init(void)
                        "mb serial set mode failure, uart_set_mode() returned (0x%x).", (int)err);
 
     vTaskDelay(5);
-    err = mbc_master_set_descriptor(master_handle, &device_parameters[0], num_device_parameters);
+
+    err = mbc_master_start(master_handle);
     MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                       "mb controller set descriptor fail, returns(0x%x).", (int)err);
+                       "mb controller start fail, returned (0x%x).", (int)err);
+
     ESP_LOGI(TAG, "Modbus master stack initialized...");
     return err;
 }
