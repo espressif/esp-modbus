@@ -181,10 +181,12 @@ esp_err_t mbc_master_set_descriptor(void *ctx, const mb_parameter_descriptor_t *
     esp_err_t error = ESP_OK;
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
+
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
     MB_RETURN_ON_FALSE(mbm_controller->set_descriptor,
                        ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly configured.");
+
     error = mbm_controller->set_descriptor(ctx, descriptor, num_elements);
     MB_RETURN_ON_FALSE((error == ESP_OK), error, TAG,
                        "Master set descriptor failure, error=(0x%x) (%s).",

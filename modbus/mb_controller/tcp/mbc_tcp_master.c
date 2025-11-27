@@ -331,8 +331,8 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
         mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
                                    request.slave_addr, MB_SOCK_STATE_CONNECTED);
         if (!addr_info) {
-            ESP_LOGW(TAG, "Try to send request for cid #%u with uid = %d, node is disconnected.",
-                     (unsigned)reg_info.cid, (int)request.slave_addr);
+            ESP_LOGW(TAG, "%p Try to send request for cid #%u with uid = %d, node is disconnected.",
+                     mbm_controller_iface, (unsigned)reg_info.cid, (int)request.slave_addr);
         }
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
@@ -347,23 +347,23 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
                 error = mbc_master_set_param_data((void *)value, (void *)data_ptr,
                                                   reg_info.param_type, reg_info.param_size);
                 if (error != ESP_OK) {
-                    ESP_LOGE(TAG, "fail to set parameter data.");
+                    ESP_LOGE(TAG, "%p fail to set parameter data.", mbm_controller_iface);
                     error = ESP_ERR_INVALID_STATE;
                 } else {
-                    ESP_LOGD(TAG, "%s: Good response for get cid(%u) = %s",
-                             __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+                    ESP_LOGD(TAG, "%s: %p Good response for get cid(%u) = %s",
+                             __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
                 }
             }
         } else {
-            ESP_LOGD(TAG, "%s: Bad response to get cid(%u) = %s",
-                     __FUNCTION__, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
+            ESP_LOGD(TAG, "%s: %p Bad response to get cid(%u) = %s",
+                     __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid, (char *)esp_err_to_name(error));
         }
         free(data_ptr);
         // Set the type of parameter found in the table
         *type = reg_info.param_type;
     } else {
-        ESP_LOGE(TAG, "%s: The cid(%u) not found in the data dictionary.",
-                 __FUNCTION__, (unsigned)reg_info.cid);
+        ESP_LOGE(TAG, "%s: %p The cid(%u) not found in the data dictionary.",
+                 __FUNCTION__, mbm_controller_iface, (unsigned)reg_info.cid);
         error = ESP_ERR_INVALID_ARG;
     }
     return error;

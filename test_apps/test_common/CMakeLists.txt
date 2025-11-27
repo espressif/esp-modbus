@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 idf_component_register(SRCS "test_common.c"
                         INCLUDE_DIRS "include"
-                        REQUIRES unity)
+                        REQUIRES unity esp_timer)
 
 set(EXTRA_COMPONENT_DIRS)
 

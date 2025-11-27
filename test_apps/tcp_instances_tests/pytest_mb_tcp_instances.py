@@ -37,7 +37,7 @@ pattern_dict_slave = {
     ),
     Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: Destroy slave"),
     Stages.STACK_OBJECT_CREATE: (
-        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_[a-z]+[#@](0x[0-9a-f]+)"
+        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_tcp[#@](0x[0-9a-f]+)"
     ),
     Stages.STACK_BAD_CONNECTION: (
         r"I \([0-9]+\) example_connect: WiFi Connect failed [0-9]* times, stop reconnect."
@@ -60,16 +60,16 @@ pattern_dict_master = {
     Stages.STACK_CONNECT: (
         r"I\s\(([0-9]+)\) mb_port.tcp.master: 0x[a-f0-9]+, Connected: [0-9], [0-9], start polling."
     ),
-    Stages.STACK_START: (r"I \(([0-9]+)\) [A-Z_]+: Start modbus test..."),
+    Stages.STACK_START: (r"I \(([0-9]+)\) [A-Z_]+: Master TCP is started"),
     Stages.STACK_PAR_OK: (
-        r"I \(([0-9]+)\) [A-Z_]+: ([a-z0-9]+) Characteristic #([0-9]+) ([a-zA-Z0-9\_]+) \([\%a-zA-Z_\/]+\) value = ([0-9a-zA-Z.]*)\s*([a-zA-Z0-9()]*) read successful"
+        r"I \(([0-9]+)\) [A-Z_]+: ([a-z0-9]+) Characteristic #([0-9]+) ([a-zA-Z0-9\_]+) \([\%a-zA-Z_\/]+\) value = ([0-9a-z.A-Z]*)\s*([a-zA-Z0-9()]*) read successful"
     ),
     Stages.STACK_PAR_FAIL: (
         r"E \(([0-9]+)\) [A-Z_]+: ([a-z0-9]+) Characteristic #([0-9]+) \(([a-zA-Z0-9_]+)\) read fail, err = [x0-9]+ \([_A-Z]+\)"
     ),
-    Stages.STACK_DESTROY: (r"I \(([0-9]+)\) [A-Z_]+: (Master Serial is completed)"),
+    Stages.STACK_DESTROY: (r"I \(([0-9]+)\) [A-Z_]+: (Master TCP is completed.)"),
     Stages.STACK_OBJECT_CREATE: (
-        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_[a-z]+[#@](0x[0-9a-f]+)"
+        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_tcp[#@](0x[0-9a-f]+)"
     ),
     Stages.STACK_BAD_CONNECTION: (
         r"I \([0-9]+\) example_connect: WiFi Connect failed [0-9]* times, stop reconnect."
@@ -81,32 +81,39 @@ pattern_dict_master = {
 
 LOG_LEVEL = logging.DEBUG
 LOGGER_NAME = "modbus_test"
+CONFORMANCE_TEST_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../tools/robot")
+)
 logger = logging.getLogger(LOGGER_NAME)
 
-test_configs = ["rtu", "ascii"]
+test_configs = [
+    #    'wifi',
+    "ethernet"
+]
 
 
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
-@pytest.mark.multi_dut_modbus_serial
+@pytest.mark.multi_dut_modbus_tcp
 @pytest.mark.parametrize("config", test_configs, indirect=True)
 @pytest.mark.parametrize(
     "count, app_path",
     [
         (
             2,
-            f"{os.path.join(os.path.dirname(__file__), 'mb_serial_slave')}|{os.path.join(os.path.dirname(__file__), 'mb_serial_master')}",
+            f"{os.path.join(os.path.dirname(__file__), 'mb_tcp_slave_instances')}|{os.path.join(os.path.dirname(__file__), 'mb_tcp_master_instances')}",
         )
     ],
     indirect=True,
 )
-def test_modbus_serial_communication(
-    config: str, dut: Tuple[ModbusTestDut, ModbusTestDut]
-) -> None:
-    dut_slave = dut[0]
+def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> None:
     dut_master = dut[1]
+    dut_slave = dut[0]
 
-    logger.info("DUT: %s start.", dut_slave.dut_get_name())
+    dut_master.add_dut_list(dut_slave)
+    dut_slave.add_dut_list(dut_master)
+
     logger.info("DUT: %s start.", dut_master.dut_get_name())
+    logger.info("DUT: %s start.", dut_slave.dut_get_name())
 
     dut_slave.dut_test_start(dictionary=pattern_dict_slave)
     dut_master.dut_test_start(dictionary=pattern_dict_master)
@@ -114,7 +121,7 @@ def test_modbus_serial_communication(
     ### Slave and Master objects registered
     slave_objects = dut_slave.get_objects_by_tag(SLAVE_TAG)
     for object in slave_objects:
-        logger.info("Modbus slave objects: %s", object)
+         logger.info("Modbus slave objects: %s", object)
     logger.info("Number of slave objects: %s", len(slave_objects))
 
     master_objects = dut_master.get_objects_by_tag(MASTER_TAG)
@@ -179,5 +186,9 @@ def test_modbus_serial_communication(
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize("config", ["dummy_config"])
-def test_modbus_serial_generic(config: str) -> None:
-    print("The generic serial example tests are not provided yet.")
+def test_modbus_tcp_generic(config) -> None:
+    logger.info("The generic tcp example tests are not provided yet.")
+
+
+if __name__ == "__main__":
+    pytest.main(["pytest_mb_tcp_instances.py"])
