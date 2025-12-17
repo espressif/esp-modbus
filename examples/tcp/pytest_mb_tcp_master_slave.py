@@ -105,12 +105,24 @@ test_configs = [
     ],
     indirect=True,
 )
-def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> None:
+def test_modbus_tcp_communication(app_path: str, dut: Tuple[ModbusTestDut, ModbusTestDut]) -> None:
     dut_slave = dut[0]
     dut_master = dut[1]
 
-    logger.info("DUT: %s start.", dut_master.dut_get_name())
-    logger.info("DUT: %s start.", dut_slave.dut_get_name())
+    logger.info(f"DUT test application path: {app_path}.")
+
+    dut_slave_name = dut_slave.dut_get_name()
+    dut_master_name = dut_master.dut_get_name()
+
+    dut_slave_port = dut_slave.app.sdkconfig.get("FMB_TCP_PORT_DEFAULT")
+    dut_stdin_en = dut_master.app.sdkconfig.get("MB_SLAVE_IP_FROM_STDIN")
+    dut_slave_ip_address = dut_slave.dut_get_ip()
+    logger.info(f"DUT: {dut_slave_name}, ip address: {dut_slave_ip_address}.")
+
+    if dut_stdin_en:
+        dut_master.dut_send_ip(slave_ip=dut_slave_ip_address)
+
+    print(f"Start testing for {dut_slave_name}:{dut_slave_port}, {dut_stdin_en}")
 
     dut_slave.dut_test_start(dictionary=pattern_dict_slave)
     dut_master.dut_test_start(dictionary=pattern_dict_master)
