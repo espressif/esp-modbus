@@ -652,9 +652,9 @@ MB_EVENT_HANDLER(mbm_on_close)
             if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)
                     && FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 // Close node immediately
-                mb_drv_close(drv_obj, fd);
                 MB_SET_NODE_STATE(pnode, MB_SOCK_STATE_READY);
                 ESP_LOGD(TAG, "%p, Close node %d, sock #%d.", ctx, fd, pnode->sock_id);
+                mb_drv_close(drv_obj, fd);
             }
         }
         (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_DISCONNECTED);

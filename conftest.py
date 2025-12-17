@@ -148,7 +148,7 @@ class MbObject:
 
 
 class ModbusTestDut(IdfDut):
-    TEST_IP_PROMPT = r"Waiting IP([0-9]{1,2}) from stdin:\r\r\n"
+    TEST_IP_PROMPT = r"Waiting IP([0-9]{1,2}) from stdin:"
     TEST_IP_ADDRESS_REGEXP = r".*example_[a-z]+: .* IPv4 [a-z]+:.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*"
     TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
 
@@ -377,26 +377,13 @@ class ModbusTestDut(IdfDut):
     def dut_send_ip(self, slave_ip: Optional[str]) -> Optional[int]:
         """The function sends the slave IP address defined as a parameter to master"""
         addr_num: int = 0
-        self.expect(self.TEST_IP_PROMPT, timeout=self.TEST_ACK_TIMEOUT)
+        self.expect(self.TEST_IP_PROMPT, timeout=self.TEST_EXPECT_STR_TIMEOUT)
         if isinstance(slave_ip, str):
             for addr_num in range(0, self.TEST_MAX_CIDS):
                 message = r"IP{}={}".format(addr_num, slave_ip)
                 self.logger.info("{} sent to master".format(message))
                 self.write(message)
         return addr_num
-
-    def get_expect_proc(self) -> Optional[object]:
-        """The function is a workaround to use expect method"""
-        expect_proc: object = None
-        try:
-            expect_proc = self.__getattribute__("pexpect_proc")
-        except:
-            expect_proc = self.__getattribute__("_p")
-        finally:
-            if expect_proc and callable(getattr(expect_proc, "expect")):
-                return expect_proc
-            else:
-                return None
 
     def dut_stats_info(self) -> ModbusDutStats:
         """The function retrieves all success and fail parameters per DUT to plot stats graph"""
@@ -515,7 +502,6 @@ class ModbusTestDut(IdfDut):
         :keyword timeout: timeout for expect
         :return: matched item
         """
-
         def process_expected_item(
             item_raw: Tuple[str, Callable[..., Any]],
         ) -> Dict[str, Any]:
@@ -534,28 +520,24 @@ class ModbusTestDut(IdfDut):
         ]
         match_item = None
 
-        # Workaround: We need to use the original expect method of pexpect process which returns
-        # index of matched pattern instead of Match object returned by dut.expect()
-        expect_proc: Optional[object] = self.get_expect_proc()
-
-        if expect_proc is not None:
-            match_index = expect_proc.expect(expect_patterns, timeout)
+        if self.pexpect_proc is not None:
+            match_index = self.pexpect_proc.expect(expect_patterns, timeout)
 
             if isinstance(match_index, int):
                 match_item = expect_items_list[match_index]  # type: ignore
-                match_item["index"] = match_index  # type: ignore
+                match_item["index"] = match_index  # type: ignore # keep match index
                 if (
-                    isinstance(expect_proc.match, Match)
-                    and len(expect_proc.match.groups()) > 0
+                    isinstance(self.pexpect_proc.match, Match)
+                    and len(self.pexpect_proc.match.groups()) > 0
                 ):
-                    match_item["ret"] = expect_proc.match.groups()
+                    match_item["ret"] = self.pexpect_proc.match.groups()
                 if match_item["callback"]:
                     match_item["callback"](
                         match_item["ret"]
                     )  # execution of callback function
         else:
             self.logger.error(
-                "%s: failed to parse output. Please check component versions",
+                "%s: failed to parse output. Please check component versions.",
                 self.app_name,
             )
             raise RuntimeError from None

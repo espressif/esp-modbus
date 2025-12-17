@@ -1,0 +1,2 @@
+# General options for test
+CONFIG_UNITY_ENABLE_FIXTURE=y

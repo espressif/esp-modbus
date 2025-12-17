@@ -24,7 +24,7 @@ extern "C" {
 bool port_check_host_addr(const char *host_str, ip_addr_t *host_addr)
 {
     MB_RETURN_ON_FALSE((host_str), false, TAG, "wrong host name or IP.");
-    char cstr[HOST_STR_MAX_LEN];
+    char cstr[MDNS_NAME_BUF_LEN] = {0};
     char *string_ptr = &cstr[0];
     ip_addr_t target_addr;
     struct addrinfo hint;
@@ -364,7 +364,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
     }
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     err_t err = ERR_OK;
-    char str[HOST_STR_MAX_LEN];
+    char str[MDNS_NAME_BUF_LEN];
     char *string_ptr = NULL;
     ip_addr_t target_addr;
     struct addrinfo hint;
@@ -481,8 +481,9 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
     int ret = 0;
     uint16_t index = 0;
     uint16_t port = 0;
+    char name_buffer[MDNS_NAME_BUF_LEN + 1] = {0};
 
-    MB_RETURN_ON_FALSE((buffer && (strlen(buffer) < (HOST_STR_MAX_LEN - 8)) && info_ptr),
+    MB_RETURN_ON_FALSE((buffer && (strlen(buffer) < (MDNS_NAME_BUF_LEN - 8)) && info_ptr),
                        -1, TAG, "check input parameters fail.");
 
 #if CONFIG_LWIP_IPV6
@@ -557,9 +558,10 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
 
     // Configuration format:
     // "01;mb_node_tcp_01;502"
-    ret = sscanf(buffer,  "%" PRIu16 ";%m[a-z0-9_];%" PRIu16, &index, &host_str, &port);
+    ret = sscanf(buffer, "%" PRIu16 ";%" XSTR(MDNS_NAME_BUF_LEN) "[a-z0-9_];%" PRIu16, &index, name_buffer, &port);
     if ((ret == MB_STR_LEN_HOST) || (ret == MB_STR_LEN_IDX_HOST_PORT)) {
-        info_ptr->node_name_str = (host_str && strlen(host_str)) ? host_str : info_ptr->node_name_str;
+        host_str = (strlen((const char *)name_buffer)) ? strdup((const char *)name_buffer) : NULL;
+        info_ptr->node_name_str = (host_str) ? host_str : info_ptr->node_name_str;
         info_ptr->ip_addr_str = (info_ptr->node_name_str) ? info_ptr->node_name_str : info_ptr->ip_addr_str;
         info_ptr->uid = index;
         info_ptr->fd = UNDEF_FD;
@@ -570,15 +572,15 @@ int port_scan_addr_string(char *buffer, mb_uid_info_t *info_ptr)
     }
 
     // Configuration format:
-    // "mb_node_tcp_01"
-    ret = sscanf(buffer, "%m[a-z0-9_]", &host_str);
-    if (ret == MB_STR_LEN_HOST) {
-
-        info_ptr->node_name_str = (host_str && strlen(host_str)) ? host_str : info_ptr->node_name_str;
+    // "mb_node_tcp_01;502"
+    ret = sscanf(buffer, "%" XSTR(MDNS_NAME_BUF_LEN) "[a-z0-9_];%" PRIu16, name_buffer, &port);
+    if ((ret == MB_STR_LEN_HOST) || (ret == MB_STR_LEN_HOST_PORT)) {
+        host_str = (strlen((const char *)name_buffer)) ? strdup((const char *)name_buffer) : NULL;
+        info_ptr->node_name_str = (host_str) ? host_str : info_ptr->node_name_str;
         info_ptr->ip_addr_str = (info_ptr->node_name_str) ? info_ptr->node_name_str : info_ptr->ip_addr_str;
         info_ptr->uid = index;
         info_ptr->fd = UNDEF_FD;
-        info_ptr->port = CONFIG_FMB_TCP_PORT_DEFAULT;
+        info_ptr->port = (ret == MB_STR_LEN_HOST_PORT) ? port : CONFIG_FMB_TCP_PORT_DEFAULT;
         info_ptr->addr_type = MB_IPV4;
         info_ptr->proto = MB_TCP;
         return ret;
@@ -594,7 +596,7 @@ static int mdns_instance_count = 0;
 // This function has limitation of working with IP6 address only
 esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void *node_netif)
 {
-    char temp_str[HOST_STR_MAX_LEN] = {0};
+    char temp_str[MDNS_NAME_BUF_LEN] = {0};
     esp_ip6_addr_t ip6[LWIP_IPV6_NUM_ADDRESSES];
     int ip6_addrs_count = 0;
     esp_err_t err = ESP_ERR_INVALID_STATE;
@@ -612,7 +614,7 @@ esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void
         uint8_t mac[6];
         MB_RETURN_ON_FALSE((esp_netif_get_mac(pnetif, mac) == ESP_OK),
                            err, TAG, "get MAC fail, err = %d.", (int)err);
-        snprintf(temp_str, HOST_STR_MAX_LEN, "%s_%02x%02x%02x", MB_MDNS_INST_NAME(is_master), mac[3], mac[4], mac[5]);
+        snprintf(temp_str, MDNS_NAME_BUF_LEN, "%s_%02x%02x%02x", MB_MDNS_INST_NAME(is_master), mac[3], mac[4], mac[5]);
         err = mdns_hostname_set(temp_str);
         MB_RETURN_ON_FALSE((err == ESP_OK),
                            err, TAG, "could not set mdns host name, err = %d.", (int)err);

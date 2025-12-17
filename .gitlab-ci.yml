@@ -57,11 +57,6 @@ after_script:
     - test "$CI_CCACHE_STATS" == 1 && test -n "$(which ccache)" && ccache --show-stats || true
   dependencies: []
 
-.before_script_build_jobs:
-  before_script:
-    - pip install idf-component-manager --upgrade
-    - pip install "idf_build_apps" --upgrade
-
 .check_idf_ver: &check_idf_ver |
   export IDF_PATH=$(find /opt -type d -name "*idf*" \
                   \( -exec test -f '{}/tools/idf.py' \; -and -exec test -f '{}/tools/idf_tools.py' \; \
@@ -75,6 +70,18 @@ after_script:
     echo "$IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
     echo "ESP-IDF: $IDF_VERSION"
   fi
+
+.before_script_build_jobs:
+  before_script:
+    - *check_idf_ver
+    - *setup_idf_tools
+    #- COMPOTE_VER_START=$(compote version)
+    #- pip install idf-component-manager --upgrade # to avoid the issue with component manager v2.4.3
+    - pip install "idf_build_apps" --upgrade
+    - COMPOTE_VER=$(compote version)
+    - echo "Component manager version ${COMPOTE_VER}"
+    - PIP_VERS=$(python -m pip freeze)
+    - echo "PIP component versions ${PIP_VERS}"
 
 # Note: this script builds the folder against all targets and then deletes
 # all other artifacts except the esp32 to decrease the size of artifacs (may cause failures)
@@ -110,10 +117,6 @@ after_script:
     - .before_script_build_jobs
   script:
     # The script below will build all test applications defined in environment variable $TEST_TARGETS
-    - *check_idf_ver
-    # This is workaround to build library under esp-idf v4.4
-    - pip install idf-component-manager --upgrade
-    - ${IDF_PATH}/install.sh --enable-ci
     - cd ${TEST_DIR}/test_apps
     - *build_cur_folder
     - cd ${TEST_DIR}/examples

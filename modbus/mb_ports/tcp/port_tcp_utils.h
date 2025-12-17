@@ -38,10 +38,22 @@ extern "C" {
 // Workaround for MDNS_NAME_BUF_LEN being defined in private header
 #ifndef MDNS_NAME_BUF_LEN
 #define MDNS_NAME_BUF_LEN 64
+#else
+# undef MDNS_NAME_BUF_LEN
+# if defined(CONFIG_LWIP_IPV6) && defined(CONFIG_MDNS_RESPOND_REVERSE_QUERIES)
+#  define MDNS_NAME_BUF_LEN 69
+# else
+#  define MDNS_NAME_BUF_LEN 65
+# endif
+# if (MDNS_NAME_MAX_LEN + 1) != MDNS_NAME_BUF_LEN
+#  error "wrong MDNS_NAME_MAX_LEN value; check with mdns.h header"
+# endif
 #endif
 
-#define HOST_STR_MAX_LEN            (MDNS_NAME_BUF_LEN)
 #define MB_TCP_NET_LISTEN_BACKLOG   (SOMAXCONN)
+
+#define STRCAT(x) #x
+#define XSTR(x) STRCAT(x)
 
 #if MB_MDNS_IS_INCLUDED
 
@@ -66,6 +78,7 @@ extern "C" {
 
 #define MB_STR_LEN_HOST 1  // "mb_node_tcp_01"
 #define MB_STR_LEN_IDX_HOST 2  // "12;mb_node_tcp_01"
+#define MB_STR_LEN_HOST_PORT 2  // "mb_node_tcp_01;502"
 #define MB_STR_LEN_IDX_HOST_PORT 3 // "01;mb_node_tcp_01;1502"
 #define MB_STR_LEN_IP4_ONLY 4 // "192.168.1.1"
 #define MB_STR_LEN_IDX_IP4 5 // "1;192.168.1.1"
