@@ -424,6 +424,14 @@ TaskHandle_t slave_tcp_create_instance(mb_communication_info_t *pconfig, uint32_
 
 void app_main(void)
 {
+#if !CONFIG_LOG_DEFAULT_LEVEL_DEBUG
+    esp_log_level_set("mbc_tcp.slave",ESP_LOG_DEBUG);
+    esp_log_level_set("mb_object.slave",ESP_LOG_DEBUG);
+#else
+    // Disable VFS logs as they are too verbose
+    esp_log_level_set("vfs_calls", ESP_LOG_NONE);
+#endif
+
     void *pnetif = NULL;
     TEST_ASSERT_TRUE(test_tcp_services_init(&pnetif) == ESP_OK);
     TEST_ASSERT_NOT_NULL(pnetif);

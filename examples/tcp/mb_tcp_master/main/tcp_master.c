@@ -819,6 +819,14 @@ static esp_err_t master_destroy(void)
 
 void app_main(void)
 {
+#if !CONFIG_LOG_DEFAULT_LEVEL_DEBUG
+    esp_log_level_set("mbc_tcp.master",ESP_LOG_DEBUG);
+    esp_log_level_set("mb_object.master",ESP_LOG_DEBUG);
+#else
+    // Disable VFS logs as they are too verbose
+    esp_log_level_set("vfs_calls", ESP_LOG_NONE);
+#endif
+
     mb_tcp_addr_type_t ip_addr_type;
 #if !CONFIG_EXAMPLE_CONNECT_IPV6
     ip_addr_type = MB_IPV4;
