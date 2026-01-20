@@ -149,7 +149,7 @@ class MbObject:
 
 class ModbusTestDut(IdfDut):
     TEST_IP_PROMPT = r"Waiting IP([0-9]{1,2}) from stdin:"
-    TEST_IP_ADDRESS_REGEXP = r".*example_[a-z]+: .* IPv4 [a-z]+:.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*"
+    TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
 
     TEST_EXPECT_STR_TIMEOUT = 120
