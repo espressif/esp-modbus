@@ -82,6 +82,10 @@ after_script:
     - echo "Component manager version ${COMPOTE_VER}"
     - PIP_VERS=$(python -m pip freeze)
     - echo "PIP component versions ${PIP_VERS}"
+    # Allows to debug jobs overriding the ESP_MODBUS_CONFIG_KEY to ESP_MODBUS_CONFIG_VALUE
+    # in all registered application configs that match the pattern ESP_MODBUS_CONFIG_PATTERN
+    - echo "Setup job with parameters ${ESP_MODBUS_CONFIG_KEY}, ${ESP_MODBUS_CONFIG_VALUE}, ${ESP_MODBUS_CONFIG_PATTERN}"
+    - ${TEST_DIR}/tools/setup_config_key.sh "${ESP_MODBUS_CONFIG_KEY}" "${ESP_MODBUS_CONFIG_VALUE}" "${ESP_MODBUS_CONFIG_PATTERN}"
 
 # Note: this script builds the folder against all targets and then deletes
 # all other artifacts except the esp32 to decrease the size of artifacs (may cause failures)

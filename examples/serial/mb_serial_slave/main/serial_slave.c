@@ -175,6 +175,14 @@ void app_main(void)
     // Set UART log level
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
+#if !CONFIG_LOG_DEFAULT_LEVEL_DEBUG
+    esp_log_level_set("mbc_serial.slave",ESP_LOG_DEBUG);
+    esp_log_level_set("mb_object.slave",ESP_LOG_DEBUG);
+#else
+    // Disable VFS logs as they are too verbose
+    esp_log_level_set("vfs_calls", ESP_LOG_NONE);
+#endif
+
     // Initialize Modbus controller
     mb_communication_info_t comm_config = {
         .ser_opts.port = MB_PORT_NUM,

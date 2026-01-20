@@ -19,7 +19,7 @@ from conftest import (
 
 pattern_dict_slave = {
     Stages.STACK_IPV4: (
-        r"I \([0-9]+\) example_[a-z]+: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+        r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     ),
     Stages.STACK_IPV6: (
         r"I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
@@ -49,7 +49,7 @@ pattern_dict_slave = {
 
 pattern_dict_master = {
     Stages.STACK_IPV4: (
-        r"I \([0-9]+\) example_[a-z]+: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+        r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     ),
     Stages.STACK_IPV6: (
         r"I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
