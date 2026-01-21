@@ -13,7 +13,7 @@
 #endif
 
 // Workaround for atomics incompatibility issue under CPP.
-#if defined(__cplusplus) && (IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 0, 0))
+#if defined(__cplusplus) && (ESP_IDF_VERSION <= ESP_IDF_VERSION_VAL(5, 0, 0))
 #include <atomic>
 #define _Atomic(T) std::atomic<T>
 #define atomic_int int
