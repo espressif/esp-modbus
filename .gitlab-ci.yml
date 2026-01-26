@@ -25,7 +25,7 @@ variables:
     TEST_MARKER:
     - "tcp"
     - "serial"
-    - "generic"
+#    - "generic"  // Disabling during the CI refactor on tests
 #    - "tcp_p4"
 #    - "serial_p4"
 

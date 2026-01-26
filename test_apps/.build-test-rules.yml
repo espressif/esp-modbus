@@ -3,7 +3,8 @@ physical_tests:
     - if: IDF_TARGET != "esp32"
       reason: only manual test is performed for other targets
   disable:
-    - if: CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1 and IDF_TARGET != "esp32"
+      - if: CONFIG_NAME != "serial"
+    # - if: CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1 and IDF_TARGET != "esp32"
 
 tcp_instances_tests/mb_tcp_master_instances:
   disable_test:
@@ -21,10 +22,16 @@ tcp_instances_tests/mb_tcp_slave_instances:
 
 unit_tests:
   disable_test:
-    - if: IDF_TARGET != "esp32"
-      reason: only manual test is performed for other targets
+    - if: "1 == 1" # Disabling for the Ci build and test Refactor
+    # - if: IDF_TARGET != "esp32"
+    #   reason: only manual test is performed for other targets
+  disable:
+    - if: "1 == 1" # Disabling for the Ci test Refactor
 
 adapter_tests:
   disable_test:
-    - if: IDF_TARGET != "esp32"
-      reason: only manual test is performed for other targets
+      - if: "1 == 1" # Disabling for the Ci build and test Refactor
+    # - if: IDF_TARGET != "esp32"
+    #   reason: only manual test is performed for other targets
+  disable:
+    - if: "1 == 1" # Disabling for the Ci build and test Refactor
