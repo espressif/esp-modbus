@@ -10,7 +10,7 @@ repos:
         args: ['--style=otbs', '--attach-namespaces', '--attach-classes', '--indent=spaces=4', '--convert-tabs', '--align-pointer=name', '--align-reference=name', '--keep-one-line-statements', '--pad-header', '--pad-oper']
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace                          # Removes trailing whitespaces from lines
         exclude: &whitespace_excludes |
@@ -45,6 +45,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell # Code spell checker
+        stages: [pre-commit]
         args: ["--write-changes"]
         additional_dependencies: [tomli]
         exclude: |
