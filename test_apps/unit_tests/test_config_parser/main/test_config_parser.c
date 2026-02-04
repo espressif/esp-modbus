@@ -31,7 +31,7 @@ TEST_CASE("Test tcp configuration parser.", "[MB_CONFIGURATION]")
     TEST_ASSERT(uid_info.port == 502);
     free(uid_info.node_name_str);
 
-    // UID, Hostname, Port, the incorect UID provided (only decimal representation is supported)
+    // UID, Hostname, Port, the incorrect UID provided (only decimal representation is supported)
     result = port_scan_addr_string("c8;mb_slave_tcp_c8;1502", &uid_info);
     TEST_ASSERT(uid_info.node_name_str);
     printf("Test config parser result: %d, index: %d, host: %s, port: %d \r\n", result, uid_info.uid, uid_info.node_name_str, uid_info.port);
@@ -42,7 +42,7 @@ TEST_CASE("Test tcp configuration parser.", "[MB_CONFIGURATION]")
     TEST_ASSERT(uid_info.port == 502); // default port
     free(uid_info.node_name_str);
 
-    // UID, Hostname, Port, the incorect host name
+    // UID, Hostname, Port, the incorrect host name
     result = port_scan_addr_string("15;mb_slave**_tcp_c8;1502", &uid_info);
     TEST_ASSERT(uid_info.node_name_str);
     printf("Test config parser result: %d, index: %d, host: %s, port: %d \r\n", result, uid_info.uid, uid_info.node_name_str, uid_info.port);
