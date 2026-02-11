@@ -1,3 +1,11 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 stages:
   - pre_check
   - build
@@ -168,15 +176,21 @@ after_script:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
     - pip install pre-commit
-    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME --depth=1
-    - git fetch origin $CI_COMMIT_REF_NAME --depth=1
     - |
-      echo "Target branch: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-      echo "Source branch: $CI_COMMIT_REF_NAME"
+      if [ "$CI_PIPELINE_SOURCE" == "merge_request_event" ]; then
+        echo "Running in Merge Request context..."
+        git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME --depth=1
+        git fetch origin $CI_COMMIT_REF_NAME --depth=1
+        RANGE="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...origin/$CI_COMMIT_REF_NAME"
+      else
+        echo "Running in Branch context ($CI_COMMIT_BRANCH)..."
+        git fetch origin $CI_COMMIT_BRANCH --depth=2
+        # Compare current commit to its parent
+        RANGE="HEAD~1..HEAD"
+      fi
 
-      MODIFIED_FILES=$(git diff --name-only origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..origin/$CI_COMMIT_REF_NAME | tr '\n' ' ')
-      echo "Modified files to check:"
-      echo "$MODIFIED_FILES"
+      MODIFIED_FILES=$(git diff --name-only $RANGE | tr '\n' ' ')
+      echo "Modified files to check: $MODIFIED_FILES"
 
       if [ -n "$MODIFIED_FILES" ]; then
           CI=true pre-commit run --files $MODIFIED_FILES
