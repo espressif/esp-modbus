@@ -119,6 +119,10 @@ after_script:
   extends:
     - .build_template
     - .before_script_build_jobs
+  needs:
+    - job: check_pre_commit
+      artifacts: false
+      optional: true
   script:
     # The script below will build all test applications defined in environment variable $TEST_TARGETS
     - cd ${TEST_DIR}/test_apps
@@ -149,7 +153,6 @@ after_script:
       - $SIZE_INFO_LOCATION
     when: always
     expire_in: 3 weeks
-  needs: []
 
 .before_static_analyzer_build:
   before_script:
@@ -162,6 +165,7 @@ after_script:
   image: $ESP_DOCS_ENV_IMAGE
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - pip install pre-commit
     - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME --depth=1
@@ -193,6 +197,9 @@ build_static_analyzer_idf_latest:
   extends:
     - .before_static_analyzer_build
   image: espressif/idf:latest
+  needs:
+    - job: check_pre_commit
+      optional: true
   artifacts:
     name: artifacts_${CI_JOB_NAME}
     paths:
@@ -208,7 +215,6 @@ build_static_analyzer_idf_latest:
     - *check_idf_ver
     - cd ${TEST_DIR}/examples
     - ${TEST_DIR}/tools/static_analyzer_check.sh ${ANALYZER_TYPE}
-  needs: []
   after_script: []
 
 build_idf_latest:
@@ -296,8 +302,8 @@ target_test_latest:
     matrix:
       - !reference [.options_list, markers]
   needs:
-    job: build_idf_latest
-    artifacts: true
+    - job: build_idf_latest
+      artifacts: true
   after_script: []
 
 target_test_v5.5:
@@ -308,8 +314,8 @@ target_test_v5.5:
     matrix:
       - !reference [.options_list, markers]
   needs:
-    job: build_idf_v5.5
-    artifacts: true
+    - job: build_idf_v5.5
+      artifacts: true
   after_script: []
 
 target_test_v5.3:
@@ -320,8 +326,8 @@ target_test_v5.3:
     matrix:
       - !reference [.options_list, markers]
   needs:
-    job: build_idf_v5.3
-    artifacts: true
+    - job: build_idf_v5.3
+      artifacts: true
   after_script: []
 
 target_test_v5.1:
@@ -332,8 +338,8 @@ target_test_v5.1:
     matrix:
       - !reference [.options_list, markers]
   needs:
-    job: build_idf_v5.1
-    artifacts: true
+    - job: build_idf_v5.1
+      artifacts: true
   after_script: []
 
 build_docs:
