@@ -1,3 +1,11 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 stages:
   - pre_check
   - build
@@ -163,9 +171,6 @@ after_script:
 .check_pre_commit_template:
   stage: pre_check
   image: $ESP_DOCS_ENV_IMAGE
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - pip install pre-commit
     - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME --depth=1
