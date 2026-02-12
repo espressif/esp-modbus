@@ -171,25 +171,17 @@ after_script:
 .check_pre_commit_template:
   stage: pre_check
   image: $ESP_DOCS_ENV_IMAGE
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == "main"
   script:
     - pip install pre-commit
+    - TARGET_BRANCH=${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}
+    - git fetch origin $TARGET_BRANCH --depth=1 || true
+    - git fetch origin $CI_COMMIT_REF_NAME --depth=1 || true
     - |
-      if [ "$CI_PIPELINE_SOURCE" == "merge_request_event" ]; then
-        echo "Running in Merge Request context..."
-        git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME --depth=1
-        git fetch origin $CI_COMMIT_REF_NAME --depth=1
-        RANGE="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...origin/$CI_COMMIT_REF_NAME"
-      else
-        echo "Running in Branch context ($CI_COMMIT_BRANCH)..."
-        git fetch origin $CI_COMMIT_BRANCH --depth=2
-        # Compare current commit to its parent
-        RANGE="HEAD~1..HEAD"
-      fi
-
+      echo "Target branch: $TARGET_BRANCH"
+      echo "Source branch: $CI_COMMIT_REF_NAME"
+      RANGE="origin/$TARGET_BRANCH...origin/$CI_COMMIT_REF_NAME"
       MODIFIED_FILES=$(git diff --name-only $RANGE | tr '\n' ' ')
+
       echo "Modified files to check: $MODIFIED_FILES"
 
       if [ -n "$MODIFIED_FILES" ]; then
@@ -201,6 +193,11 @@ after_script:
 check_pre_commit:
   extends:
     - .check_pre_commit_template
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: never # Skip pre-commit on main
+    - when: never # Skip excplicitly on other cases
   needs: []
   after_script: []
 
@@ -381,9 +378,6 @@ build_docs:
     - deploy_docs
   needs:
     - build_docs
-  only:
-    changes:
-      - "docs/**/*"
   script:
     - source ${CI_PROJECT_DIR}/docs/utils.sh
     - add_doc_server_ssh_keys $DOCS_DEPLOY_PRIVATEKEY $DOCS_DEPLOY_SERVER $DOCS_DEPLOY_SERVER_USER
@@ -397,9 +391,10 @@ build_docs:
 deploy_docs_preview:
   extends:
     - .deploy_docs_template
-  except:
-    refs:
-      - main
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "docs/**/*"
   variables:
     TYPE: "preview"
     DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
@@ -412,9 +407,11 @@ deploy_docs_preview:
 deploy_docs_production:
   extends:
     - .deploy_docs_template
-  only:
-    refs:
-      - main
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - "docs/**/*"
+    - when: never # Do not run on any other branch or without changes
   variables:
     TYPE: "production"
     DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
