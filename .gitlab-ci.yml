@@ -26,7 +26,7 @@ variables:
 # Define a matrix for IDF versions and their corresponding targets
 .options_list:
 #  versions:
-#    IDF_VER: ["latest", "v5.5", "v5.3", "v5.1"]
+#    IDF_VER: ["latest", "v5.5", "v5.3"]
   analyzers:
     ANALYZER_TYPE: [gcc, clang]
   markers:
@@ -246,12 +246,6 @@ build_idf_v5.3:
   variables:
     TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2 esp32p4"
 
-build_idf_v5.1:
-  extends: .build_pytest_template
-  image: espressif/idf:release-v5.1
-  variables:
-    TEST_TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 esp32h2"
-
 .target_test_template:
   stage: target_test
   timeout: 1 hour
@@ -338,18 +332,6 @@ target_test_v5.3:
       - !reference [.options_list, markers]
   needs:
     - job: build_idf_v5.3
-      artifacts: true
-  after_script: []
-
-target_test_v5.1:
-  stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.1:1"
-  extends: .test_template
-  parallel:
-    matrix:
-      - !reference [.options_list, markers]
-  needs:
-    - job: build_idf_v5.1
       artifacts: true
   after_script: []
 
