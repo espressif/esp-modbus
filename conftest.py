@@ -39,6 +39,7 @@ class Stages(Enum):
     STACK_BAD_CONNECTION = 11
     STACK_CID_RESPONSE_TIME = 12
 
+
 ## Object Fields
 TRANSACTION_TIMESTAMP = 0
 OBJ_TAG = 1
@@ -57,6 +58,7 @@ SLAVE_TAG = "slave"
 
 DEFAULT_SDKCONFIG = "default"
 ALLOWED_PERCENT_OF_FAILS = 10
+
 
 ## Dataclass for structuring data to plot statistical graph
 @dataclass
@@ -192,6 +194,28 @@ class ModbusTestDut(IdfDut):
 
         return None
 
+    def validate_object_creation_tag(self, parsed_obj_tag: str) -> str:
+        """Function checking and updating object creation tag master/slave if wrong"""
+        if self.app_name is None:
+            self.logger.error("app_name not initialized; cannot validate object tag")
+            raise RuntimeError from None
+
+        if MASTER_TAG in parsed_obj_tag or SLAVE_TAG in parsed_obj_tag:
+            return parsed_obj_tag
+
+        # Workaround to get master/slave tag from DUT class
+        # Checking if app_name contains the  field. Ex: modbus_tcp_master
+        if MASTER_TAG in self.app_name.lower():
+            obj_tag = MASTER_TAG
+        elif SLAVE_TAG in self.app_name.lower():
+            obj_tag = SLAVE_TAG
+        else:
+            self.logger.error("Could not determine master/slave tag from app_name")
+            raise RuntimeError from None
+
+        self.logger.info(f"Object tag wrongly parsed, new tag being saved: {obj_tag}")
+        return obj_tag
+
     def add_object(self, tag: str, id: bytes, timestamp: bytes) -> MbObject:
         """The function add to list master or slave instances in the test"""
         obj = MbObject(tag, id, timestamp)
@@ -214,15 +238,25 @@ class ModbusTestDut(IdfDut):
         else:
             return objects
 
-    def get_object_by_id(self, id: bytes) -> MbObject:
+    def get_object_by_id(self, id: bytes) -> Optional[MbObject]:
         """The getter retrieves master or slave object by instance address"""
         self.check_mb_objects_list()
         for object in self.mb_objects:
             if id == object.id:
                 return object
 
-        self.logger.error("couldn't find object by id")
-        raise RuntimeError from None
+        self.logger.error(f"couldn't find registered object with id: {id}")
+        return None
+
+    def update_wrong_object_id(self, id: bytes) -> MbObject:
+        """Scan registered object list checking for a wrongly parsed object ID which is
+        not 10 characters long. Ex - 0x3ffbf7bc"""
+        self.check_mb_objects_list()
+        for object in self.mb_objects:
+            if len(object.id) != 10:
+                self.logger.info(f"updating wrong object id: {object.id} to: {id}")
+                object.id = id
+                return object
 
     def get_params_by_object_id_and_status(
         self, instance_address: bytes, status: str
@@ -372,6 +406,7 @@ class ModbusTestDut(IdfDut):
             )
             if isinstance(expect_name, Match):
                 self.app_name = expect_name.group(1).decode("ascii")
+        self.logger.info(f"Project name registered: {self.app_name}")
         return self.app_name
 
     def dut_send_ip(self, slave_ip: Optional[str]) -> Optional[int]:
@@ -502,6 +537,7 @@ class ModbusTestDut(IdfDut):
         :keyword timeout: timeout for expect
         :return: matched item
         """
+
         def process_expected_item(
             item_raw: Tuple[str, Callable[..., Any]],
         ) -> Dict[str, Any]:
@@ -610,6 +646,9 @@ class ModbusTestDut(IdfDut):
             # Checking if MBobject exist in the object list
 
             object_handle = self.get_object_by_id(data[OBJ_ADDRESS])
+            if object_handle is None:
+                object_handle = self.update_wrong_object_id(data[OBJ_ADDRESS])
+
             last_sucess_parameter = object_handle.add_parameter(
                 data[PARAM_NAME],
                 data[OBJ_ADDRESS],
@@ -634,6 +673,9 @@ class ModbusTestDut(IdfDut):
             self.logger.info("%s[READ_PAR_FAIL]: %s", self.app_name, str(data))
             # Checking if MBobject exist in the object list
             object_handle = self.get_object_by_id(data[OBJ_ADDRESS])
+            if object_handle is None:
+                object_handle = self.update_wrong_object_id(data[OBJ_ADDRESS])
+
             last_fail_parameter = object_handle.add_parameter(
                 data[PARAM_NAME],
                 data[OBJ_ADDRESS],
@@ -655,8 +697,10 @@ class ModbusTestDut(IdfDut):
                 Stages.STACK_OBJECT_CREATE.name,
                 str(data),
             )
+            obj_tag = self.validate_object_creation_tag(data[OBJ_TAG].decode("ascii"))
+
             last_add_object = self.add_object(
-                data[OBJ_TAG].decode("ascii"), data[OBJ_ID], data[TRANSACTION_TIMESTAMP]
+                obj_tag, data[OBJ_ID], data[TRANSACTION_TIMESTAMP]
             )
             self.test_stage = Stages.STACK_OBJECT_CREATE
             self.logger.info("New added object: %s", last_add_object)
