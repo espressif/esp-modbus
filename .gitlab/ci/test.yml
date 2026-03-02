@@ -1,0 +1,89 @@
+.target_test_template:
+  stage: target_test
+  timeout: 1 hour
+  variables:
+    GIT_DEPTH: 1
+    SUBMODULES_TO_FETCH: "none"
+  cache:
+    # Usually do not need submodule-cache in target_test
+    - key: pip-cache
+      paths:
+        - .cache/pip
+      policy: pull
+
+.before_script_pytest_jobs:
+  before_script:
+    - pip install -r ${TEST_DIR}/tools/test_requirements.txt
+
+.test_cur_folder_script:
+  script:
+    - |
+      export IDF_VER=$(cat ${TEST_DIR}/idf_version_info.txt)
+      echo "Start test job: ${CI_JOB_NAME}, version: ${IDF_VER%-*}, folder: ${PWD##*/}"
+      echo "Check built artifacts:" $(find . -type d -regex '^\./.*build_esp32[a-z]*[0-9]*[_a-z]*' -print)
+      python -m pytest --junit-xml=${TEST_DIR}/${PWD##*/}/results_${IDF_VER%-*}_${PWD##*/}.xml -m multi_dut_modbus_${TEST_MARKER}
+      ls -lh > test_dir_${PWD##*/}.txt
+
+.test_template:
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+  stage: target_test
+  extends:
+    - .before_script_pytest_jobs
+  tags:
+    - multi_dut_modbus_${TEST_MARKER}
+  script:
+    - cd ${TEST_DIR}/test_apps/
+    - !reference [.test_cur_folder_script, script]
+    - cd ${TEST_DIR}/examples/
+    - !reference [.test_cur_folder_script, script]
+  artifacts:
+    name: artifacts_${CI_JOB_NAME}
+    paths:
+      - "${TEST_DIR}/**/*.log"
+      - "${TEST_DIR}/**/*.xml"
+      - "${TEST_DIR}/**/results_*.xml"
+      - "${TEST_DIR}/**/pytest_embedded_log/"
+      - "${TEST_DIR}/**/test_dir*.txt"
+      - "${TEST_DIR}/**/idf_version_info.txt"
+      - "${TEST_DIR}/**/log.html" # robot framework related files
+      - "${TEST_DIR}/**/report.html"
+      - "${TEST_DIR}/**/*.pcap"
+      - "${TEST_DIR}/**/*.png"
+    when: always
+    expire_in: 1 week
+
+target_test_latest:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v6.0:2"
+  extends: .test_template
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  needs:
+    - job: build_idf_latest
+      artifacts: true
+  after_script: []
+
+target_test_v5.5:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.5:2"
+  extends: .test_template
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  needs:
+    - job: build_idf_v5.5
+      artifacts: true
+  after_script: []
+
+target_test_v5.3:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+  extends: .test_template
+  parallel:
+    matrix:
+      - !reference [.options_list, markers]
+  needs:
+    - job: build_idf_v5.3
+      artifacts: true
+  after_script: []
