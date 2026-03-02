@@ -1,0 +1,65 @@
+.deploy_docs_template:
+  stage: deploy
+  image: $ESP_DOCS_ENV_IMAGE
+  tags:
+    - deploy_docs
+  needs:
+    - build_docs
+  script:
+    - source ${CI_PROJECT_DIR}/docs/utils.sh
+    - add_doc_server_ssh_keys $DOCS_DEPLOY_PRIVATEKEY $DOCS_DEPLOY_SERVER $DOCS_DEPLOY_SERVER_USER
+    - export GIT_VER=$(git describe --always)
+    - export GIT_TAGS=$(git fetch --tags; git tag -l;)
+    - echo "Deploy ${PWD##*/}, ${DOCS_BUILD_DIR}, Ref name; ${CI_COMMIT_REF_NAME}"
+    - echo "Version; ${GIT_VER}, tags; ${GIT_TAGS}"
+    - pip install -r ${CI_PROJECT_DIR}/docs/requirements.txt
+    - deploy-docs
+
+deploy_docs_preview:
+  extends:
+    - .deploy_docs_template
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "docs/**/*"
+  variables:
+    TYPE: "preview"
+    DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
+    DOCS_DEPLOY_PRIVATEKEY: "$DOCS_PREVIEW_PRIVATEKEY"
+    DOCS_DEPLOY_SERVER: "$DOCS_PREVIEW_SERVER"
+    DOCS_DEPLOY_SERVER_USER: "$DOCS_PREVIEW_SERVER_USER"
+    DOCS_DEPLOY_PATH: "$DOCS_PREVIEW_PATH"
+    DOCS_DEPLOY_URL_BASE: "$DOCS_PREVIEW_URL_BASE"
+
+deploy_docs_production:
+  extends:
+    - .deploy_docs_template
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - "docs/**/*"
+    - when: never # Do not run on any other branch or without changes
+  variables:
+    TYPE: "production"
+    DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
+    DOCS_DEPLOY_PRIVATEKEY: "$DOCS_PROD_DEPLOY_KEY"
+    DOCS_DEPLOY_SERVER: "$DOCS_PROD_SERVER"
+    DOCS_DEPLOY_SERVER_USER: "$DOCS_PROD_SERVER_USER"
+    DOCS_DEPLOY_PATH: "$DOCS_PROD_PATH"
+    DOCS_DEPLOY_URL_BASE: "https://docs.espressif.com/projects/esp-modbus"
+
+upload_to_component_manager:
+  stage: deploy
+  image: python:3.10-alpine
+  tags:
+    - deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"' # the main branch is a component release branch for v2
+    - if: '$FORCE_PUSH_COMPONENT == "1"'
+      when: manual
+      allow_failure: true
+  script:
+    - pip install idf-component-manager
+    - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
+    - export COMP_VERSION=$(grep 'version:' idf_component.yml | head -n 1 | awk '{print $2}' | tr -d '"')
+    - compote component upload --namespace=espressif --name=esp-modbus --allow-existing --version=${COMP_VERSION}

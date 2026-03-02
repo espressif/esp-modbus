@@ -1,0 +1,16 @@
+build_docs:
+  stage: build
+  image: $ESP_DOCS_ENV_IMAGE
+  tags:
+    - build_docs
+  artifacts:
+    when: always
+    paths:
+      - docs/_build/*/*/*.txt
+      - docs/_build/*/*/html/*
+    expire_in: 4 days
+  after_script: []
+  script:
+    - cd docs
+    - pip install -r requirements.txt
+    - ./generate_docs
