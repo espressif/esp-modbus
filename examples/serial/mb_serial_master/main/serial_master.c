@@ -639,8 +639,8 @@ static esp_err_t master_init(void)
 void app_main(void)
 {
 #if !CONFIG_LOG_DEFAULT_LEVEL_DEBUG
-    esp_log_level_set("mb_object.master",ESP_LOG_DEBUG);
-    esp_log_level_set("mbc_serial.master",ESP_LOG_DEBUG);
+    esp_log_level_set("mb_object.master", ESP_LOG_DEBUG);
+    esp_log_level_set("mbc_serial.master", ESP_LOG_DEBUG);
 #else
     // Disable VFS logs as they are too verbose
     esp_log_level_set("vfs_calls", ESP_LOG_NONE);

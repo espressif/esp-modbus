@@ -16,6 +16,7 @@ def test_modbus_comm_multi_dev_serial(case_tester) -> None:  # type: ignore
             print(f"Test case: {case.name}")
             case_tester.run_multi_dev_case(case=case, reset=True)
 
+
 ## Disabling for the Ci build and test Refactor
 
 # @pytest.mark.parametrize("count, config", [(2, "ethernet")], indirect=True)

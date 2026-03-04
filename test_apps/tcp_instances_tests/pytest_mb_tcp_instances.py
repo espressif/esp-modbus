@@ -121,7 +121,7 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
     ### Slave and Master objects registered
     slave_objects = dut_slave.get_objects_by_tag(SLAVE_TAG)
     for object in slave_objects:
-         logger.info("Modbus slave objects: %s", object)
+        logger.info("Modbus slave objects: %s", object)
     logger.info("Number of slave objects: %s", len(slave_objects))
 
     master_objects = dut_master.get_objects_by_tag(MASTER_TAG)
@@ -186,7 +186,7 @@ def test_modbus_tcp_communication(dut: Tuple[ModbusTestDut, ModbusTestDut]) -> N
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize("config", ["dummy_config"])
-def test_modbus_tcp_generic(config) -> None:
+def test_modbus_tcp_generic(config: str) -> None:
     logger.info("The generic tcp example tests are not provided yet.")
 
 
