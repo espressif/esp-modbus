@@ -63,7 +63,7 @@ TEST_CASE("Test tcp configuration parser.", "[MB_CONFIGURATION]")
     TEST_ASSERT(uid_info.addr_type == MB_IPV4);
     free(uid_info.node_name_str);
 
-        // Hostname only
+    // Hostname only
     result = port_scan_addr_string("mb_slave_tcp_01;1234", &uid_info);
     TEST_ASSERT(uid_info.node_name_str);
     printf("Test config parser result: %d, index: %d, host: %s, port: %d \r\n", result, uid_info.uid, uid_info.node_name_str, uid_info.port);

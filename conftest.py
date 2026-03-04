@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 # pylint: disable=W0621  # redefined-outer-name
@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 from statistics import mean
-from typing import Any, Callable, Dict, Generator, Optional, Tuple, List
+from typing import Any, Callable, Dict, Generator, Optional, Tuple, List, Union
 from re import Match
 
 import numpy as np
@@ -71,7 +71,12 @@ class ModbusDutStats:
 
 
 class MbRequestResponse:
-    def __init__(self, transaction_timestamp, master_inst_address, cid) -> None:
+    def __init__(
+        self,
+        transaction_timestamp: int,
+        master_inst_address: bytes,
+        cid: bytes,
+    ) -> None:
         self.transaction_timestamp: int = transaction_timestamp
         self.master_inst_address: bytes = master_inst_address
         self.cid: bytes = cid
@@ -80,16 +85,19 @@ class MbRequestResponse:
 class MbParameter:
     def __init__(
         self,
-        name,
-        instance_address,
-        transaction_timestamp,
-        obj_tag,
-        status,
-        cid,
-        response_time,
-        value
+        name: Union[str, bytes],
+        instance_address: bytes,
+        transaction_timestamp: int,
+        obj_tag: str,
+        status: str,
+        cid: bytes,
+        response_time: Optional[int],
+        value: Optional[bytes],
     ) -> None:
-        self.name: str = name
+        if isinstance(name, (bytes, bytearray)):
+            self.name: str = name.decode("ascii")
+        else:
+            self.name = str(name)
         self.instance_address: bytes = instance_address
         self.transaction_timestamp: int = transaction_timestamp
         self.obj_tag: str = obj_tag
@@ -100,9 +108,17 @@ class MbParameter:
 
     def __repr__(self) -> str:
         if self.obj_tag == MASTER_TAG:
-            return f"Parameter name:{self.name}, Obj tag: {self.obj_tag}, Object ID:{self.instance_address!r}, Transaction time:{self.transaction_timestamp}, Status:{self.status}, Cid:{self.cid}, Value: {self.value}, Response time:{self.response_time}"
+            return (
+                f"Parameter name:{self.name}, Obj tag: {self.obj_tag}, Object ID:{self.instance_address!r}, "
+                f"Transaction time:{self.transaction_timestamp}, Status:{self.status}, Cid:{self.cid!r}, "
+                f"Value: {self.value!r}, Response time:{self.response_time}"
+            )
         else:
-            return f"Parameter name:{self.name}, Obj tag: {self.obj_tag}, Object ID:{self.instance_address}, Transaction time:{self.transaction_timestamp}, Status:{self.status}"
+            try:
+                addr = self.instance_address.decode("ascii")
+            except Exception:
+                addr = repr(self.instance_address)
+            return f"Parameter name:{self.name}, Obj tag: {self.obj_tag}, Object ID:{addr}, Transaction time:{self.transaction_timestamp}, Status:{self.status}"
 
     def get_name(self) -> str:
         """Retrieve parameter name (string)."""
@@ -136,8 +152,9 @@ class MbParameter:
         """Retrieve parameter value (bytes) or a sentinel b\"N/A\"."""
         return self.value if self.value is not None else b"N/A"
 
+
 class MbObject:
-    def __init__(self, tag, id, object_creation_timestamp) -> None:
+    def __init__(self, tag: str, id: bytes, object_creation_timestamp: bytes) -> None:
         self.tag: str = tag
         self.id: bytes = id
         self.object_creation_timestamp: bytes = object_creation_timestamp
@@ -145,7 +162,15 @@ class MbObject:
         self.parameter_count: int = 0
 
     def __repr__(self) -> str:
-        return f"Obj Tag: {self.tag}, Obj ID: {self.id}, Creation Timestamp: {self.object_creation_timestamp}"
+        try:
+            obj_id = self.id.decode("ascii")
+        except Exception:
+            obj_id = repr(self.id)
+        try:
+            ts = self.object_creation_timestamp.decode("ascii")
+        except Exception:
+            ts = repr(self.object_creation_timestamp)
+        return f"Obj Tag: {self.tag}, Obj ID: {obj_id}, Creation Timestamp: {ts}"
 
     def add_parameter(
         self,
@@ -155,7 +180,7 @@ class MbObject:
         tag: str,
         status: str,
         cid: bytes,
-        value: Optional[bytes]
+        value: Optional[bytes],
     ) -> MbParameter:
         """The function add to list master or slave parameters"""
         parameter: MbParameter = MbParameter(
@@ -166,7 +191,7 @@ class MbObject:
             status,
             cid,
             None,
-            value
+            value,
         )
         self.parameters.append(parameter)
         self.parameter_count += 1
@@ -244,10 +269,11 @@ class ModbusTestDut(IdfDut):
 
         # Workaround to get master/slave tag from DUT class
         # Checking if app_name contains the  field. Ex: modbus_tcp_master
+        obj_tag: str = ""
         if MASTER_TAG in self.app_name.lower():
-            obj_tag: str = MASTER_TAG
+            obj_tag = MASTER_TAG
         elif SLAVE_TAG in self.app_name.lower():
-            obj_tag: str = SLAVE_TAG
+            obj_tag = SLAVE_TAG
         else:
             self.logger.error("Could not determine master/slave tag from app_name")
             raise RuntimeError from None
@@ -284,7 +310,7 @@ class ModbusTestDut(IdfDut):
             if id == obj.id:
                 return obj
 
-        self.logger.error(f"couldn't find registered object with id: {id}")
+        self.logger.error(f"couldn't find registered object with id: {id!r}")
         return None
 
     def update_wrong_object_id(self, id: bytes) -> Optional[MbObject]:
@@ -293,9 +319,10 @@ class ModbusTestDut(IdfDut):
         self.check_mb_objects_list()
         for obj in self.mb_objects:
             if len(obj.id) != 10:
-                self.logger.info(f"Updating wrong object id: {obj.id} to: {id}")
+                self.logger.info(f"Updating wrong object id: {obj.id!r} to: {id!r}")
                 obj.id = id
                 return obj
+        return None
 
     def get_params_by_name(self, name: str) -> Optional[List[MbParameter]]:
         """The getter retrieves parameters by name"""
@@ -388,7 +415,9 @@ class ModbusTestDut(IdfDut):
 
     def get_avg_response_time_master(self) -> int:
         """The function iterates over master parameters to calculate mean response time"""
-        master_success_params: List[MbParameter] = self.get_master_params_by_status(PARAM_SUCCESS)
+        master_success_params: List[MbParameter] = self.get_master_params_by_status(
+            PARAM_SUCCESS
+        )
         if master_success_params:
             avg_response_time: List[int] = [
                 param.response_time
@@ -412,9 +441,7 @@ class ModbusTestDut(IdfDut):
     ) -> None:
         """The function gets and saves master requests"""
         request_response: MbRequestResponse = MbRequestResponse(
-            int(transaction_timestamp.decode("ascii")),
-            master_address,
-            cid
+            int(transaction_timestamp.decode("ascii")), master_address, cid
         )
         self.mb_request_response.append(request_response)
         return None
@@ -461,7 +488,9 @@ class ModbusTestDut(IdfDut):
         self.logger.info(f"Project name registered: {self.app_name}")
         return self.app_name
 
-    def dut_send_ip(self, slave_ip: Optional[str] = None, port: Optional[str] = None) -> Optional[int]:
+    def dut_send_ip(
+        self, slave_ip: Optional[str] = None, port: Optional[str] = None
+    ) -> Optional[int]:
         """The function sends the slave IP address defined as a parameter to master"""
         addr_num: int = 0
         try:
@@ -470,7 +499,9 @@ class ModbusTestDut(IdfDut):
             # Workaround for unreliable parsing of the master prompt.
             # The expect() sometime does not catch it in spite it appears in the log.
             # Send the IP address anyway after the timeout.
-            self.logger.error("Timeout waiting for IP prompt. Try to send address anyway.")
+            self.logger.error(
+                "Timeout waiting for IP prompt. Try to send address anyway."
+            )
         if isinstance(slave_ip, str):
             for addr_num in range(0, self.TEST_MAX_CIDS):
                 message: str = r"IP{}={}".format(addr_num, slave_ip)
@@ -564,7 +595,9 @@ class ModbusTestDut(IdfDut):
             label="Fail",
         )
         plt.xticks(label_axis, names)
-        props: Dict[str, str | float] = dict(boxstyle="round", facecolor="wheat", alpha=alpha)
+        props: Dict[str, Union[str, float]] = dict(
+            boxstyle="round", facecolor="wheat", alpha=alpha
+        )
         ax.text(
             x_position_text,
             y_position_text,
@@ -619,19 +652,26 @@ class ModbusTestDut(IdfDut):
         :keyword timeout: timeout for expect
         :return: matched item
         """
+
         def process_expected_item(
             item_raw: Tuple[Optional[str], Callable[..., Any]],
         ) -> Dict[str, Any]:
             # convert item raw data to standard dict
             item = {
-                "pattern": item_raw[0] if isinstance(item_raw, tuple) else item_raw or None,
+                "pattern": item_raw[0]
+                if isinstance(item_raw, tuple)
+                else item_raw or None,
                 "callback": item_raw[1] if isinstance(item_raw, tuple) else None,
                 "index": -1,
                 "ret": None,
             }
             return item
 
-        expect_items_list: List[Dict[str, Any]] = [process_expected_item(item) for item in expect_items if isinstance(item, tuple) and item[0]]
+        expect_items_list: List[Dict[str, Any]] = [
+            process_expected_item(item)
+            for item in expect_items
+            if isinstance(item, tuple) and item[0]
+        ]
         expect_patterns: List[Any] = [
             item["pattern"] for item in expect_items_list if item["pattern"] is not None
         ]
@@ -664,7 +704,7 @@ class ModbusTestDut(IdfDut):
     ) -> None:  # type: ignore
         """The method to initialize and handle test stages"""
 
-        def handle_get_ip4(data: Optional[Any]=None) -> None:
+        def handle_get_ip4(data: Optional[Any] = None) -> None:
             """Handle get_ip v4"""
             # Synch for handling the case where the DUT dont stablish connection from the beginning
             # DUT reboot after failing reconnecting
@@ -677,29 +717,39 @@ class ModbusTestDut(IdfDut):
                 self.test_finish = True
             else:
                 self.test_stage = Stages.STACK_IPV4
-                self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+                self.logger.info(
+                    f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+                )
 
-        def handle_get_ip6(data: Optional[Any]=None) -> None:
+        def handle_get_ip6(data: Optional[Any] = None) -> None:
             """Handle get_ip v6"""
             self.test_stage = Stages.STACK_IPV6
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
 
-        def handle_init(data: Optional[Any]=None) -> None:
+        def handle_init(data: Optional[Any] = None) -> None:
             """Handle init"""
             self.test_stage = Stages.STACK_INIT
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
 
-        def handle_connect(data: Optional[Any]=None) -> None:
+        def handle_connect(data: Optional[Any] = None) -> None:
             """Handle connect"""
             self.test_stage = Stages.STACK_CONNECT
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
 
-        def handle_test_start(data: Optional[Any]=None) -> None:
+        def handle_test_start(data: Optional[Any] = None) -> None:
             """Handle connect"""
             self.test_stage = Stages.STACK_START
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
 
-        def handle_cid_response_time(data: Optional[Any]=None) -> None:
+        def handle_cid_response_time(data: Optional[Any] = None) -> None:
             """Handle Cid sent request for response time calculation"""
             self.test_stage = Stages.STACK_CID_RESPONSE_TIME
             self.logger.info(
@@ -708,10 +758,10 @@ class ModbusTestDut(IdfDut):
             self.add_request_response(
                 self.get_item(data, TRANSACTION_TIMESTAMP),
                 self.get_item(data, OBJ_ADDRESS),
-                self.get_item(data, CID)
+                self.get_item(data, CID),
             )
 
-        def handle_bad_connection(data: Optional[Any]=None) -> None:
+        def handle_bad_connection(data: Optional[Any] = None) -> None:
             """Handle bad connection"""
             self.test_stage = Stages.STACK_BAD_CONNECTION
             self.logger.info(
@@ -721,15 +771,21 @@ class ModbusTestDut(IdfDut):
             self.send_message_destroy_dut()
             self.test_finish = True
 
-        def handle_par_ok(data: Optional[Any]=None) -> None:
+        def handle_par_ok(data: Optional[Any] = None) -> None:
             """Handle parameter ok"""
             self.test_stage = Stages.STACK_PAR_OK
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
             # Checking if MBobject exist in the object list
 
-            object_handle: Optional[MbObject] = self.get_object_by_id(self.get_item(data, OBJ_ADDRESS))
+            object_handle: Optional[MbObject] = self.get_object_by_id(
+                self.get_item(data, OBJ_ADDRESS)
+            )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(self.get_item(data, OBJ_ADDRESS))
+                object_handle = self.update_wrong_object_id(
+                    self.get_item(data, OBJ_ADDRESS)
+                )
             assert object_handle is not None
 
             last_sucess_parameter: MbParameter = object_handle.add_parameter(
@@ -739,7 +795,7 @@ class ModbusTestDut(IdfDut):
                 object_handle.tag,
                 PARAM_SUCCESS,
                 self.get_item(data, CID),
-                self.get_item(data, PARAM_VAL)
+                self.get_item(data, PARAM_VAL),
             )
             if object_handle.is_master():
                 self.add_response_time_to_param(
@@ -754,11 +810,17 @@ class ModbusTestDut(IdfDut):
         def handle_par_fail(data: Optional[Any]) -> None:
             """Handle parameter fail"""
             self.test_stage = Stages.STACK_PAR_FAIL
-            self.logger.info(f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}")
+            self.logger.info(
+                f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
+            )
             # Checking if MBobject exist in the object list
-            object_handle: Optional[MbObject] = self.get_object_by_id(self.get_item(data, OBJ_ADDRESS))
+            object_handle: Optional[MbObject] = self.get_object_by_id(
+                self.get_item(data, OBJ_ADDRESS)
+            )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(self.get_item(data, OBJ_ADDRESS))
+                object_handle = self.update_wrong_object_id(
+                    self.get_item(data, OBJ_ADDRESS)
+                )
             assert object_handle is not None
 
             last_fail_parameter: MbParameter = object_handle.add_parameter(
@@ -768,7 +830,7 @@ class ModbusTestDut(IdfDut):
                 object_handle.tag,
                 PARAM_FAIL,
                 self.get_item(data, CID),
-                None
+                None,
             )
             self.logger.info(last_fail_parameter)
 
@@ -780,12 +842,14 @@ class ModbusTestDut(IdfDut):
             self.logger.info(
                 f"Object creation handled: {self.app_name}[{self.test_stage.name}]: {str(data)}",
             )
-            obj_tag: str = self.validate_object_creation_tag(self.get_item(data, OBJ_TAG).decode("ascii"))
+            obj_tag = self.validate_object_creation_tag(
+                self.get_item(data, OBJ_TAG).decode("ascii")
+            )
 
             last_add_object: MbObject = self.add_object(
                 obj_tag,
                 self.get_item(data, OBJ_ID),
-                self.get_item(data, TRANSACTION_TIMESTAMP)
+                self.get_item(data, TRANSACTION_TIMESTAMP),
             )
             self.logger.info("New added object: %s", last_add_object)
 
@@ -827,10 +891,12 @@ class ModbusTestDut(IdfDut):
 
     def dut_check_errors(self) -> None:
         """Verify allowed percentage of errors for the dut"""
-        allowed_ok_percentage : float = 0
+        allowed_ok_percentage: float = 0
         if self.param_ok_count or self.param_fail_count:
             allowed_ok_percentage = (
-                self.param_ok_count / (self.param_ok_count + self.param_fail_count) * 100
+                self.param_ok_count
+                / (self.param_ok_count + self.param_fail_count)
+                * 100
             )
         if allowed_ok_percentage > (100 - ALLOWED_PERCENT_OF_FAILS):
             self.logger.info(
@@ -934,7 +1000,7 @@ def build_dir(
     binary_path = ""
 
     for check_dir in check_dirs:
-        binary_path: str = os.path.join(app_path, check_dir)
+        binary_path = os.path.join(app_path, check_dir)
         if os.path.isdir(binary_path):
             logging.info(f"find valid binary path: {binary_path}")
             return check_dir
