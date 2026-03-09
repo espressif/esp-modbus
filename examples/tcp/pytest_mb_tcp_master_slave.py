@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 # This is the script to reproduce the issue when the expect() is called from
