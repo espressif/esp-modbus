@@ -1,0 +1,4 @@
+#
+# Modbus test configuration
+#
+CONFIG_FMB_COMM_MODE_TCP_EN=y

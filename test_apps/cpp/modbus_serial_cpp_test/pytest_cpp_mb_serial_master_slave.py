@@ -8,6 +8,7 @@ MB_APP_WAIT_TOUT_SEC = 30
 
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
+@pytest.mark.parametrize("config", ["serial"], indirect=True)
 def test_cpp_mb_serial_master_slave(dut: Dut) -> None:
     dut.expect("Setup master cpp....")
     dut.expect("Modbus master stack initialized...", timeout=MB_APP_WAIT_TOUT_SEC)

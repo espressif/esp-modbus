@@ -1,0 +1,5 @@
+#
+# Common options for modbus_serial_cpp_test CI configs
+#
+CONFIG_LOG_DEFAULT_LEVEL_INFO=n
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
