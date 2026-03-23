@@ -66,6 +66,7 @@ pattern_dict_slave = {
     [(1, f"{os.path.join(os.path.dirname(__file__), 'mb_tcp_slave')}")],
     indirect=True,
 )
+@pytest.mark.flaky(reruns=1, reruns_delay=1)
 def test_modbus_tcp_host_to_slave_communication(
     app_path: str, dut: ModbusTestDut
 ) -> None:

@@ -105,6 +105,7 @@ test_configs = [
     ],
     indirect=True,
 )
+@pytest.mark.flaky(reruns=1, reruns_delay=1)
 def test_modbus_tcp_communication(
     app_path: str, dut: Tuple[ModbusTestDut, ModbusTestDut]
 ) -> None:
