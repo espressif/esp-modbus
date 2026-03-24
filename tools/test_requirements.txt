@@ -1,4 +1,5 @@
 pytest
+pytest-rerunfailures>=12.0
 pytest-embedded>=1.18.2
 pytest-embedded-idf
 pytest-embedded-serial>=1.18.2
