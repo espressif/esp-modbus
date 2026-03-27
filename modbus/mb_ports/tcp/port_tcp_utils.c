@@ -79,6 +79,10 @@ bool port_close_connection(mb_node_info_t *info_ptr)
     queue_flush(info_ptr->rx_queue);
     queue_flush(info_ptr->tx_queue);
 
+#if LWIP_SO_LINGER
+    mb_set_linger(info_ptr->sock_id, 0);  // RST, avoid TIME_WAIT blocking
+#endif
+
     if (shutdown(info_ptr->sock_id, SHUT_RDWR) == -1) {
         ESP_LOGV(TAG, "Shutdown failed sock %d, errno=%d", info_ptr->sock_id, (int)errno);
     }
@@ -166,6 +170,9 @@ static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t le
 
     // blocking read of data from socket
     ret = recv(info_ptr->sock_id, buf, bytes_left, 0);
+    if (ret == 0) {
+        return ERR_CONN;  // FIN received, peer closed
+    }
     if (ret < 0) {
         ESP_LOGD(TAG, "socket(#%d)(%s) recv return, ret=%d, errno=%d.",
                  info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
@@ -477,18 +484,25 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout)
 {
     // Check if the socket is alive (writable and SO_ERROR == 0)
-    int res = (int)port_check_alive(info_ptr, timeout);
-    if ((res < 0) && (res != ERR_INPROGRESS)) {
+    int ret = (int)port_check_alive(info_ptr, timeout);
+    if ((ret < 0) && (ret != ERR_INPROGRESS)) {
         ESP_LOGE(TAG, MB_NODE_FMT(", is not writable, error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
-        return res;
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
+        return ret;
     }
-    res = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
-    if (res < 0) {
+    ret = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
+    if (ret < 0) {
         ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
+        info_ptr->error = ret;
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, ret, ESP_LOG_DEBUG);
+        info_ptr->error = 0;
+        info_ptr->send_time = port_get_timestamp();
+        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
+                                 ? (info_ptr->send_counter + 1) : 0;
     }
-    return res;
+    return ret;
 }
 
 // Scan IP address according to IPV settings
