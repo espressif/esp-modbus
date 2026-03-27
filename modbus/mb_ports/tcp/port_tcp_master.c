@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -526,12 +526,13 @@ MB_EVENT_HANDLER(mbm_on_error)
             mb_drv_clear_status_flag(ctx, MB_FLAG_CONNECTED);
             return;
         }
-        int ret = mb_drv_check_node_state(drv_obj, (int *)&event_info->opt_fd, MB_RECONNECT_TIME_MS);
+        int curr_fd = event_info->opt_fd;
+        int ret = mb_drv_check_node_state(drv_obj, (int *)&curr_fd, MB_RECONNECT_TIME_MS);
         if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
-            node_ptr = mb_drv_get_node(drv_obj, event_info->opt_fd);
+            node_ptr = mb_drv_get_node(drv_obj, curr_fd);
             ESP_LOGW(TAG, "%p, "MB_NODE_FMT(", error handling."), ctx, (int)node_ptr->fd,
                      (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-            ESP_LOGE(TAG, "Node: %d, try to repair lost connection, err= %d", (int)event_info->opt_fd, ret);
+            ESP_LOGE(TAG, "Node: %d, try to repair lost connection, err= %d", curr_fd, ret);
             FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
             mb_drv_lock(ctx);
             if (drv_obj->node_conn_count) {

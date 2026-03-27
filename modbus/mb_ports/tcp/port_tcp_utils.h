@@ -100,9 +100,7 @@ typedef struct frame_queue_entry_s frame_entry_t;
 typedef struct mb_node_info_s mb_node_info_t;
 typedef enum addr_type_enum mb_tcp_addr_type_t;
 
-#if LWIP_SO_LINGER
 int mb_set_linger(int sock, int tout);
-#endif
 
 bool port_check_host_addr(const char *host_str, ip_addr_t *host_addr);
 mb_node_info_t *port_get_current_info(void *ctx);
