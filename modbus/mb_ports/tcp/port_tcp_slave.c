@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -488,6 +488,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     transaction_item_handle_t item = NULL;
     esp_err_t err = ESP_ERR_INVALID_STATE;
     frame_entry_t frame_entry = {0};
+    int ret = 0;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (pnode && !queue_is_empty(pnode->tx_queue)) {
@@ -506,16 +507,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                 // If not, means the slave was not able to process the previous transaction on time.
                 // The reason is too much active connections or incorrect response time or request rate in the master.
                 if ((node_id != pnode->index) || (tid != msg_id) || (tid != pnode->tid_counter) || (MB_GET_NODE_STATE(pnode) < MB_SOCK_STATE_CONNECTED)) {
-                    mb_drv_lock(drv_obj);
                     uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
-                    err = transaction_delete(port_obj->transaction, tid);
-                    mb_drv_unlock(drv_obj);
-                    if (err != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, (int)tid);
-                    } else {
-                        ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, (int)tid);
-                    }
-                    (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
                     uint64_t time_div_us = (esp_timer_get_time() - tick);
                     ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", frame TID:0x%04" PRIx16 "!=0x%04" PRIx16 " ,%" PRIu64 " ,%" PRIu64 " ,%" PRIx16 ", slave is busy."),
                              ctx, (int)pnode->index, (int)pnode->sock_id,
@@ -523,39 +515,58 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                     ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master."),
                              ctx, (int)pnode->index, (int)pnode->sock_id,
                              pnode->addr_info.ip_addr_str, (time_div_us / 1000));
-                    // Hard hack to fix the expired frames (unsafe in some cases, do not implement)
+                    // Hard hack to respond to next transaction with an exception
                     // MB_TCP_MBAP_SET_FIELD(frame_entry.buf, MB_TCP_TID, pnode->tid_counter);
-                } else {
+                    // Build the exception frame to inform that slave is busy
+                    frame_entry.buf[MB_TCP_FUNC] = (frame_entry.buf[MB_TCP_FUNC] | 0x80);
+                    frame_entry.buf[MB_TCP_LEN + 1] = 3; // Length: UID + FUNC + EXCEPTION
+                    frame_entry.buf[MB_TCP_FUNC + 1] = MB_EX_SLAVE_BUSY;
+                    ret = port_write_poll(pnode, frame_entry.buf, MB_TCP_FUNC + 2, MB_TCP_SEND_TIMEOUT_MS);
                     mb_drv_lock(drv_obj);
-                    int ret = port_write_poll(pnode, frame_entry.buf, sz, MB_TCP_SEND_TIMEOUT_MS);
-                    if (ret < 0) {
-                        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", send data failure, err(errno) = %d(%u)."),
-                                 ctx, (int)pnode->index, (int)pnode->sock_id,
-                                 pnode->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
-                        DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode->index);
-                        pnode->error = ret;
+                    if (ret >= 0) {
+                        err = transaction_set_state(port_obj->transaction, tid, TRANSMITTED);
+                        if (err == ESP_OK) {
+                            ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", sent packet TID: 0x%04" PRIx16 ", %p."),
+                                     drv_obj, pnode->index, pnode->sock_id,
+                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                        } else {
+                            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", transaction set state fail for TID: 0x%04" PRIx16 ", %p."),
+                                     drv_obj, pnode->index, pnode->sock_id,
+                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                        }
+                        if (transaction_delete(port_obj->transaction, tid) != ESP_OK) {
+                            ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
+                        } else {
+                            ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
+                        }
                     } else {
-                        pnode->error = 0;
-                        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame_entry.buf, ret, ESP_LOG_DEBUG);
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode->index);
                     }
                     (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
-                    err = transaction_set_state(port_obj->transaction, tid, TRANSMITTED);
-                    if (err == ESP_OK) {
-                        ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", sent packet TID: 0x%04" PRIx16 ", %p."),
-                                 drv_obj, pnode->index, pnode->sock_id,
-                                 pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                    mb_drv_unlock(drv_obj);
+                } else {
+                    ret = port_write_poll(pnode, frame_entry.buf, frame_entry.len, MB_TCP_SEND_TIMEOUT_MS);
+                    mb_drv_lock(drv_obj);
+                    if (ret >= 0) {
+                        err = transaction_set_state(port_obj->transaction, tid, TRANSMITTED);
+                        if (err == ESP_OK) {
+                            ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", sent packet TID: 0x%04" PRIx16 ", %p."),
+                                     drv_obj, pnode->index, pnode->sock_id,
+                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                        } else {
+                            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", transaction set state fail for TID: 0x%04" PRIx16 ", %p."),
+                                     drv_obj, pnode->index, pnode->sock_id,
+                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                        }
+                        if (transaction_delete_item(port_obj->transaction, item) != ESP_OK) {
+                            ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
+                        } else {
+                            ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
+                        }
                     } else {
-                        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", transaction set state fail for TID: 0x%04" PRIx16 ", %p."),
-                                 drv_obj, pnode->index, pnode->sock_id,
-                                 pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode->index);
                     }
-                    if (transaction_delete_item(port_obj->transaction, item) != ESP_OK) {
-                        ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
-                    } else {
-                        ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
-                    }
-                    pnode->send_time = port_get_timestamp();
-                    pnode->send_counter = (pnode->send_counter < (USHRT_MAX - 1)) ? (pnode->send_counter + 1) : 0;
+                    (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
                     mb_drv_unlock(drv_obj);
                 }
             } else {
@@ -577,6 +588,22 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     mb_drv_check_suspend_shutdown(ctx);
 }
 
+static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj)
+{
+    transaction_item_handle_t pending = transaction_get_first(port_obj->transaction);
+    if (pending && (transaction_item_get_state(pending) == QUEUED)) {
+        int pending_node_id = 0;
+        uint16_t pending_msg_id = 0;
+        (void)transaction_item_get_data(pending, NULL, &pending_msg_id, &pending_node_id);
+        mb_node_info_t *pending_node = mb_drv_get_node(MB_GET_DRV_PTR(ctx), pending_node_id);
+        if (pending_node) {
+            ESP_LOGD(TAG, "Re-trigger pending transaction TID:0x%04x for node #%d.",
+                     pending_msg_id, pending_node_id);
+            DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, pending_node_id);
+        }
+    }
+}
+
 MB_EVENT_HANDLER(mbs_on_error)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
@@ -590,17 +617,17 @@ MB_EVENT_HANDLER(mbs_on_error)
     }
     mb_drv_check_suspend_shutdown(ctx);
     if (event_info->opt_val == ERR_CONN) {
-        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection closed?, err= %d."),
+        ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", connection closed?, err= %d."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)event_info->opt_val);
         mb_drv_lock(drv_obj);
         // delete all queued transactions for the node to be closed.
         (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
-#if LWIP_SO_LINGER
-        mb_set_linger(pnode->sock_id, 0);
-#endif
+        mb_set_linger(pnode->sock_id, 0); // send RST immediately
         mb_drv_unlock(drv_obj);
         mb_drv_close(drv_obj, event_info->opt_fd);
+        // Re-trigger any pending QUEUED transactions for surviving other clients
+        mbs_retrigger_pending_transactions(ctx, port_obj);
     } else {
         // An error happened, disconnect and close node after timeout.
         // The master need to reconnect again to send new transaction.
@@ -614,6 +641,7 @@ MB_EVENT_HANDLER(mbs_on_error)
             (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
             mb_drv_unlock(drv_obj);
             mb_drv_close(drv_obj, curr_fd);
+            mbs_retrigger_pending_transactions(ctx, port_obj);
         }
     }
     mb_drv_check_suspend_shutdown(ctx);
@@ -663,7 +691,7 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
     mb_drv_check_suspend_shutdown(ctx);
     int ret = mb_drv_check_node_state(drv_obj, &curr_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
-    if (ret != ERR_TIMEOUT) {
+    if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
         ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);

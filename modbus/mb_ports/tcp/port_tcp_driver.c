@@ -631,9 +631,7 @@ void mb_drv_tcp_task(void *ctx)
                 if (sock_id) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-#if LWIP_SO_LINGER
                         mb_set_linger(sock_id, 0);
-#endif
                         close(sock_id);
                     } else {
                         // Create new node info and open it
