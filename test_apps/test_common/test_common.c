@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,6 +20,10 @@
 
 #ifdef CONFIG_HEAP_TRACING
 #include "esp_heap_trace.h"
+#endif
+
+#if CONFIG_MB_CONSOLE_HELPER_ENABLED
+#include "mb_console.h"
 #endif
 
 #define TEST_TASK_CYCLE_COUNTER     (CONFIG_MB_TEST_COMM_CYCLE_COUNTER)
@@ -44,7 +48,7 @@
 #define TEST_NOTIFY_DONE_TOUT       (200 / portTICK_PERIOD_MS)
 
 #define TAG "TEST_COMMON"
-#define MSG_DESTROY "Destroy instances\n\0"
+#define MSG_DESTROY "mb stop instances\n\0"
 
 typedef enum {
     RT_HOLDING_RD,
@@ -171,8 +175,15 @@ void  test_common_task_notify_stop_all()
 
 bool test_common_wait_check_destroy_message(char *message, uint32_t timeout_ms)
 {
+    bool result = false;
     /* Read line from console, non-blocking function, timeout in ms */
-
+#if CONFIG_MB_CONSOLE_HELPER_ENABLED
+    if (mb_console_event_check(MB_CMD_STOP, MB_PAR_INFO_TOUT) == MB_CMD_STOP) {
+        ESP_LOGD(TAG, "Destroy message matched, notifying to destroy instances.");
+        result = true;
+    }
+#else
+    // If console helper is not enabled, use standard input to read the message.
     char buffer[64] = {0};     //fixed size buffer to store the input from stdin
 
     ESP_LOGD(TAG, "Waiting for destroy message: \"%s\" (timeout: %lu ms)", message, timeout_ms);
@@ -184,10 +195,12 @@ bool test_common_wait_check_destroy_message(char *message, uint32_t timeout_ms)
 
     if (strcmp(buffer, message) == 0) {
         ESP_LOGD(TAG, "Destroy message matched, notifying to destroy instances.");
-        return true;
+        result = true;
+    } else {
+        ESP_LOGD(TAG, "Timeout waiting for destroy message.");
     }
-    ESP_LOGD(TAG, "Timeout waiting for destroy message.");
-    return false;
+#endif
+    return result;
 }
 
 void test_common_task_notify_done(TaskHandle_t task_handle)
@@ -330,6 +343,10 @@ void test_common_start()
 {
 #ifdef CONFIG_HEAP_TRACING
     ESP_ERROR_CHECK( heap_trace_init_standalone(trace_record, NUM_RECORDS) );
+#endif
+
+#if CONFIG_MB_CONSOLE_HELPER_ENABLED
+    mb_console_init();
 #endif
 
     before_free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);

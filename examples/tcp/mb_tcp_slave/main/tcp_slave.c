@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,7 +28,10 @@
 #include "mbcontroller.h"       // for mbcontroller defines and api
 #include "modbus_params.h"      // for modbus parameters structures
 
+#include "mb_console.h"
+
 #define MB_TCP_PORT_NUMBER      (CONFIG_FMB_TCP_PORT_DEFAULT)
+#define MB_CMD_CHECK_TOUT_MS    (50)
 
 // Defines below are used to define register start address for each type of Modbus registers
 #define HOLD_OFFSET(field) ((uint16_t)(offsetof(holding_reg_params_t, field) >> 1))
@@ -58,7 +61,6 @@
 #define MB_TEST_VALUE                       (12345.0)
 #define MB_SLAVE_ADDR                       (CONFIG_MB_SLAVE_ADDR)
 #define MB_CUST_DATA_MAX_LEN                (100)
-
 
 static const char *TAG = "SLAVE_TEST";
 
@@ -141,65 +143,78 @@ static void setup_reg_data(void)
 
 static void slave_operation_func(void *arg)
 {
-    mb_param_info_t reg_info; // keeps the Modbus registers access information
+    mb_param_info_t reg_info = {0}; // keeps the Modbus registers access information
+    esp_err_t err = ESP_ERR_TIMEOUT;
+
+    // Check start event
+    mb_console_event_check(MB_CMD_START, MB_CMD_CHECK_TOUT_MS);
 
     ESP_LOGI(TAG, "Slave TCP is started");
     ESP_LOGI(TAG, "Start modbus test...");
     // The cycle below will be terminated when parameter holding_data0
     // incremented each access cycle reaches the CHAN_DATA_MAX_VAL value.
     for (; holding_reg_params.holding_data0 < MB_CHAN_DATA_MAX_VAL;) {
-        // Check for read/write events of Modbus master for certain events
-        (void)mbc_slave_check_event(slave_handle, MB_READ_WRITE_MASK);      // checks every type of event from specific slave  , parameter queue
-        ESP_ERROR_CHECK_WITHOUT_ABORT(mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT));     // get latest info from parameter queue
-        const char *rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";   //only checks read mask, assumes write if not
-        // Filter events and process them accordingly
-        if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
-            // Get parameter information from parameter queue
-            ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
-                     slave_handle,
-                     rw_str,
-                     (unsigned)reg_info.time_stamp,
-                     (unsigned)reg_info.mb_offset,
-                     (unsigned)reg_info.type,
-                     (int)reg_info.address,
-                     (unsigned)reg_info.size);
-            if (reg_info.address == (uint8_t *)&holding_reg_params.holding_data0) {
-                (void)mbc_slave_lock(slave_handle);
-                holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
-                if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
-                    coil_reg_params.coils_port1 = 0xFF;
-                    ESP_LOGI(TAG, "Riched maximum value");
-                }
-                (void)mbc_slave_unlock(slave_handle);
-            }
-        } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
-            ESP_LOGI(TAG, "OBJ %p, INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                     slave_handle,
-                     reg_info.time_stamp,
-                     (unsigned)reg_info.mb_offset,
-                     (unsigned)reg_info.type,
-                     (uint32_t)reg_info.address,
-                     (unsigned)reg_info.size);
-        } else if (reg_info.type & MB_EVENT_DISCRETE_RD) {
-            ESP_LOGI(TAG, "OBJ %p, DISCRETE READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                     slave_handle,
-                     reg_info.time_stamp,
-                     (unsigned)reg_info.mb_offset,
-                     (unsigned)reg_info.type,
-                     (uint32_t)reg_info.address,
-                     (unsigned)reg_info.size);
-        } else if (reg_info.type & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
-            ESP_LOGI(TAG, "OBJ %p, COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
-                     slave_handle,
-                     rw_str,
-                     reg_info.time_stamp,
-                     (unsigned)reg_info.mb_offset,
-                     (unsigned)reg_info.type,
-                     (uint32_t)reg_info.address,
-                     (unsigned)reg_info.size);
-            if (coil_reg_params.coils_port1 == 0xFF) {
-                ESP_LOGI(TAG, "Stop polling.");
+        // Check for read/write events of Modbus master for certain event
+        err = mbc_slave_get_param_info(slave_handle, &reg_info, MB_PAR_INFO_GET_TOUT);    // get latest info from parameter queue
+        if (err == ESP_ERR_TIMEOUT) {
+            if (mb_console_event_check(MB_CMD_STOP, MB_CMD_CHECK_TOUT_MS)) {
+                ESP_LOGI(TAG, "Intentionally stop modbus test...");
                 break;
+            }
+            reg_info.type = MB_EVENT_NO_EVENTS;
+        }
+
+        if ((err != ESP_ERR_TIMEOUT) && (reg_info.type & MB_READ_WRITE_MASK)) {
+            const char *rw_str = (reg_info.type & MB_READ_MASK) ? "READ" : "WRITE";           // only checks read mask, assumes write if not
+            // Filter events and process them accordingly
+            if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
+                // Get parameter information from parameter queue
+                ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+                         slave_handle,
+                         rw_str,
+                         (unsigned)reg_info.time_stamp,
+                         (unsigned)reg_info.mb_offset,
+                         (unsigned)reg_info.type,
+                         (int)reg_info.address,
+                         (unsigned)reg_info.size);
+                if (reg_info.address == (uint8_t *)&holding_reg_params.holding_data0) {
+                    (void)mbc_slave_lock(slave_handle);
+                    holding_reg_params.holding_data0 += MB_CHAN_DATA_OFFSET;
+                    if (holding_reg_params.holding_data0 >= (MB_CHAN_DATA_MAX_VAL - MB_CHAN_DATA_OFFSET)) {
+                        coil_reg_params.coils_port1 = 0xFF;
+                        ESP_LOGI(TAG, "Riched maximum value");
+                    }
+                    (void)mbc_slave_unlock(slave_handle);
+                }
+            } else if (reg_info.type & MB_EVENT_INPUT_REG_RD) {
+                ESP_LOGI(TAG, "OBJ %p, INPUT READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                         slave_handle,
+                         reg_info.time_stamp,
+                         (unsigned)reg_info.mb_offset,
+                         (unsigned)reg_info.type,
+                         (uint32_t)reg_info.address,
+                         (unsigned)reg_info.size);
+            } else if (reg_info.type & MB_EVENT_DISCRETE_RD) {
+                ESP_LOGI(TAG, "OBJ %p, DISCRETE READ (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                         slave_handle,
+                         reg_info.time_stamp,
+                         (unsigned)reg_info.mb_offset,
+                         (unsigned)reg_info.type,
+                         (uint32_t)reg_info.address,
+                         (unsigned)reg_info.size);
+            } else if (reg_info.type & (MB_EVENT_COILS_RD | MB_EVENT_COILS_WR)) {
+                ESP_LOGI(TAG, "OBJ %p, COILS %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%" PRIx32 ", SIZE:%u",
+                         slave_handle,
+                         rw_str,
+                         reg_info.time_stamp,
+                         (unsigned)reg_info.mb_offset,
+                         (unsigned)reg_info.type,
+                         (uint32_t)reg_info.address,
+                         (unsigned)reg_info.size);
+                if (coil_reg_params.coils_port1 == 0xFF) {
+                    ESP_LOGI(TAG, "Stop polling.");
+                    break;
+                }
             }
         }
     }
@@ -215,6 +230,7 @@ static esp_err_t init_services(void)
         ESP_ERROR_CHECK(nvs_flash_erase());
         result = nvs_flash_init();
     }
+    mb_console_init();
     MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
                        TAG,
                        "nvs_flash_init fail, returns(0x%x).",
@@ -459,7 +475,6 @@ void app_main(void)
         .tcp_opts.ip_netif_ptr = (void *)get_example_netif(),
         .tcp_opts.uid = MB_SLAVE_ADDR
     };
-
 
     ESP_ERROR_CHECK(slave_init(&tcp_slave_config_1));
     ESP_LOGI(TAG, "Slave TCP #1 is started (%s)", __func__);

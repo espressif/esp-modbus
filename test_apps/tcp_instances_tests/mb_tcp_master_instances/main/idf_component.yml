@@ -8,5 +8,7 @@ dependencies:
     version: "^1.0.0"
   mb_example_common:
     path: "../../../../tools/mb_example_common"
+  mb_console_helper:
+    path: "../../../../components/mb_console_helper"
   protocol_examples_common:
     path: ${IDF_PATH}/examples/common_components/protocol_examples_common
