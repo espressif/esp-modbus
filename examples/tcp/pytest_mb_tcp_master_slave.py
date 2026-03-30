@@ -202,9 +202,9 @@ def test_modbus_tcp_communication(
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
 @pytest.mark.parametrize("config", ["dummy_config"])
-def test_modbus_tcp_generic(config) -> None:
+def test_modbus_tcp_generic(config: str) -> None:
     logger.info("The generic tcp example tests are not provided yet.")
 
 
 if __name__ == "__main__":
-    pytest.main(["pytest_mb_tcp_instances.py"])
+    pytest.main(["pytest_mb_tcp_master_slave.py"])

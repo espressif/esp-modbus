@@ -410,7 +410,7 @@ class ModbusTestDut(IdfDut):
         if self.dut_list is not None:
             for dut_instance in self.dut_list:
                 self.logger.info("Sending destroy message to others DUT Instances")
-                dut_instance.write("Destroy instances\n")
+                dut_instance.write("mb stop instances\n")
         return None
 
     def get_avg_response_time_master(self) -> int:
@@ -433,7 +433,7 @@ class ModbusTestDut(IdfDut):
     def send_message_destroy_dut(self) -> None:
         """The function sends message to end caller DUT"""
         self.logger.info("Sending destroy message to this DUT")
-        self.write("Destroy instances\n")
+        self.write("mb stop instances\n")
         return None
 
     def add_request_response(
@@ -504,7 +504,7 @@ class ModbusTestDut(IdfDut):
             )
         if isinstance(slave_ip, str):
             for addr_num in range(0, self.TEST_MAX_CIDS):
-                message: str = r"IP{}={}".format(addr_num, slave_ip)
+                message: str = r"IP {}={}".format(addr_num, slave_ip)
                 if isinstance(port, str) or isinstance(port, int):
                     message += r";{}".format(str(port))
                 message += r"\r\n"

@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/queue.h>
 
 #include "unity.h"

@@ -1,0 +1,16 @@
+menu "Modbus Console Helper"
+
+    config MB_CONSOLE_HELPER_ENABLED
+        bool "Enable console helper in examples"
+        default y
+        help
+            Enable the helper component to track and send commands
+            via the console (UART/USB).
+
+    config MB_CONSOLE_CMD_AUTO_REGISTRATION
+        bool "Enable Console command Modbus Auto-registration"
+        default y
+        help
+            Enabling this allows for the autoregistration of the Modbus command.
+
+endmenu

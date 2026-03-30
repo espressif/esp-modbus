@@ -24,8 +24,9 @@
 #include "mbcontroller.h"
 #include "sdkconfig.h"
 
-#define MB_TCP_PORT                     (CONFIG_FMB_TCP_PORT_DEFAULT)   // TCP port used by example
+#include "mb_console.h"
 
+#define MB_TCP_PORT                     (CONFIG_FMB_TCP_PORT_DEFAULT)   // TCP port used by example
 
 // The number of parameters that intended to be used in the particular control process
 #define MASTER_MAX_CIDS num_device_parameters
@@ -85,6 +86,8 @@
 #define MB_MDNS_INSTANCE(pref) pref"mb_master_tcp"
 
 #define MB_CUST_DATA_LEN 100 // The length of custom command buffer
+#define MB_CMD_CONFIGURATION_TOUT_MS 120000
+#define MB_CMD_CHECK_TOUT_MS 50
 
 static const char *TAG = "MASTER_TEST";
 
@@ -92,7 +95,7 @@ static const char *TAG = "MASTER_TEST";
 // Each address in the table is a index of TCP slave ip address in mb_communication_info_t::tcp_ip_addr table
 enum {
     MB_DEVICE_ADDR1 = 1, // Slave UID = 1
-    //MB_DEVICE_ADDR1,
+    MB_DEVICE_ADDR2,
     //MB_DEVICE_ADDR3,
     MB_DEVICE_COUNT = 2
 };
@@ -149,7 +152,7 @@ const mb_parameter_descriptor_t device_parameters[] = {
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
         TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
         HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
@@ -317,97 +320,18 @@ const size_t ip_table_sz;
 char *slave_ip_address_table[MB_DEVICE_COUNT + 1] = {
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
     "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR1 and set to predefined value by user
-    //"FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR2 and set to predefined value by user
-    //"FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR3 and set to predefined value by user
+    "FROM_STDIN",     // Address corresponds to MB_DEVICE_ADDR2 and set to predefined value by user
     NULL              // End of table condition (must be included)
 #elif CONFIG_MB_MDNS_IP_RESOLVER
     // This is workaround for the test to use the same slave for all CIDs and ignore UID setting in the slave
     "01;mb_slave_tcp_01;1502",
-    // "02;mb_slave_tcp_01;502",
-    //"03;mb_slave_tcp_01;1502",
+    "02;mb_slave_tcp_01;502",
     NULL              // End of table condition (must be included)
 #endif
 };
 
 const size_t ip_table_sz = (size_t)(sizeof(slave_ip_address_table) / sizeof(slave_ip_address_table[0]));
 static char my_custom_data[MB_CUST_DATA_LEN] = {0}; // custom data buffer to handle slave response
-
-#if CONFIG_MB_SLAVE_IP_FROM_STDIN
-
-// Scan IP address according to IPV settings
-char *master_scan_addr(int *index, char *buffer)
-{
-    char *ip_str = NULL;
-    int a[8] = {0};
-    int buf_cnt = 0;
-#if !CONFIG_EXAMPLE_CONNECT_IPV6
-    buf_cnt = sscanf(buffer, "IP%d=" IPSTR, index, &a[0], &a[1], &a[2], &a[3]);
-    if (buf_cnt == 5) {
-        if (-1 == asprintf(&ip_str, "%02x;" IPSTR, (int)(*index + 1), a[0], a[1], a[2], a[3])) {
-            abort();
-        }
-    }
-#else
-    buf_cnt = sscanf(buffer, "IP%d="IPV6STR, index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]);
-    if (buf_cnt == 9) {
-        if (-1 == asprintf(&ip_str, "%02x;" IPV6STR, (int)(*index + 1), a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
-            abort();
-        }
-    }
-#endif
-    printf("IP string: %s", ip_str);
-    return ip_str;
-}
-
-static int master_get_slave_ip_stdin(char **addr_table)
-{
-    char buf[128];
-    int index;
-    char *ip_str = NULL;
-    int buf_cnt = 0;
-    int ip_cnt = 0;
-
-    if (!addr_table) {
-        return 0;
-    }
-
-    ESP_ERROR_CHECK(example_configure_stdin_stdout());
-    while (1) {
-        if (addr_table[ip_cnt] && strcmp(addr_table[ip_cnt], "FROM_STDIN") == 0) {
-            printf("Waiting IP%d from stdin:\r\n", (int)ip_cnt);
-            while (fgets(buf, sizeof(buf), stdin) == NULL) {
-                fputs(buf, stdout);
-            }
-            buf_cnt = strlen(buf);
-            buf[buf_cnt - 1] = '\0';
-            fputc('\n', stdout);
-            ip_str = master_scan_addr(&index, buf);
-            if (ip_str != NULL) {
-                ESP_LOGI(TAG, "IP(%d) = [%s] set from stdin.", (int)ip_cnt, ip_str);
-                if ((ip_cnt >= ip_table_sz) || (index != ip_cnt)) {
-                    addr_table[ip_cnt] = NULL;
-                    break;
-                }
-                addr_table[ip_cnt++] = ip_str;
-            } else {
-                // End of configuration
-                addr_table[ip_cnt++] = NULL;
-                break;
-            }
-        } else {
-            if (addr_table[ip_cnt]) {
-                ESP_LOGI(TAG, "Leave IP(%d) = [%s] set manually.", (int)ip_cnt, addr_table[ip_cnt]);
-                ip_cnt++;
-            } else {
-                ESP_LOGI(TAG, "IP(%d) is not set in the table.", (int)ip_cnt);
-                break;
-            }
-        }
-    }
-    return ip_cnt;
-}
-
-#endif
 
 static void master_destroy_slave_list(char **table, size_t ip_table_size)
 {
@@ -463,11 +387,11 @@ static void *master_get_param_data(const mb_parameter_descriptor_t *param_descri
     if (err == ESP_OK) {                                                                            \
         bool is_correct = true;                                                                     \
         if (pdescr->param_opts.opt3) {                                                              \
-            for EACH_ITEM(pinst, pdescr->param_size / sizeof(*item_ptr)) {                             \
-                if (*item_ptr != (typeof(*(pinst)))pdescr->param_opts.opt3) {                          \
+            for EACH_ITEM(pinst, pdescr->param_size / sizeof(*item_ptr)) {                          \
+                if (*item_ptr != (typeof(*(pinst)))pdescr->param_opts.opt3) {                       \
                     *item_ptr = (typeof(*(pinst)))pdescr->param_opts.opt3;                          \
-                    ESP_LOGD(TAG, "%p Characteristic #%d (%s), initialize to 0x%" PRIx16 ".",          \
-                                master_handle,                                                          \
+                    ESP_LOGD(TAG, "%p Characteristic #%d (%s), initialize to 0x%" PRIx16 ".",       \
+                                master_handle,                                                      \
                                 (int)pdescr->cid,                                                   \
                                 (char *)pdescr->param_key,                                          \
                                 (uint16_t)pdescr->param_opts.opt3);                                 \
@@ -514,6 +438,11 @@ static void master_operation_func(void *arg)
     esp_err_t err = ESP_OK;
     bool alarm_state = false;
     const mb_parameter_descriptor_t *param_descriptor = NULL;
+
+    // Wait for start instances command
+    if (!mb_console_event_check(MB_CMD_START, MB_CMD_CHECK_TOUT_MS)) {
+        ESP_LOGE(TAG, "Start TCP master after timeout.");
+    }
 
     ESP_LOGI(TAG, "Master TCP is started.");
 
@@ -657,6 +586,10 @@ static void master_operation_func(void *arg)
                     }
                 }
                 vTaskDelay(POLL_TIMEOUT_TICS); // timeout between polls
+                if (mb_console_event_check(MB_CMD_STOP, MB_CMD_CHECK_TOUT_MS)) {
+                    ESP_LOGI(TAG, "Intentionally stop modbus test...");
+                    break;
+                }
             }
         }
         vTaskDelay(UPDATE_CIDS_TIMEOUT_TICS);
@@ -710,13 +643,22 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
 #endif
 
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
-    int ip_cnt = master_get_slave_ip_stdin(slave_ip_address_table);
-    if (ip_cnt) {
-        ESP_LOGI(TAG, "Configured %d IP address.", ip_cnt);
-    } else {
-        ESP_LOGE(TAG, "Fail to get IP address from stdin. Continue.");
+#if CONFIG_MB_CONSOLE_HELPER_ENABLED
+    mb_console_init();
+    result = mb_console_register_configs(slave_ip_address_table);
+    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                       TAG,
+                       "Could not init CONFIG mode, returns(0x%x).",
+                       (int)result);
+    ESP_LOGI(TAG, "System initialized in CONFIG mode.");
+    ESP_LOGI(TAG, "Usage example: IP 0=192.168.1.5;1502 -> then: mb start instances");
+    if (!mb_console_event_check(MB_CMD_CONFIG_END, MB_CMD_CONFIGURATION_TOUT_MS)) {
+        ESP_LOGE(TAG, "Configuration timeout reached.");
         return ESP_ERR_NOT_FOUND;
     }
+#else
+#error "The MB_CONSOLE_HELPER_ENABLED is required for setting configs from STDIN."
+#endif
 #endif
     return ESP_OK;
 }
@@ -845,7 +787,6 @@ void app_main(void)
         .tcp_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
         .tcp_opts.ip_netif_ptr = (void *)get_example_netif()
     };
-
     ESP_ERROR_CHECK(master_init(&tcp_master_config));
 
     master_operation_func(NULL);
