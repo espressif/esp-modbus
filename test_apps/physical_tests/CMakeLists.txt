@@ -5,9 +5,6 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 set(EXTRA_COMPONENT_DIRS "../test_common")
 
-# Include console command helper component
-list(APPEND EXTRA_COMPONENT_DIRS "../../components/mb_console_helper")
-
 # The workaround for the test_utils under ESP-IDF v6.0
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "5.5")
     list(APPEND EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/tools/test_apps/components")

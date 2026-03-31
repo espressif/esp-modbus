@@ -1,12 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
+
 idf_component_register(SRCS "test_common.c"
                         INCLUDE_DIRS "include"
                         REQUIRES unity esp_timer mb_console_helper)
-
-set(EXTRA_COMPONENT_DIRS)
-
-# Include console command helper component
-list(APPEND EXTRA_COMPONENT_DIRS "../../components/mb_console_helper")
 
 if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "5.5")
     list(APPEND EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/tools/test_apps/components")
