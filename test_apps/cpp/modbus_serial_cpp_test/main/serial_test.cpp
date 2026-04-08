@@ -1,12 +1,16 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "esp_log.h"
+#include "esp_system.h"
 
 #include "sdkconfig.h"
 #include "mbcontroller.h"
+
+#include "esp_idf_version.h"
+#include "mb_port_types.h"      // atomic layout and C++ compatibility
 
 #define TEST_PORT_NUM           (uart_port_t)1
 #define TEST_SPEED              115200
@@ -167,8 +171,20 @@ static_assert(
     "CPP atomic int types are not layout compatible with int"
 );
 
+static int check_atomic_cpp_instantiation(void)
+{
+    // Check atomic support: mb_uid_info_t.state is _Atomic(int) in C, std::atomic<int> in C++
+    mb_uid_info_t addr_info = {};
+    addr_info.index = 1;
+    atomic_store(&(addr_info.state), 23);
+    return atomic_load(&addr_info.state);
+}
+
 extern "C" void app_main(void)
 {
+    ESP_LOGI(TAG, "mb_port_types.h C++ atomics test passed (IDF compatible), %d, %d, %s",
+             check_atomic_cpp_instantiation(), (int)ESP_IDF_VERSION, esp_get_idf_version());
+
     // Initialization of device peripheral and objects
     ESP_LOGI(TAG, "Setup master cpp....");
     ESP_ERROR_CHECK(master_serial_init(&pmaster_handle));
