@@ -3,6 +3,7 @@ menu "Modbus configuration"
     config FMB_COMM_MODE_TCP_EN
         bool "Enable Modbus stack support for TCP communication mode"
         default y
+        depends on LWIP_ENABLE
         help
                 Enable Modbus TCP option for stack.
 

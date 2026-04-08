@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+
 #include <stdbool.h>
 #include <stdatomic.h>
 
@@ -138,6 +140,8 @@ int port_resolve_mdns_host(const char *host_name, char **addr_str);
 
 int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port);
 int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr);
+
+#endif
 
 #ifdef __cplusplus
 }

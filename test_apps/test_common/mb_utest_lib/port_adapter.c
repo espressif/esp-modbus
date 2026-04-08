@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -279,45 +279,6 @@ static void mb_port_adapter_task(void *p_args)
     vTaskDelete(NULL);
 }
 
-static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *object)
-{
-    char **paddr_table = tcp_opts->ip_addr_table;
-    mb_uid_info_t uid_info;
-    mb_port_adapter_t *port_obj = __containerof(object, mb_port_adapter_t, base);
-
-    MB_RETURN_ON_FALSE((paddr_table && *paddr_table && (tcp_opts->mode == MB_TCP)),
-                       MB_EINVAL, TAG,
-                       "%s, invalid address table.", port_obj->base.descr.parent_name);
-    int count = 0;
-    while (*paddr_table) {
-        int res = port_scan_addr_string((char *)*paddr_table, &uid_info);
-        if (res > 0) {
-            ESP_LOGD(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
-                     (char *)*paddr_table, uid_info.ip_addr_str, uid_info.port,
-                     uid_info.uid, (uid_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
-            uid_info.index = count++;
-            free(uid_info.ip_addr_str);
-            uid_info.ip_addr_str = (char *)*paddr_table;
-            uid_info.node_name_str = uid_info.ip_addr_str;
-            if (xQueueSend(port_obj->conn_queue, &uid_info, MB_EVENT_QUEUE_TIMEOUT_MAX) != pdTRUE) {
-                ESP_LOGE(TAG, "can not send info to connection queue.");
-            };
-            // Mimic connection event
-            if (!tcp_opts->start_disconnected) {
-                uint16_t event = mb_port_adapter_wait_flag(object, MB_QUEUE_FLAG_CONNECTED, MB_ADAPTER_CONN_TIMEOUT);
-                if (!event) {
-                    ESP_LOGE(TAG, "Could not connect to slave %s during timeout.", (char *)*paddr_table);
-                }
-            }
-        } else {
-            ESP_LOGE(TAG, "unable to open slave: %s, check configuration.", (char *)*paddr_table);
-        }
-        paddr_table++;
-    }
-    ESP_LOGD(TAG, "parsed and added %d slave configurations.", count);
-    return count ? MB_ENOERR : MB_EINVAL;
-}
-
 mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **in_out_obj)
 {
     mb_port_adapter_t *adapter_obj = NULL;
@@ -401,6 +362,47 @@ error:
     return ret;
 }
 
+#if (CONFIG_FMB_COMM_MODE_TCP_EN)
+
+static mb_err_enum_t mb_port_adapter_connect(mb_tcp_opts_t *tcp_opts, void *object)
+{
+    char **paddr_table = tcp_opts->ip_addr_table;
+    mb_uid_info_t uid_info;
+    mb_port_adapter_t *port_obj = __containerof(object, mb_port_adapter_t, base);
+
+    MB_RETURN_ON_FALSE((paddr_table && *paddr_table && (tcp_opts->mode == MB_TCP)),
+                       MB_EINVAL, TAG,
+                       "%s, invalid address table.", port_obj->base.descr.parent_name);
+    int count = 0;
+    while (*paddr_table) {
+        int res = port_scan_addr_string((char *)*paddr_table, &uid_info);
+        if (res > 0) {
+            ESP_LOGD(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
+                     (char *)*paddr_table, uid_info.ip_addr_str, uid_info.port,
+                     uid_info.uid, (uid_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
+            uid_info.index = count++;
+            free(uid_info.ip_addr_str);
+            uid_info.ip_addr_str = (char *)*paddr_table;
+            uid_info.node_name_str = uid_info.ip_addr_str;
+            if (xQueueSend(port_obj->conn_queue, &uid_info, MB_EVENT_QUEUE_TIMEOUT_MAX) != pdTRUE) {
+                ESP_LOGE(TAG, "can not send info to connection queue.");
+            };
+            // Mimic connection event
+            if (!tcp_opts->start_disconnected) {
+                uint16_t event = mb_port_adapter_wait_flag(object, MB_QUEUE_FLAG_CONNECTED, MB_ADAPTER_CONN_TIMEOUT);
+                if (!event) {
+                    ESP_LOGE(TAG, "Could not connect to slave %s during timeout.", (char *)*paddr_table);
+                }
+            }
+        } else {
+            ESP_LOGE(TAG, "unable to open slave: %s, check configuration.", (char *)*paddr_table);
+        }
+        paddr_table++;
+    }
+    ESP_LOGD(TAG, "parsed and added %d slave configurations.", count);
+    return count ? MB_ENOERR : MB_EINVAL;
+}
+
 mb_err_enum_t mb_port_adapter_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **in_out_obj)
 {
     mb_uid_info_t addr_info = {
@@ -437,6 +439,7 @@ error:
     return ret;
 }
 
+#endif
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 

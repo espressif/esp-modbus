@@ -7,4 +7,7 @@ set(EXCLUDE_COMPONENTS freemodbus)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+# Minimal build to avoid TCP disable build errors
+set(COMPONENTS main)
+
 project(modbus_serial_slave)
