@@ -526,7 +526,8 @@ MB_EVENT_HANDLER(mbm_on_error)
             mb_drv_clear_status_flag(ctx, MB_FLAG_CONNECTED);
             return;
         }
-        int ret = mb_drv_check_node_state(drv_obj, (int *)&event_info->opt_fd, MB_RECONNECT_TIME_MS);
+        int curr_fd = event_info->opt_fd;
+        int ret = mb_drv_check_node_state(drv_obj, &curr_fd, MB_RECONNECT_TIME_MS);
         if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
             node_ptr = mb_drv_get_node(drv_obj, event_info->opt_fd);
             ESP_LOGW(TAG, "%p, "MB_NODE_FMT(", error handling."), ctx, (int)node_ptr->fd,
