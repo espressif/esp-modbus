@@ -1,0 +1,21 @@
+## EXAMPLES Folder
+examples/tcp/mb_tcp_master:
+  disable:
+    - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
+
+examples/tcp/mb_tcp_slave:
+  disable:
+    - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
+
+## TEST APPS Folder
+test_apps/physical_tests:
+  disable:
+    - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)
+
+test_apps/tcp_instances_tests/mb_tcp_master_instances:
+  disable:
+    - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)
+
+test_apps/tcp_instances_tests/mb_tcp_slave_instances:
+  disable:
+    - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)

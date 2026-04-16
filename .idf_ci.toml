@@ -1,0 +1,197 @@
+# ESP-MODBUS idf-ci Configuration
+
+preserve_non_test_related_apps = true
+
+[gitlab.artifacts.native]
+build_job_filepatterns = [
+    "**/build*/partition_table/*.bin",
+    "**/build*/bootloader/*.bin",
+    "**/build*/bootloader/*.map",
+    "**/build*/bootloader/*.elf",
+    "**/build*/config/sdkconfig.json",
+    "**/build*/*.map",
+    "**/build*/*.bin",
+    "**/build*/*.elf",
+    "**/build*/flasher_args.json",
+    "**/build*/flash_project_args",
+    "**/build_log.txt",
+    "**/size.json",
+    "**/idf_version_info.txt",
+]
+
+test_job_filepatterns = [
+    "**/*.log",
+    "**/*.xml",
+    "**/pytest_embedded_log/**",
+    "**/idf_version_info.txt",
+    "**/*_stats_*.png",     # modbus_stats_graph related
+    "**/log.html",  # robot framework related files
+    "**/report.html",
+    "**/*.pcap",
+    "**/XUNIT_RESULT_*.xml",
+]
+
+runs_per_job = 15
+
+[gitlab.build_pipeline]
+job_template_jinja = """
+
+dynamic_sdkconfig_script_job:
+    stage: "{{ settings.gitlab.build_pipeline.job_stage }}"
+    tags: {{ settings.gitlab.build_pipeline.job_tags }}
+    image: "{{ settings.gitlab.build_pipeline.job_image }}"
+    script:
+        # Allows to debug jobs overriding the ESP_MODBUS_CONFIG_KEY to ESP_MODBUS_CONFIG_VALUE
+        # in all registered application configs that match the pattern ESP_MODBUS_CONFIG_PATTERN
+        - echo "Setup job with parameters ${ESP_MODBUS_CONFIG_KEY}, ${ESP_MODBUS_CONFIG_VALUE}, ${ESP_MODBUS_CONFIG_PATTERN}"
+        - ${CI_PROJECT_DIR}/tools/setup_config_key.sh "${ESP_MODBUS_CONFIG_KEY}" "${ESP_MODBUS_CONFIG_VALUE}" "${ESP_MODBUS_CONFIG_PATTERN}"
+
+
+# Specific IDF version to be used in artifacts .zip name and .txt
+check_idf_ver:
+    stage: "{{ settings.gitlab.build_pipeline.job_stage }}"
+    tags: {{ settings.gitlab.build_pipeline.job_tags }}
+    image: "{{ settings.gitlab.build_pipeline.job_image }}"
+    script:
+        - "export IDF_DESCRIBE=$(git -C ${IDF_PATH} describe)"
+        - "export IDF_VERSION=${IDF_DESCRIBE%-*}"
+        - "echo IDF_VERSION=$IDF_VERSION > idf_version.env"
+        - "echo ESP-IDF: $IDF_VERSION | tee idf_version_info.txt"
+    artifacts:
+        paths:
+            - idf_version_info.txt
+        reports:
+            dotenv: idf_version.env
+
+{{ settings.gitlab.build_pipeline.job_template_name }}:
+    stage: "{{ settings.gitlab.build_pipeline.job_stage }}"
+    tags: {{ settings.gitlab.build_pipeline.job_tags }}
+    image: "{{ settings.gitlab.build_pipeline.job_image }}"
+    timeout: "2h"
+    artifacts:
+        name: "artifacts_build_${IDF_VERSION}"
+        paths:
+        {%- for path in settings.gitlab.artifacts.native.build_job_filepatterns %}
+            - "{{ path }}"
+        {%- endfor %}
+        expire_in: "1 week"
+        when: "always"
+    before_script:
+        - pip install -U idf-ci
+    script:
+        - idf-ci build run
+          --parallel-count ${CI_NODE_TOTAL:-1}
+          --parallel-index ${CI_NODE_INDEX:-1}
+"""
+
+# Overwriting build jobs to add IDF version .env in needs.
+jobs_jinja = """
+{%- if test_related_apps_count > 0 %}
+build_test_related_apps:
+    extends: "{{ settings.gitlab.build_pipeline.job_template_name }}"
+{%- if test_related_parallel_count > 1 %}
+    parallel: {{ test_related_parallel_count }}
+{%- endif %}
+    needs:
+        - job: check_idf_ver
+          artifacts: true
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "generate_build_child_pipeline{{ settings.gitlab.build_pipeline.parent_pipeline_job_suffix }}"
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "pipeline_variables{{ settings.gitlab.build_pipeline.parent_pipeline_job_suffix }}"
+    variables:
+        IDF_CI_BUILD_ONLY_TEST_RELATED_APPS: "1"
+
+{% endif %}
+{%- if non_test_related_apps_count > 0 %}
+build_non_test_related_apps:
+    extends: "{{ settings.gitlab.build_pipeline.job_template_name }}"
+{%- if non_test_related_parallel_count > 1 %}
+    parallel: {{ non_test_related_parallel_count }}
+{%- endif %}
+    needs:
+        - job: check_idf_ver
+          artifacts: true
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "generate_build_child_pipeline{{ settings.gitlab.build_pipeline.parent_pipeline_job_suffix }}"
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "pipeline_variables{{ settings.gitlab.build_pipeline.parent_pipeline_job_suffix }}"
+    variables:
+        IDF_CI_BUILD_ONLY_NON_TEST_RELATED_APPS: "1"
+
+{% endif %}
+"""
+
+# Changing test pipeline trigger in build pipeline to propagate IDF_VERSION var
+yaml_jinja = """
+{{ settings.gitlab.build_pipeline.pre_yaml_jinja }}
+workflow:
+  name: "{{ settings.gitlab.build_pipeline.workflow_name }}"
+  rules:
+    - when: "always"
+{% if settings.gitlab.build_pipeline.job_template_jinja %}
+{{ job_template }}
+{%- endif %}
+{{ jobs }}
+
+{%- if test_related_apps_count > 0 %}
+generate_test_child_pipeline:
+  extends: "{{ settings.gitlab.build_pipeline.job_template_name }}"
+  needs:
+    - "build_test_related_apps"
+  artifacts:
+    paths:
+      - "{{ settings.gitlab.test_pipeline.yaml_filename }}"
+  script:
+    - idf-ci
+      --config 'gitlab.test_pipeline.job_image="{{ settings.gitlab.test_pipeline.job_image }}"'
+      gitlab test-child-pipeline
+
+test-child-pipeline:
+  stage: ".post"
+  needs:
+    - "generate_test_child_pipeline"
+    - job: "check_idf_ver"
+      artifacts: true
+  variables:
+    PARENT_PIPELINE_ID: "$CI_PIPELINE_ID"
+    IDF_VERSION: "$IDF_VERSION"
+  trigger:
+    include:
+      - artifact: "{{ settings.gitlab.test_pipeline.yaml_filename }}"
+        job: "generate_test_child_pipeline"
+    strategy: "depend"
+{%- endif %}
+"""
+
+[gitlab.test_pipeline]
+job_template_jinja = """
+{{ settings.gitlab.test_pipeline.job_template_name }}:
+    stage: "{{ settings.gitlab.test_pipeline.job_stage }}"
+    image: "{{ settings.gitlab.test_pipeline.job_image }}"
+    timeout: "1h"
+    artifacts:
+        name: "artifacts_test_${IDF_VERSION}"
+        paths:
+        {%- for path in settings.gitlab.artifacts.native.test_job_filepatterns %}
+            - "{{ path }}"
+        {%- endfor %}
+        expire_in: "1 week"
+        when: "always"
+        reports:
+            junit: "**/XUNIT_RESULT_*.xml"
+    variables:
+        PYTEST_EXTRA_FLAGS: ""
+    needs:
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "build_test_related_apps"
+    before_script:
+        - pip install -r ./tools/test_requirements.txt
+        - pip install -U 'idf-ci<1'
+    script:
+        - eval pytest $nodes
+          --parallel-count ${CI_NODE_TOTAL:-1}
+          --parallel-index ${CI_NODE_INDEX:-1}
+          --junitxml "XUNIT_RESULT_${CI_JOB_NAME_SLUG}_${IDF_VERSION}.xml"
+          ${PYTEST_EXTRA_FLAGS}
+"""
