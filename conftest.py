@@ -11,9 +11,6 @@ from enum import Enum
 from statistics import mean
 from typing import Any, Callable, Dict, Generator, Optional, Tuple, List, Union
 from re import Match
-
-import numpy as np
-import matplotlib.pyplot as plt
 from dataclasses import dataclass
 
 import pexpect
@@ -559,6 +556,13 @@ class ModbusTestDut(IdfDut):
         file_name: str,
     ) -> None:
         """The function plots graph from all success and fail parameters"""
+
+        # Lazy import to comply with idf-ci build job import rules
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from pathlib import Path
+
+        saving_path_dir = Path(self.app.app_path).parent  # Dir for graph to be saved
         names: List[str] = []
         width = 0.1
         alpha = 0.5
@@ -611,7 +615,7 @@ class ModbusTestDut(IdfDut):
         plt.legend()
         plt.title("Modbus Test Statistics")
         plt.ylabel("Parameters accessed")
-        plt.savefig(f"{file_name}.png")
+        plt.savefig(Path.joinpath(saving_path_dir, f"{file_name}.png"))
         plt.show()
 
     def get_item(self, data: Optional[List[Any]] = None, item: int = 0) -> bytes:

@@ -9,73 +9,17 @@ workflow:
 stages:
   - pre_check
   - build
-  - target_test
+  - test
   - deploy
 
 variables:
   # System environment
   ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1"
-  ESP_DOCS_PATH: "$CI_PROJECT_DIR"
   TEST_DIR: "$CI_PROJECT_DIR"
-
-  # GitLab-CI environment
-  GET_SOURCES_ATTEMPTS: "10"
-  ARTIFACT_DOWNLOAD_ATTEMPTS: "10"
-  GIT_SUBMODULE_STRATEGY: none
-
-# Define a matrix for IDF versions and their corresponding targets
-.options_list:
-#  versions:
-#    IDF_VER: ["latest", "v5.5", "v5.3"]
-  analyzers:
-    ANALYZER_TYPE: [gcc, clang]
-  markers:
-    TEST_MARKER:
-    - "tcp"
-    - "serial"
-#    - "generic"  // Disabling during the CI refactor on tests
-#    - "tcp_p4"
-#    - "serial_p4"
-
-# Shared script helpers (referenced from included files via !reference)
-.setup_idf_tools_script:
-  script:
-    - tools/idf_tools.py --non-interactive install && eval "$(tools/idf_tools.py --non-interactive export)" || exit 1
-
-.add_gh_key_remote_script:
-  script:
-    - |
-      command -v ssh-agent >/dev/null || exit 1
-      eval $(ssh-agent -s)
-      printf '%s\n' "${GH_PUSH_KEY}" | tr -d '\r' | ssh-add - > /dev/null
-      mkdir -p ~/.ssh && chmod 700 ~/.ssh
-      [[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config || ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-      git remote remove github || true
-      git remote add github ${GH_PUSH_REPO}
-
-.check_idf_ver_script:
-  script:
-    - |
-      export IDF_PATH=$(find /opt -type d -name "*idf*" \
-                      \( -exec test -f '{}/tools/idf.py' \; -and -exec test -f '{}/tools/idf_tools.py' \; \
-                      \) -print -quit)
-      if [ -z "${IDF_PATH}" ];then
-        echo "IDF version is not found."
-      else
-        cd ${IDF_PATH}
-        export IDF_DESCRIBE=$(git describe)
-        export IDF_VERSION=${IDF_DESCRIBE%-*}
-        echo "$IDF_VERSION" >> $TEST_DIR/idf_version_info.txt
-        echo "ESP-IDF: $IDF_VERSION"
-      fi
-
-after_script:
-  # Just for cleaning space, no other causes
-  - git clean -ffdx
 
 include:
   - local: ".gitlab/ci/pre-check.yml"
-  - local: ".gitlab/ci/ci-build.yml"
+  - local: ".gitlab/ci/build_test_pipeline.yml"
   - local: ".gitlab/ci/docs.yml"
-  - local: ".gitlab/ci/test.yml"
   - local: ".gitlab/ci/deploy.yml"
+  - local: ".gitlab/ci/prebuild_report.yml"

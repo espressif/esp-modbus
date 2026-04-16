@@ -80,4 +80,4 @@ repos:
     rev: v1.1.1
     hooks:
       - id: check-copyright
-        args: ['--config', 'tools/ci/check_copyright_config.yaml']
+        args: ['--config', '.gitlab/ci/check_copyright_config.yaml']

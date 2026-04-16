@@ -1,0 +1,32 @@
+# Component-based build/test pipeline for esp-modbus
+include:
+  - component: $CI_SERVER_FQDN/ci/actions/idf-dynamic-pipeline/ci-component@main
+    inputs:
+      build-job-image: "espressif/idf:latest"
+      test-job-image: "$CI_DOCKER_REGISTRY/target-test-env-v6.1:1"
+      build-job-tags: ["build"]
+      job-suffix: ":idf-latest"
+  - component: $CI_SERVER_FQDN/ci/actions/idf-dynamic-pipeline/ci-component@main
+    inputs:
+      build-job-image: "espressif/idf:release-v6.0"
+      test-job-image: "$CI_DOCKER_REGISTRY/target-test-env-v6.0:2"
+      build-job-tags: ["build"]
+      job-suffix: ":idf-v6.0"
+  - component: $CI_SERVER_FQDN/ci/actions/idf-dynamic-pipeline/ci-component@main
+    inputs:
+      build-job-image: "espressif/idf:release-v5.5"
+      test-job-image: "$CI_DOCKER_REGISTRY/target-test-env-v5.5:2"
+      build-job-tags: ["build"]
+      job-suffix: ":idf-v5.5"
+  - component: $CI_SERVER_FQDN/ci/actions/idf-dynamic-pipeline/ci-component@main
+    inputs:
+      build-job-image: "espressif/idf:release-v5.4"
+      test-job-image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
+      build-job-tags: ["build"]
+      job-suffix: ":idf-v5.4"
+  - component: $CI_SERVER_FQDN/ci/actions/idf-dynamic-pipeline/ci-component@main
+    inputs:
+      build-job-image: "espressif/idf:release-v5.3"
+      test-job-image: "$CI_DOCKER_REGISTRY/target-test-env-v5.3:1"
+      build-job-tags: ["build"]
+      job-suffix: ":idf-v5.3"
