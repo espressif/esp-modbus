@@ -311,7 +311,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
     mb_err_enum_t status = MB_ENOERR;
     uint16_t regs_cnt = num_regs;
     // Check input and configuration parameters for correctness
-    if ((holding_buf) && (num_hold_regs == num_regs) && (num_regs >= 1)) {
+    if ((holding_buf) && (num_hold_regs >= num_regs) && (num_regs >= 1)) {
         switch (mode) {
         case MB_REG_WRITE:
             CRITICAL_SECTION(inst->lock) {

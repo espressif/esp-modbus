@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -183,6 +183,18 @@ typedef struct {
     uint8_t command;                /*!< Modbus command to send */
     uint16_t reg_start;             /*!< Modbus start register */
     uint16_t reg_size;              /*!< Modbus number of registers */
+    /**
+     * @brief Extra fields used only by function code 23 (0x17)
+     *        @c MB_FUNC_READWRITE_MULTIPLE_REGISTERS.
+     *
+     * These fields specify the *write* portion of a Read/Write Multiple
+     * Registers transaction. They are ignored for every other command,
+     * so they can be left zero-initialized when not used.
+     */
+    struct {
+        uint16_t wr_reg_start;      /*!< Write starting register address */
+        uint16_t wr_reg_size;       /*!< Number of Modbus registers to write */
+    } wr_rd_multi_reg_func;         /*!< Read/Write Multiple Registers (FC 0x17) parameters; unused for other commands */
 } mb_param_request_t;
 
 /**
