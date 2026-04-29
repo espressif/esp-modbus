@@ -211,7 +211,7 @@ class MbObject:
 
 class ModbusTestDut(IdfDut):
     TEST_IP_PROMPT = r"Waiting IP\(([0-9]{1,2})\) from stdin:"
-    TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+    TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
 
     TEST_EXPECT_STR_TIMEOUT = 120
@@ -712,7 +712,7 @@ class ModbusTestDut(IdfDut):
             """Handle get_ip v4"""
             # Synch for handling the case where the DUT dont stablish connection from the beginning
             # DUT reboot after failing reconnecting
-            if self.test_stage.value >= Stages.STACK_IPV4.value:
+            if self.test_stage.value > Stages.STACK_IPV4.value:
                 self.logger.info(
                     f"Handle: {self.app_name}: Reboot loop detected on stage [{Stages.STACK_IPV4.name}]: {str(data)}"
                 )
