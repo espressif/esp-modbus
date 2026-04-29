@@ -49,10 +49,10 @@ pattern_dict_slave = {
 
 pattern_dict_master = {
     Stages.STACK_IPV4: (
-        r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+        r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     ),
     Stages.STACK_IPV6: (
-        r"I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
+        r"I \([0-9]+\) [a-z_]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
     ),
     Stages.STACK_INIT: (
         r"I \(([0-9]+)\) [A-Z_]*: [0xa-f0-9,]*\s*Modbus master stack initialized"
