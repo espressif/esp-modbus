@@ -503,37 +503,22 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                 uint16_t msg_id = 0;
                 int node_id = 0;
                 (void)transaction_item_get_data(item, NULL, &msg_id, &node_id);
-                // Check if the TID is equal to the current received TID for this node.
-                // If not, means the slave was not able to process the previous transaction on time.
-                // The reason is too much active connections or incorrect response time or request rate in the master.
-                if ((node_id != pnode->index) || (tid != msg_id) || (tid != pnode->tid_counter) || (MB_GET_NODE_STATE(pnode) < MB_SOCK_STATE_CONNECTED)) {
-                    uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
-                    uint64_t time_div_us = (esp_timer_get_time() - tick);
-                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", frame TID:0x%04" PRIx16 "!=0x%04" PRIx16 " ,%" PRIu64 " ,%" PRIu64 " ,%" PRIx16 ", slave is busy."),
+                // Check if the first queued transaction matches this response.
+                // Only a genuine cross-node mismatch or disconnected state should trigger
+                // the "slave busy" exception. The tid_counter comparison is not used here
+                // because it reflects the latest received TID, which may have been bumped
+                // by a master retry while the current transaction was still in-progress.
+                if ((node_id != pnode->index) || (tid != msg_id) || (MB_GET_NODE_STATE(pnode) < MB_SOCK_STATE_CONNECTED)) {
+                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", frame TID:0x%04" PRIx16 "!=0x%04" PRIx16 ", slave is busy."),
                              ctx, (int)pnode->index, (int)pnode->sock_id,
-                             pnode->addr_info.ip_addr_str, pnode->tid_counter, tid, esp_timer_get_time(), tick, msg_id);
-                    ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master."),
-                             ctx, (int)pnode->index, (int)pnode->sock_id,
-                             pnode->addr_info.ip_addr_str, (time_div_us / 1000));
-                    // Hard hack to respond to next transaction with an exception
-                    // MB_TCP_MBAP_SET_FIELD(frame_entry.buf, MB_TCP_TID, pnode->tid_counter);
+                             pnode->addr_info.ip_addr_str, tid, msg_id);
                     // Build the exception frame to inform that slave is busy
                     frame_entry.buf[MB_TCP_FUNC] = (frame_entry.buf[MB_TCP_FUNC] | 0x80);
-                    frame_entry.buf[MB_TCP_LEN + 1] = 3; // Length: UID + FUNC + EXCEPTION
+                    frame_entry.buf[MB_TCP_LEN + 1] = 3;
                     frame_entry.buf[MB_TCP_FUNC + 1] = MB_EX_SLAVE_BUSY;
                     ret = port_write_poll(pnode, frame_entry.buf, MB_TCP_FUNC + 2, MB_TCP_SEND_TIMEOUT_MS);
                     mb_drv_lock(drv_obj);
                     if (ret >= 0) {
-                        err = transaction_set_state(port_obj->transaction, tid, TRANSMITTED);
-                        if (err == ESP_OK) {
-                            ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", sent packet TID: 0x%04" PRIx16 ", %p."),
-                                     drv_obj, pnode->index, pnode->sock_id,
-                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
-                        } else {
-                            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", transaction set state fail for TID: 0x%04" PRIx16 ", %p."),
-                                     drv_obj, pnode->index, pnode->sock_id,
-                                     pnode->addr_info.ip_addr_str, tid, frame_entry.buf);
-                        }
                         if (transaction_delete(port_obj->transaction, tid) != ESP_OK) {
                             ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
                         } else {
@@ -545,6 +530,18 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                     (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
                     mb_drv_unlock(drv_obj);
                 } else {
+                    // Warn user if master sent a new request before this response was dispatched.
+                    // The response is still sent normally — this only indicates that the master's
+                    // response timeout is too short for the number of active connections.
+                    uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
+                    uint64_t time_div_us = (esp_timer_get_time() - tick);
+                    if (tid != pnode->tid_counter) {
+                        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master, TID:0x%04" PRIx16 " != TID:0x%04" PRIx16),
+                                 ctx, (int)pnode->index, (int)pnode->sock_id,
+                                 pnode->addr_info.ip_addr_str, (time_div_us / 1000),
+                                 pnode->tid_counter, tid
+                                );
+                    }
                     ret = port_write_poll(pnode, frame_entry.buf, frame_entry.len, MB_TCP_SEND_TIMEOUT_MS);
                     mb_drv_lock(drv_obj);
                     if (ret >= 0) {

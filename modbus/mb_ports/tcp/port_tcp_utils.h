@@ -75,7 +75,7 @@ extern "C" {
 #endif
 
 #define MB_MDNS_PORT (CONFIG_FMB_TCP_PORT_DEFAULT)
-#define MB_READ_TICK (500)
+#define MB_READ_TICK (CONFIG_FMB_TCP_READ_TIMEOUT_MS)
 #define MB_MDNS_QUERY_TIME_MS (2000)
 
 #define MB_STR_LEN_HOST 1  // "mb_node_tcp_01"

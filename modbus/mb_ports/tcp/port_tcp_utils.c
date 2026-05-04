@@ -236,8 +236,8 @@ int port_read_packet(mb_node_info_t *info_ptr)
             info_ptr->recv_err = ERR_BUF;
             temp = MB_TCP_BUFF_MAX_SIZE; // read all remaining data from buffer
         }
-
-        ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, MB_READ_TICK);
+        // Sequential frame read with minimal timeout to reduce delays
+        ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, 1);
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
