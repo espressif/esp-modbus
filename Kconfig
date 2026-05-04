@@ -71,11 +71,22 @@ menu "Modbus configuration"
 
     config FMB_MASTER_TIMEOUT_MS_RESPOND
         int "Slave respond timeout (Milliseconds)"
-        default 10000
+        default 5000
         range 150 30000
         help
                 If master sends a frame which is not broadcast, it has to wait some time for slave response.
                 if slave is not respond in this time, the master will process timeout error.
+
+    config FMB_MASTER_MAX_API_BLOCKING_TIME_MS
+        int "Modbus TCP master API blocking threshold (ms)"
+        range 3000 200000
+        default 6000
+        help
+                This option represents the maximum API blocking time used by controller API calls.
+                The master uses timer to handle slave response timeout as defined by FMB_MASTER_TIMEOUT_MS_RESPOND
+                or overridden by corresponded master configuration field. The actual API blocking time is determined
+                as a shortest time between these two values. This API blocking time is separated with
+                FMB_MASTER_TIMEOUT_MS_RESPOND intentionally to prevent possible misconfiguration and must not be less than it.
 
     config FMB_MASTER_DELAY_MS_CONVERT
         int "Slave conversion delay (Milliseconds)"

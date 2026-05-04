@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -203,6 +203,13 @@ esp_err_t mbc_master_start(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
+
+    if ((mbm_controller->opts.comm_opts.common_opts.response_tout_ms > 0) &&
+            (mbm_controller->opts.comm_opts.common_opts.response_tout_ms > CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS)) {
+        mbm_controller->opts.comm_opts.common_opts.response_tout_ms = CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS + 500;
+        ESP_LOGW(TAG, "Slave response time option in master is incorrect, setting to max value.");
+    }
+
     MB_RETURN_ON_FALSE(mbm_controller->start, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
     error = mbm_controller->start(ctx);
