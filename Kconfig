@@ -49,6 +49,49 @@ menu "Modbus configuration"
                 The keep-alive time can be configured and should be set based on the actual needs of the application,
                 considering the trade-off between keeping the connection alive and minimizing system load.
 
+    config FMB_TCP_SELECT_WAIT_MS
+        int "Modbus TCP select wait timeout (ms)"
+        range 10 500
+        default 50
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                This option represents a maximum time the driver task blocks on select function per loop iteration.
+                Lower values improve responsiveness when multiple masters are connected
+                but slightly increase CPU usage. For high-throughput applications with
+                many concurrent connections, reducing to 10-20 ms may help.
+
+    config FMB_TCP_READ_TIMEOUT_MS
+        int "Modbus TCP socket read timeout (ms)"
+        range 1 500
+        default 150
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                The option applies to SO_RCVTIMEO when reading the MBAP header from a socket.
+                This is the worst-case blocking time if a partial TCP segment arrives.
+                On a reliable LAN, 50-100 ms is sufficient. Lower values reduce the
+                maximum stall that one slow connection can impose on other connections.
+
+    config FMB_TCP_SEND_TIMEOUT_MS
+        int "Modbus TCP send timeout (ms)"
+        range 10 1000
+        default 100
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                This is a timeout for the socket writability check and send operation.
+                Before each send, the driver verifies the socket is writable via select function.
+                Reduce for faster failure detection; increase on high-latency links.
+
+    config FMB_TCP_EVENT_LOOP_TICK_MS
+        int "Modbus TCP event loop processing budget (ms)"
+        range 10 300
+        default 50
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                This option represents the maximum time allocated to event loop run function per driver loop iteration.
+                The value controls how many queued events (connect, send, error, etc.) are dispatched
+                before returning to check sockets. Lower values reduce latency for socket
+                I/O at the cost of processing fewer events per iteration.
+
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
         default n

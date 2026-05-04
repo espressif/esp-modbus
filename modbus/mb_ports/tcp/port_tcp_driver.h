@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -51,9 +51,9 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
 
 #define MB_WAIT_DONE_MS             (5000)
-#define MB_SELECT_WAIT_MS           (200)
-#define MB_TCP_SEND_TIMEOUT_MS      (500)
-#define MB_TCP_EVENT_LOOP_TICK_MS   (50)
+#define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_SELECT_WAIT_MS)
+#define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
+#define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
 
 #define MB_DRIVER_CONFIG_DEFAULT {              \
     .spin_lock = portMUX_INITIALIZER_UNLOCKED,  \
