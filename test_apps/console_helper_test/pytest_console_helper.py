@@ -10,6 +10,7 @@ MB_APP_WAIT_TOUT_SEC = 120
 
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
+@pytest.mark.parametrize("config", ["generic"], indirect=True)
 def test_mb_console_helper_flow(
     dut: Dut,
 ) -> None:

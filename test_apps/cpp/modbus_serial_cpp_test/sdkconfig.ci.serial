@@ -1,7 +1,6 @@
 #
-# Serial-specific configuration
+# Modbus test configuration
 #
 CONFIG_FMB_COMM_MODE_RTU_EN=y
 CONFIG_FMB_COMM_MODE_ASCII_EN=y
 CONFIG_FMB_COMM_MODE_TCP_EN=n
-CONFIG_FMB_TCP_UID_ENABLED=n

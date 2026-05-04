@@ -7,5 +7,6 @@ from pytest_embedded import Dut
 
 @pytest.mark.parametrize("target", ["esp32"], indirect=True)
 @pytest.mark.multi_dut_modbus_generic
+@pytest.mark.parametrize("config", ["generic"], indirect=True)
 def test_mb_config_parser(dut: Dut) -> None:
     dut.run_all_single_board_cases()
