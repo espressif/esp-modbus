@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -52,7 +52,7 @@
 #define MB_PDU_FUNC_WRITE_MUL_BYTECNT_OFF       (MB_PDU_DATA_OFF + 4)
 #define MB_PDU_FUNC_WRITE_MUL_VALUES_OFF        (MB_PDU_DATA_OFF + 5)
 #define MB_PDU_FUNC_WRITE_MUL_SIZE_MIN          (5)
-#define MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX        (0x0078)
+#define MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX        (0x007B)
 
 #define MB_PDU_FUNC_READWRITE_READ_ADDR_OFF     (MB_PDU_DATA_OFF + 0)
 #define MB_PDU_FUNC_READWRITE_READ_REGCNT_OFF   (MB_PDU_DATA_OFF + 2)
@@ -61,6 +61,7 @@
 #define MB_PDU_FUNC_READWRITE_BYTECNT_OFF       (MB_PDU_DATA_OFF + 8)
 #define MB_PDU_FUNC_READWRITE_WRITE_VALUES_OFF  (MB_PDU_DATA_OFF + 9)
 #define MB_PDU_FUNC_READWRITE_SIZE_MIN          (9)
+#define MB_PDU_FUNC_READWRITE_WRITE_REGCNT_MAX  (0x0079)
 
 /* ----------------------- Static functions ---------------------------------*/
 mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
@@ -235,7 +236,7 @@ mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, 
         reg_wr_byte_cnt = frame_ptr[MB_PDU_FUNC_READWRITE_BYTECNT_OFF];
 
         if ((reg_rd_cnt >= 1) && (reg_rd_cnt <= MB_PDU_FUNC_READ_REGCNT_MAX) &&
-                (reg_wr_cnt >= 1) && (reg_wr_cnt <= MB_PDU_FUNC_WRITE_MUL_REGCNT_MAX) &&
+                (reg_wr_cnt >= 1) && (reg_wr_cnt <= MB_PDU_FUNC_READWRITE_WRITE_REGCNT_MAX) &&
                 ((2 * reg_wr_cnt) == reg_wr_byte_cnt)) {
             /* Make callback to update the register values. */
             if (inst->rw_cbs.reg_holding_cb) {
