@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -78,6 +78,8 @@ bool port_close_connection(mb_node_info_t *info_ptr)
     (void)recv(info_ptr->sock_id, &tmp_buff[0], MB_PDU_SIZE_MAX, MSG_DONTWAIT);
     queue_flush(info_ptr->rx_queue);
     queue_flush(info_ptr->tx_queue);
+
+    mb_set_linger(info_ptr->sock_id, 0);  // RST, avoid TIME_WAIT blocking
 
     if (shutdown(info_ptr->sock_id, SHUT_RDWR) == -1) {
         ESP_LOGV(TAG, "Shutdown failed sock %d, errno=%d", info_ptr->sock_id, (int)errno);
@@ -166,7 +168,12 @@ static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t le
 
     // blocking read of data from socket
     ret = recv(info_ptr->sock_id, buf, bytes_left, 0);
+    if (ret == 0) {
+        return ERR_CONN;  // FIN received, peer closed
+    }
     if (ret < 0) {
+        ESP_LOGD(TAG, "socket(#%d)(%s) recv return, ret=%d, errno=%d.",
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
         if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
             // Read timeout occurred, check the timeout and return
             return 0;
@@ -196,6 +203,12 @@ int port_read_packet(mb_node_info_t *info_ptr)
         MB_RETURN_ON_FALSE((info_ptr->sock_id > 0), -1, TAG, "try to read incorrect socket = #%d", info_ptr->sock_id);
         // Read packet header
         ret = port_get_buf(info_ptr, ptemp_buf, MB_TCP_UID, MB_READ_TICK);
+        if (ret == 0) {
+            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), socket connection is closed or timeout, err=%d, ",
+                     info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
+            return ERR_CONN;
+        }
+
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
@@ -223,8 +236,8 @@ int port_read_packet(mb_node_info_t *info_ptr)
             info_ptr->recv_err = ERR_BUF;
             temp = MB_TCP_BUFF_MAX_SIZE; // read all remaining data from buffer
         }
-
-        ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, MB_READ_TICK);
+        // Sequential frame read with minimal timeout to reduce delays
+        ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, 1);
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
@@ -269,6 +282,18 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
     }
     info_ptr->is_blocking = ((flags & O_NONBLOCK) != O_NONBLOCK);
     return ERR_OK;
+}
+
+int mb_set_linger(int sock, int tout)
+{
+    int res = -1;
+#if LWIP_SO_LINGER
+    struct linger sl;
+    sl.l_onoff = 1;
+    sl.l_linger = tout;
+    res = setsockopt(sock, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+#endif
+    return res;
 }
 
 int port_keep_alive_enable(int sock, int timeout_sec)
@@ -364,7 +389,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
     }
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     err_t err = ERR_OK;
-    char str[MDNS_NAME_BUF_LEN];
+    char str[MDNS_NAME_BUF_LEN] = {0};
     char *string_ptr = NULL;
     ip_addr_t target_addr;
     struct addrinfo hint;
@@ -459,18 +484,25 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout)
 {
     // Check if the socket is alive (writable and SO_ERROR == 0)
-    int res = (int)port_check_alive(info_ptr, timeout);
-    if ((res < 0) && (res != ERR_INPROGRESS)) {
+    int ret = (int)port_check_alive(info_ptr, timeout);
+    if ((ret < 0) && (ret != ERR_INPROGRESS)) {
         ESP_LOGE(TAG, MB_NODE_FMT(", is not writable, error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
-        return res;
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
+        return ret;
     }
-    res = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
-    if (res < 0) {
+    ret = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
+    if (ret < 0) {
         ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, res, (int)errno);
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
+        info_ptr->error = ret;
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, ret, ESP_LOG_DEBUG);
+        info_ptr->error = 0;
+        info_ptr->send_time = port_get_timestamp();
+        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
+                                 ? (info_ptr->send_counter + 1) : 0;
     }
-    return res;
+    return ret;
 }
 
 // Scan IP address according to IPV settings
