@@ -631,12 +631,7 @@ void mb_drv_tcp_task(void *ctx)
                 if (sock_id) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-#if LWIP_SO_LINGER
-                        struct linger sl;
-                        sl.l_onoff = 1;  // non-zero value enables linger option in lwip
-                        sl.l_linger = 0; // timeout interval in seconds
-                        setsockopt(sock_id, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-#endif // LWIP_SO_LINGER
+                        mb_set_linger(sock_id, 0);
                         close(sock_id);
                     } else {
                         // Create new node info and open it
@@ -679,12 +674,11 @@ void mb_drv_tcp_task(void *ctx)
                             if (ret == ERR_CONN) {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,
                                          (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-                                DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             } else {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)node_ptr->fd,
                                          (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
-                                DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             }
+                            DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ret);
                         }
                     }
                     curr_fd++;
