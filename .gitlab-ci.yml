@@ -14,7 +14,7 @@ stages:
 
 variables:
   # System environment
-  ESP_DOCS_ENV_IMAGE: "$CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1"
+  ESP_DOCS_ENV_IMAGE: "$CI_REGISTRY/ci/images/idf-v5.3-docs:1"
   TEST_DIR: "$CI_PROJECT_DIR"
 
 include:
