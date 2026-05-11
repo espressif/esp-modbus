@@ -13,6 +13,8 @@
 
 static const char TAG[] __attribute__((unused)) = "MB_CONTROLLER_MASTER";
 
+#define API_BLOCKING_THRESHOLD 500
+
 // This file implements public API for Modbus master controller.
 
 /**
@@ -204,10 +206,17 @@ esp_err_t mbc_master_start(void *ctx)
                        "Master interface is not correctly initialized.");
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
 
-    if ((mbm_controller->opts.comm_opts.common_opts.response_tout_ms > 0) &&
-            (mbm_controller->opts.comm_opts.common_opts.response_tout_ms > CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS)) {
-        mbm_controller->opts.comm_opts.common_opts.response_tout_ms = CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS + 500;
-        ESP_LOGW(TAG, "Slave response time option in master is incorrect, setting to max value.");
+    uint32_t response_tout_ms = mbm_controller->opts.comm_opts.common_opts.response_tout_ms;
+    // Keep stack response timeout below API blocking threshold
+    if (!response_tout_ms || (response_tout_ms >= CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS)) {
+        response_tout_ms = (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+                            <= (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS - API_BLOCKING_THRESHOLD))
+                           ? CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+                           : (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS - API_BLOCKING_THRESHOLD);
+        ESP_LOGW(TAG,
+                 "Master timeout option = (%u) exceeded the maximum API threshold or is uninitialized, will be set to configured value = %u.",
+                 (unsigned)mbm_controller->opts.comm_opts.common_opts.response_tout_ms, (unsigned)response_tout_ms);
+        mbm_controller->opts.comm_opts.common_opts.response_tout_ms = response_tout_ms;
     }
 
     MB_RETURN_ON_FALSE(mbm_controller->start, ESP_ERR_INVALID_STATE, TAG,

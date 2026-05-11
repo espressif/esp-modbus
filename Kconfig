@@ -83,10 +83,8 @@ menu "Modbus configuration"
         default 6000
         help
                 This option represents the maximum API blocking time used by controller API calls.
-                The master uses timer to handle slave response timeout as defined by FMB_MASTER_TIMEOUT_MS_RESPOND
-                or overridden by corresponded master configuration field. The actual API blocking time is determined
-                as a shortest time between these two values. This API blocking time is separated with
-                FMB_MASTER_TIMEOUT_MS_RESPOND intentionally to prevent possible misconfiguration and must not be less than it.
+                This API blocking time was intentionally separated from master timeout = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+                to prevent possible misconfiguration and the value must be higher than the master timeout.
 
     config FMB_MASTER_DELAY_MS_CONVERT
         int "Slave conversion delay (Milliseconds)"

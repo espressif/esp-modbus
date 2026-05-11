@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -37,11 +37,15 @@ typedef enum mb_comm_mode_enum mb_mode_type_t;
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
+#include <stddef.h>
 #include "driver/uart.h"
 
 struct port_serial_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
-    uart_port_t port;               /*!< Modbus communication port (UART) number */
+    union {
+        uart_port_t port;           /*!< UART driver port index (user API) */
+        uint32_t ser_port_align;    /*!< Overlay for union with TCP/common \c port field */
+    };
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
     uint32_t response_tout_ms;      /*!< Modbus slave response timeout */
     uint64_t test_tout_us;          /*!< Modbus test timeout (reserved) */
@@ -63,7 +67,7 @@ typedef enum addr_type_enum {
 
 struct port_common_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
-    uint16_t port;                  /*!< Modbus communication port (UART) number */
+    uint32_t port;                  /*!< Modbus port number (TCP) or UART index (serial) */
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
     uint32_t response_tout_ms;      /*!< Modbus slave response timeout */
     uint64_t test_tout_us;          /*!< Modbus test timeout (reserved) */
@@ -71,7 +75,10 @@ struct port_common_opts_s {
 
 struct port_tcp_opts_s {
     mb_mode_type_t mode;            /*!< Modbus communication mode */
-    uint16_t port;                  /*!< Modbus communication port (UART) number */
+    struct {
+        uint16_t port;              /*!< Modbus port number (TCP) */
+        uint16_t tcp_port_align;    /*!< Overlay for union with SERIAL/common \c port field */
+    };
     uint8_t uid;                    /*!< Modbus slave address field (dummy for master) */
     uint32_t response_tout_ms;      /*!< Modbus slave response timeout */
     uint64_t test_tout_us;          /*!< Modbus test timeout (reserved) */
@@ -83,6 +90,18 @@ struct port_tcp_opts_s {
 } __attribute__((__packed__));
 
 typedef struct port_tcp_opts_s mb_tcp_opts_t;
+
+#if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
+_Static_assert(sizeof(uart_port_t) == sizeof(uint32_t),
+               "uart_port_t must match uint32_t width of common/tcp port for mb_communication_info_t union");
+_Static_assert(offsetof(struct port_serial_opts_s, response_tout_ms) == offsetof(struct port_common_opts_s, response_tout_ms),
+               "serial/common Modbus opts: response_tout_ms offset must match (mb_communication_info_t union)");
+#endif
+
+#if (CONFIG_FMB_COMM_MODE_TCP_EN) && (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
+_Static_assert(offsetof(struct port_serial_opts_s, response_tout_ms) == offsetof(struct port_tcp_opts_s, response_tout_ms),
+               "serial/tcp Modbus opts: response_tout_ms offset must match (mb_communication_info_t union)");
+#endif
 
 // The common object descriptor structure (common for mb, transport, port objects)
 struct obj_descr_s {
