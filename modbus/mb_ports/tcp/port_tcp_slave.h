@@ -24,7 +24,7 @@
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
-#define TRANSACTION_TICKS pdMS_TO_TICKS(50)
+#define TRANSACTION_TICKS pdMS_TO_TICKS(20)
 
 /**
  * @brief Modbus slave addr list item for the master

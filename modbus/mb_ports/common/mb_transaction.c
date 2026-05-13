@@ -268,7 +268,7 @@ int transaction_delete_expired(transaction_handle_t transaction, transaction_tic
     transaction_item_handle_t item, tmp;
     CRITICAL_SECTION_LOCK(transaction->lock);
     STAILQ_FOREACH_SAFE(item, transaction->list, next, tmp) {
-        if (current_tick - item->tick > timeout) {
+        if ((current_tick - item->tick > timeout) || atomic_load(&(item->state)) == EXPIRED) {
             STAILQ_REMOVE(transaction->list, item, transaction_item, next);
             free(item->buffer);
             transaction->size -= item->len;

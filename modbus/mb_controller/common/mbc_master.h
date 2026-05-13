@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,6 +22,8 @@
 #include "mb_utils.h"
 #include "mb_master.h"
 
+#include "sdkconfig.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,7 +32,12 @@ extern "C" {
 
 // Set the maximum resource waiting time, the actual time of resource release
 // will be dependent on response time set by timer + conversion time if the command is received
-#define MB_MAX_RESP_DELAY_MS (3000)
+#define MB_MAX_RESP_DELAY_MS (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS)
+
+static_assert(
+    (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS >= CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND),
+    "The option CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS should be >= CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND"
+);
 
 /**
  * @brief Modbus controller handler structure

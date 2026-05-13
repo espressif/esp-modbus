@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -613,6 +613,7 @@ void mb_drv_tcp_task(void *ctx)
         } else {
             // Is the fd event triggered, process the event
             if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
+                FD_CLR(drv_obj->event_fd, &readset);
                 mb_event_info_t mb_event = {0};
                 int32_t event_id = read_event(ctx, &mb_event);
                 ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
@@ -623,20 +624,17 @@ void mb_drv_tcp_task(void *ctx)
                 if (err != ESP_OK) {
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
-            } else if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            }
+            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
+                FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
                 mb_uid_info_t node_info;
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
                 if (sock_id) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-#if LWIP_SO_LINGER
-                        struct linger sl;
-                        sl.l_onoff = 1;  // non-zero value enables linger option in lwip
-                        sl.l_linger = 0; // timeout interval in seconds
-                        setsockopt(sock_id, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
-#endif // LWIP_SO_LINGER
+                        mb_set_linger(sock_id, 0);
                         close(sock_id);
                     } else {
                         // Create new node info and open it
@@ -648,12 +646,12 @@ void mb_drv_tcp_task(void *ctx)
                         }
                     }
                 }
-            } else {
+            }
+            {
                 // socket event is ready, process each socket event
                 mb_drv_check_suspend_shutdown(ctx);
                 int curr_fd = 0;
                 mb_node_info_t *node_ptr = NULL;
-                ESP_LOGD(TAG, "%p, socket event active: %" PRIx64, ctx, *(uint64_t *)&readset);
                 while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
                         && (curr_fd < MB_MAX_FDS))) {
                     if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
@@ -679,12 +677,11 @@ void mb_drv_tcp_task(void *ctx)
                             if (ret == ERR_CONN) {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,
                                          (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-                                DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             } else {
                                 ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)node_ptr->fd,
                                          (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
-                                DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index);
                             }
+                            DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ret);
                         }
                     }
                     curr_fd++;
