@@ -67,7 +67,7 @@ check_idf_ver:
     stage: "{{ settings.gitlab.build_pipeline.job_stage }}"
     tags: {{ settings.gitlab.build_pipeline.job_tags }}
     image: "{{ settings.gitlab.build_pipeline.job_image }}"
-    timeout: "2h"
+    timeout: "3h"
     artifacts:
         name: "artifacts_build_${IDF_VERSION}"
         paths:
