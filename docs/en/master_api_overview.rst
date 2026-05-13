@@ -478,6 +478,62 @@ This function executes a blocking Modbus request. The master sends a data reques
 
 .. note:: The function can be used to form the custom request with non-standard commands to resolve compatibility issues with the custom slaves. If it is not the case the regular API should be used: :cpp:func:`mbc_master_set_parameter`, :cpp:func:`mbc_master_get_parameter`.
 
+The master supports the <0x11 - Report Slave ID> Modbus command to read vendor specific information from the slave. It uses the :cpp:func:`mbc_master_send_request` function to send request.
+
+The example to retrieve the slave identificator from slave:
+
+.. code:: c
+
+    #define MB_DEVICE_ADDR1 1 // the slave UID to retrieve information
+    ...
+    static void *master_handle = NULL; // the master handler is initialized previously
+    ...
+    // Set the request structure for the master to send the <Report Slave ID> command
+    mb_param_request_t req = {
+        .slave_addr = MB_DEVICE_ADDR1,  // the UID of the device to get the information,
+        .command = 0x11,                // the <Report Slave ID> command,
+        .reg_start = 0,                 // is obsolete, need to be zero for this request,
+        .reg_size = (CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE >> 1) // size of the buffer in registers to save ID
+    };
+    uint8_t info_buf[CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE] = {0};
+    // Send the request to slave
+    err = mbc_master_send_request(master_handle, &req, &info_buf[0]);
+    if (err != ESP_OK) {
+        ESP_LOGE("SLAVE_INFO", "Read slave info fail.");
+    } else {
+        ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
+    }
+
+The following example shows how to use the extra fields of :cpp:type:`mb_param_request_t` for command ``0x17`` (23 -- Read/Write Multiple Registers). It writes 3 ``float`` holding values (6 registers, starting at field ``holding_data0``) and reads 1 ``float`` holding value (2 registers, starting at field ``holding_data2``) of the saving structure ``holding_reg_params_t`` in the same transaction.
+
+.. note:: The storage structure ``holding_reg_params_t`` uses ``float`` (4 bytes) to store the holding registers. Since the Modbus protocol considers one register to be 2 bytes long, both ``reg_size`` (read length) and ``wr_rd_multi_reg_func.wr_reg_size`` (write length) must be expressed in registers -- i.e. twice the number of ``float`` values to transfer. The Macro ``HOLD_REG_START()`` defined in the Esp-Modbus project examples is used to get register offset for the respective field in the storage structure.
+
+.. code:: c
+
+    #define MB_DEVICE_ADDR1 1 // Slave UID to send the request
+    ...
+    static void *master_handle = NULL; // The master handler should be initialized before send request function
+    ...
+
+    float read_write_holding_buffer[3] = {23.4f, 45.6f, 56.7f};
+
+    mb_param_request_t read_write_holding_request = {
+        .slave_addr = MB_DEVICE_ADDR1,
+        .command = 0x17,                                                // 0x17 (23) -- Read/Write Multiple Registers
+        .reg_start = HOLD_REG_START(holding_data2),                     // Read start address: field holding_data2 in holding_reg_params_t
+        .reg_size = 2,                                                  // Length of the data to read (registers)
+        .wr_rd_multi_reg_func.wr_reg_start = HOLD_REG_START(holding_data0), // Write start address: field holding_data0 in holding_reg_params_t
+        .wr_rd_multi_reg_func.wr_reg_size = 6                           // Length of the data to write (registers)
+    };
+
+      err = mbc_master_send_request(master_handle, &read_write_holding_request, &read_write_holding_buffer);
+      if (err != ESP_OK) {
+          ESP_LOGE("MASTER_COMMAND_0x17", "Read and write of multiple holding registers fail.");
+      } else {
+          ESP_LOGI("MASTER_COMMAND_0x17", "Read and write of multiple holding registers success. Value read: %f", read_write_holding_buffer[0]);
+      }
+
+
 :cpp:func:`mbc_master_get_cid_info`:
 
 The function gets information about each characteristic supported in the data dictionary and returns the characteristic's description in the form of the :cpp:type:`mb_parameter_descriptor_t` structure. Each characteristic is accessed using its CID.
@@ -543,32 +599,6 @@ The function is similar to previous function but allows to set the data of a cha
         ESP_LOGI(TAG, "Set parameter data successfully.");
     } else {
         ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
-    }
-
-The master supports the <0x11 - Report Slave ID> Modbus command to read vendor specific information from the slave. It uses the :cpp:func:`mbc_master_send_request` function to send request.
-
-The example to retrieve the slave identificator from slave:
-
-.. code:: c
-
-    #define MB_DEVICE_ADDR1 1 // the slave UID to retrieve information
-    ...
-    static void *master_handle = NULL; // the master handler is initialized previously
-    ...
-    // Set the request structure for the master to send the <Report Slave ID> command
-    mb_param_request_t req = {
-        .slave_addr = MB_DEVICE_ADDR1,  // the UID of the device to get the information,
-        .command = 0x11,                // the <Report Slave ID> command,
-        .reg_start = 0,                 // is obsolete, need to be zero for this request,
-        .reg_size = (CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE >> 1) // size of the buffer in registers to save ID
-    };
-    uint8_t info_buf[CONFIG_FMB_CONTROLLER_SLAVE_ID_MAX_SIZE] = {0};
-    // Send the request to slave
-    err = mbc_master_send_request(master_handle, &req, &info_buf[0]);
-    if (err != ESP_OK) {
-        ESP_LOGE("SLAVE_INFO", "Read slave info fail.");
-    } else {
-        ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
     }
 
 .. note:: Please refer to :ref:`modbus_master_slave_configuration_aspects` for proper configuration.
