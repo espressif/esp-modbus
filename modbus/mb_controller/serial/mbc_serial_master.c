@@ -116,6 +116,9 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
     mbm_opts->task_handle = NULL;
     vEventGroupDelete(mbm_opts->event_group_handle);
     mbm_opts->event_group_handle = NULL;
+    if (xSemaphoreTake(mbm_opts->mbm_sema, pdMS_TO_TICKS(MB_MIN_RESP_DELAY_MS)) == pdTRUE) {
+        (void)xSemaphoreGive(mbm_opts->mbm_sema);
+    }
     vSemaphoreDelete(mbm_opts->mbm_sema);
     mbm_opts->mbm_sema = NULL;
     // delete mb_base instance and all its allocations
