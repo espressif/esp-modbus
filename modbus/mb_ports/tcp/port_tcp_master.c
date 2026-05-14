@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -143,7 +143,7 @@ mb_err_enum_t mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
     while (*paddr_table) {
         int res = port_scan_addr_string(*paddr_table, &slave_address_info);
         if (res > 0) {
-            ESP_LOGD(TAG, "Config: %s, IP: %s, port: %d, slave_addr: %d, ip_ver: %s",
+            ESP_LOGD(TAG, "Config: %s, address: %s, port: %d, slave_addr: %d, ip_ver: %s",
                      (char *)*paddr_table, slave_address_info.ip_addr_str, slave_address_info.port,
                      slave_address_info.uid, (slave_address_info.addr_type == MB_IPV4 ? "IPV4" : "IPV6"));
             fd = mb_drv_open(ptcp->drv_obj, slave_address_info, 0);
@@ -252,6 +252,11 @@ bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *fram
     mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
 
     bool frame_sent = false;
+    if (!frame || length > MB_TCP_BUFF_MAX_SIZE || length < MB_TCP_FUNC) {
+        ESP_LOGE(TAG, "Invalid TCP send: frame %p, length %u (allowed %d..%d)", frame, (unsigned)length,
+                 MB_TCP_FUNC, MB_TCP_BUFF_MAX_SIZE);
+        return false;
+    }
     // get slave descriptor from its address
     mb_node_info_t *info_ptr = mb_drv_get_node_info_from_addr(port_obj->drv_obj, address);
 
@@ -566,14 +571,26 @@ MB_EVENT_HANDLER(mbm_on_send_data)
         ESP_LOGD(TAG, "%p, get info: %d, sock_id: %d, queue_state: %d, state: %d.",
                  ctx, (int)event_info->opt_fd, (int)info_ptr->sock_id,
                  (int)queue_is_empty(info_ptr->tx_queue), (int)MB_GET_NODE_STATE(info_ptr));
-        size_t sz = queue_pop(info_ptr->tx_queue, tx_buffer, sizeof(tx_buffer), NULL);
+        ssize_t popped = queue_pop(info_ptr->tx_queue, tx_buffer, sizeof(tx_buffer), NULL);
+        if (popped < 0) {
+            ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", tx queue pop failed."),
+                     ctx, (int)info_ptr->index, (int)info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
+            return;
+        }
+        size_t sz = (size_t)popped;
+        if (sz == 0 || sz > sizeof(tx_buffer)) {
+            ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", bad tx frame size %u."),
+                     ctx, (int)info_ptr->index, (int)info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                     (unsigned)sz);
+            return;
+        }
         if (MB_GET_NODE_STATE(info_ptr) < MB_SOCK_STATE_CONNECTED) {
             // if slave is not connected, drop data.
             ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", is invalid, drop send data."),
                      ctx, (int)info_ptr->index, (int)info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
             return;
         }
-        int ret = port_write_poll(info_ptr, tx_buffer, sz, MB_TCP_SEND_TIMEOUT_MS);
+        int ret = port_write_poll(info_ptr, tx_buffer, (uint16_t)sz, MB_TCP_SEND_TIMEOUT_MS);
         if (ret < 0) {
             ESP_LOGE(TAG, "%p, "MB_NODE_FMT(", send data failure, err(errno) = %d(%u)."),
                      ctx, (int)info_ptr->index, (int)info_ptr->sock_id,
@@ -608,7 +625,6 @@ MB_EVENT_HANDLER(mbm_on_recv_data)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    size_t sz = 0;
     uint8_t buf[MB_TCP_BUFF_MAX_SIZE] = {0};
     mb_drv_check_suspend_shutdown(ctx);
     // Get frame from queue, check for correctness, push back correct frame and generate receive condition.
@@ -617,9 +633,13 @@ MB_EVENT_HANDLER(mbm_on_recv_data)
     if (node_ptr) {
         ESP_LOGD(TAG, "%p, slave #%d(%d) [%s], receive data ready.", ctx, (int)event_info->opt_fd,
                  (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-        while ((sz <= 0) && !queue_is_empty(node_ptr->rx_queue)) {
-            size_t sz = queue_pop(node_ptr->rx_queue, buf, MB_TCP_BUFF_MAX_SIZE, NULL);
-            if ((sz > MB_TCP_FUNC) && (sz < sizeof(buf))) {
+        while (!queue_is_empty(node_ptr->rx_queue)) {
+            ssize_t popped = queue_pop(node_ptr->rx_queue, buf, MB_TCP_BUFF_MAX_SIZE, NULL);
+            if (popped < 0) {
+                break;
+            }
+            size_t sz = (size_t)popped;
+            if ((sz > MB_TCP_FUNC) && (sz <= sizeof(buf))) {
                 uint16_t tid = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_TID);
                 ESP_LOGD(TAG, "%p, packet TID: 0x%04" PRIx16 " received.", ctx, tid);
                 if (tid == (node_ptr->tid_counter - 1)) {
