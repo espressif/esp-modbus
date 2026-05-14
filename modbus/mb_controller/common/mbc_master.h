@@ -31,6 +31,7 @@ extern "C" {
 // Set the maximum resource waiting time, the actual time of resource release
 // will be dependent on response time set by timer + conversion time if the command is received
 #define MB_MAX_RESP_DELAY_MS (3000)
+#define MB_MIN_RESP_DELAY_MS (300)
 
 /**
  * @brief Modbus controller handler structure

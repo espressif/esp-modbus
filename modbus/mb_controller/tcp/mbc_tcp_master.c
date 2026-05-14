@@ -573,6 +573,9 @@ static esp_err_t mbc_tcp_master_delete(void *ctx)
     mbm_opts->task_handle = NULL;
     vEventGroupDelete(mbm_opts->event_group_handle);
     mbm_opts->event_group_handle = NULL;
+    if (xSemaphoreTake(mbm_opts->mbm_sema, pdMS_TO_TICKS(MB_MIN_RESP_DELAY_MS)) == pdTRUE) {
+        (void)xSemaphoreGive(mbm_opts->mbm_sema);
+    }
     vSemaphoreDelete(mbm_opts->mbm_sema);
     mbm_opts->mbm_sema = NULL;
     mb_error = mbm_iface->mb_base->delete (mbm_iface->mb_base);
