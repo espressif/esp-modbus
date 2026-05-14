@@ -661,6 +661,7 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     } else {
         curr_fd++;
     }
+    vTaskDelay(1);
 }
 
 #endif

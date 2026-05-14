@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -108,23 +108,29 @@ int port_enqueue_packet(QueueHandle_t queue, uint8_t *buf, uint16_t len)
     esp_err_t ret = ESP_ERR_INVALID_STATE;
 
     if (queue && buf) {
+        if (len > MB_TCP_BUFF_MAX_SIZE || len <= MB_TCP_UID) {
+            ESP_LOGE(TAG, "Enqueue: bad actual length %u (max %d)", (unsigned)len, MB_TCP_BUFF_MAX_SIZE);
+            return ERR_BUF;
+        }
         frame_info.tid = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_TID);
         frame_info.uid = buf[MB_TCP_UID];
         frame_info.pid = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_PID);
-        frame_info.len = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_LEN) + MB_TCP_UID;
-        if (len != frame_info.len) {
-            ESP_LOGE(TAG, "Packet TID (%x), length in frame %u != %u expected.", frame_info.tid, frame_info.len, len);
+        uint16_t derived_len = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_LEN) + MB_TCP_UID;
+        if (derived_len != len) {
+            // Header can disagree with actual bytes (truncated read, clamp, or bad peer).
+            ESP_LOGW(TAG, "Packet TID 0x%x: MBAP len %u != actual %u, using actual.",
+                     (unsigned)frame_info.tid, (unsigned)derived_len, (unsigned)len);
         }
-        assert(xPortGetFreeHeapSize() > frame_info.len);
+        frame_info.len = len;
 
-        ret = queue_push(queue, buf, frame_info.len, &frame_info);
+        ret = queue_push(queue, buf, len, &frame_info);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Packet TID (%x), data enqueue failed.", frame_info.tid);
             // The packet send fail or the task which is waiting for event is already unblocked
             return ERR_BUF;
         }
-        ESP_LOGD(TAG, "Enqueue data, length=%d, TID=0x%" PRIx16, frame_info.len, frame_info.tid);
-        return (int)frame_info.len;
+        ESP_LOGD(TAG, "Enqueue data, length=%d, TID=0x%" PRIx16, (int)len, frame_info.tid);
+        return (int)len;
     }
     ESP_LOGE(TAG, "Enqueue data fail, %p, length=%d.", buf, len);
     return ERR_BUF;
@@ -216,12 +222,15 @@ int port_read_packet(mb_node_info_t *info_ptr)
 
         // If we have received the MBAP header we can analyze it and calculate
         // the number of bytes left to complete the current response.
+        // Second chunk is stored from ptemp_buf[MB_TCP_UID], so temp must be
+        // <= (MB_TCP_BUFF_MAX_SIZE - MB_TCP_UID) to fit in ptemp_buf[].
         temp = MB_TCP_MBAP_GET_FIELD(ptemp_buf, MB_TCP_LEN);
-        if (temp > MB_TCP_BUFF_MAX_SIZE) {
-            ESP_LOGD(TAG, "Incorrect packet length: %d", temp);
+        const uint16_t mbap_payload_max = (uint16_t)(MB_TCP_BUFF_MAX_SIZE - MB_TCP_UID);
+        if (temp > mbap_payload_max) {
+            ESP_LOGD(TAG, "Incorrect packet length: %u (max %u)", (unsigned)temp, (unsigned)mbap_payload_max);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_FUNC, ESP_LOG_DEBUG);
             info_ptr->recv_err = ERR_BUF;
-            temp = MB_TCP_BUFF_MAX_SIZE; // read all remaining data from buffer
+            temp = mbap_payload_max; // read all remaining data from buffer
         }
 
         ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, MB_READ_TICK);
@@ -230,7 +239,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
             return ret;
         }
 
-        if (ret != temp) {
+        if ((ret < temp) || (ret < MB_PDU_SIZE_MIN)) {
             info_ptr->recv_err = ERR_VAL;
             return ERR_VAL;
         }
@@ -458,6 +467,12 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout)
 {
+    if (frame_len > MB_TCP_BUFF_MAX_SIZE) {
+        ESP_LOGE(TAG, MB_NODE_FMT(", refuse send: length %u > max %d"),
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                 (unsigned)frame_len, MB_TCP_BUFF_MAX_SIZE);
+        return -1;
+    }
     // Check if the socket is alive (writable and SO_ERROR == 0)
     int res = (int)port_check_alive(info_ptr, timeout);
     if ((res < 0) && (res != ERR_INPROGRESS)) {

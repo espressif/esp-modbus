@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -349,6 +349,12 @@ ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size)
     ssize_t ret = -1;
 
     if (size == 0) {
+        return 0;
+    }
+    if (size > MB_TCP_BUFF_MAX_SIZE) {
+        ESP_LOGE(TAG, "%p, mb_drv_write: size %u exceeds Modbus TCP frame max %d", ctx, (unsigned)size,
+                 MB_TCP_BUFF_MAX_SIZE);
+        errno = EMSGSIZE;
         return 0;
     }
 

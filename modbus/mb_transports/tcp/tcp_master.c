@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -156,8 +156,16 @@ static mb_err_enum_t mbm_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
 static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address, const uint8_t *frame, uint16_t len)
 {
     mb_err_enum_t status = MB_ENOERR;
+    if (len > MB_PDU_SIZE_MAX) {
+        ESP_LOGE(TAG, "PDU length %u exceeds max %u", (unsigned)len, (unsigned)MB_PDU_SIZE_MAX);
+        return MB_EIO;
+    }
+    uint16_t tcp_len = (uint16_t)(len + MB_TCP_FUNC);
+    if (tcp_len > MB_TCP_BUFF_MAX_SIZE) {
+        ESP_LOGE(TAG, "TCP frame length %u exceeds max %u", (unsigned)tcp_len, (unsigned)MB_TCP_BUFF_MAX_SIZE);
+        return MB_EIO;
+    }
     uint8_t *frame_ptr = (uint8_t *)frame - MB_TCP_FUNC;
-    uint16_t tcp_len = len + MB_TCP_FUNC;
 
     /* The MBAP header is already initialized because the caller calls this
      * function with the buffer returned by the previous call. Therefore we

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,6 +9,7 @@
 #include "sys/lock.h"
 
 #include "port_common.h"
+#include "mb_frame.h"
 
 /* ----------------------- Variables ----------------------------------------*/
 static _Atomic(uint32_t) inst_counter = 0;
@@ -75,6 +76,9 @@ esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *
     }
 
     if (buf && (len > 0)) {
+        if (len > MB_TCP_BUFF_MAX_SIZE) {
+            return ESP_ERR_INVALID_ARG;
+        }
         if (!frame_info.buf) {
             frame_info.buf = calloc(1, len);
         }
@@ -87,6 +91,9 @@ esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *
 
     // try send to queue and check if the queue is full
     if (xQueueSend(queue, &frame_info, portMAX_DELAY) != pdTRUE) {
+        if (frame_info.buf) {
+            free(frame_info.buf);
+        }
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
