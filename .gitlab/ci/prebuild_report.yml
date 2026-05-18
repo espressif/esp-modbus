@@ -8,6 +8,6 @@ generate_prebuild_report:
     expire_in: 1 week
     when: always
   script:
-    - pip install -U idf-ci
+    - pip install -U 'idf-ci>=1.0,<2'
     - idf-ci build collect --format html -o prebuild_report.html
     - echo "Report generated at ${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/prebuild_report.html"
