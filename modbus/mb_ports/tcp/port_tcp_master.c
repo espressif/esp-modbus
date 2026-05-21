@@ -490,7 +490,6 @@ MB_EVENT_HANDLER(mbm_on_connect)
                         drv_obj->node_conn_count--;
                     }
                     mb_drv_unlock(ctx);
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, event_info->opt_fd);
                     port_close_connection(node_ptr);
                 } else {
                     ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connection is in progress.",
