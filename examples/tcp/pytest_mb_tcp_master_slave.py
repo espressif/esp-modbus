@@ -28,19 +28,19 @@ pattern_dict_slave = {
     Stages.STACK_CONNECT: (
         r"I\s\(([0-9]+)\) port.utils: Socket \(#[0-9]+\), accept client connection from address\[port\]: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\[[0-9]+\]"
     ),
-    Stages.STACK_START: (r"I\s\(([0-9]+)\) [A-Z_]+: Slave TCP [#0-9]*\s*is started"),
+    Stages.STACK_START: (r"I\s\(([0-9]+)\) [A-Z_]+: Start modbus test"),
     Stages.STACK_PAR_OK: (
         r"I\s\(([0-9]+)\) [A-Z_]+: OBJ (0x[a-fA-Z0-9]+),() ([A-Za-z\s]+) \([0-9]+ us\),\s*[A-Z:]*\s*[0-9,]*\s*[A-Z:]*[0-9]*, TYPE:[0-9]+, INST_ADDR:0x[a-fA-Z0-9]+[()0-9a-z]+, SIZE:[0-9]+"
     ),
     Stages.STACK_PAR_FAIL: (
         r"E \(([0-9]+)\) SLAVE_TEST: Response time exceeds configured [0-9]+ [ms], ignore packet"
     ),
-    Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: Destroy slave"),
+    Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: (Destroy slave.)"),
     Stages.STACK_OBJECT_CREATE: (
         r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_tcp[#@](0x[0-9a-f]+)"
     ),
     Stages.STACK_BAD_CONNECTION: (
-        r"I \([0-9]+\) example_connect: WiFi Connect failed [0-9]* times, stop reconnect."
+        r"[EWI] \([0-9]+\) mb_port[\.a-z]+: (0x[a-zA-Z0-9]+), node #[0-9]+, socket\(\#([0-9]+)\)\(([\.0-9a-f]+)\), communication fail, err= -([0-9]+)"
     ),
     Stages.STACK_CID_RESPONSE_TIME: (
         r"D \(([0-9]+)\) mbc_[a-z]+.slave: mbc_[a-z]+_slave_get_parameter: Good response for get cid\(([0-9]+)\) = ESP_OK"
@@ -118,18 +118,23 @@ def test_modbus_tcp_communication(
     dut_master_name = dut_master.dut_get_name()
 
     dut_slave_port = dut_slave.app.sdkconfig.get("FMB_TCP_PORT_DEFAULT")
+    dut_master_port = dut_master.app.sdkconfig.get("FMB_TCP_PORT_DEFAULT")
     dut_stdin_en = dut_master.app.sdkconfig.get("MB_SLAVE_IP_FROM_STDIN")
 
     dut_slave_ip_address = dut_slave.dut_get_ip()
-    logger.info(f"DUT: {dut_slave_name}, ip address: {dut_slave_ip_address}.")
+    dut_master_ip_address = dut_master.dut_get_ip()
+    logger.info(
+        f"DUT Slave: {dut_slave_name}, ip address[:port]: {dut_slave_ip_address}:{dut_slave_port}."
+    )
+    logger.info(
+        f"DUT Master: {dut_master_name}, ip address[:port]: {dut_master_ip_address}:{dut_master_port}."
+    )
 
     dut_master_ip_address = dut_master.dut_get_ip()
     logger.info(f"DUT: {dut_master_name}, ip address: {dut_master_ip_address}.")
 
     if dut_stdin_en:
-        dut_master.dut_send_ip(slave_ip=dut_slave_ip_address)
-
-    print(f"Start testing for {dut_slave_name}:{dut_slave_port}, {dut_stdin_en}")
+        dut_master.dut_send_ip(slave_ip=dut_slave_ip_address, port=dut_slave_port)
 
     dut_slave.dut_test_start(dictionary=pattern_dict_slave)
     dut_master.dut_test_start(dictionary=pattern_dict_master)
