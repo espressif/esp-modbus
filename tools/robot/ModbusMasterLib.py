@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 import socket
@@ -10,17 +10,19 @@ from typing import Optional, Any, Tuple, List
 
 from scapy.utils import wrpcap
 from scapy.packet import Packet, Raw
+from scapy.fields import XByteField
 from scapy.supersocket import StreamSocket
 from scapy.layers.inet import Ether, IP, TCP
 from scapy.config import conf
 from scapy.error import Scapy_Exception
-from scapy.fields import XByteField
 
 from robot.api.deco import keyword, library
 from robot.api.logger import info
 
 from ModbusSupport import (
-    modbus_exceptions,
+    Exceptions,
+    MB_EXCEPTION_MASK,
+    MB_EXCEPTION_FUNC_MASK,
     ModbusADU_Request,
     ModbusADU_Response,
     ModbusPDUXX_Custom_Request,  # noqa
@@ -30,6 +32,7 @@ from ModbusSupport import (
     ModbusPDU04_Read_Input_Registers,  # noqa
     ModbusPDU01_Read_Coils,  # noqa
     ModbusPDU0F_Write_Multiple_Coils,  # noqa
+    ModbusPDU05_Write_Single_Coil,  # noqa
     ModbusPDU02_Read_Discrete_Inputs,  # noqa
     ModbusPDU06_Write_Single_Register,  # noqa
 )
@@ -40,49 +43,53 @@ conf.debug_dissector = False
 conf.padding = 1
 
 # The default values for self test of the library
-MB_DEF_SERVER_IP = "127.0.0.1"
+MB_DEF_SERVER_IP = "192.168.88.251"  # "127.0.0.1"
 MB_DEF_PORT = 1502
 MB_DEF_TRANS_ID = 0x0000
-MB_DEF_FUNC_HOLDING_READ = 0x03
-MB_DEF_FUNC_HOLDING_WRITE = 0x10
-MB_DEF_FUNC_INPUT_READ = 0x04
-MB_DEF_FUNC_COILS_READ = 0x01
-MB_DEF_FUNC_COILS_WRITE = 0x0F
-MB_DEF_FUNC_REPORT_SLAVE_ID = 0x11
-MB_DEF_QUANTITY = 1
-MB_DEF_START_OFFS = 0x0001
+MB_DEF_QUANTITY = 2
+MB_DEF_START_OFFS = 0x0000
 MB_DEF_REQ_TOUT = 5.0
 
 MB_LOGGING_PATH = "."
 # The constructed packets for self testing
-TEST_PACKET_REPORT_CUSTOM_0X41 = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
-                                  ModbusPDUXX_Custom_Request(customBytes=[0x41])"  # fmt: skip
-TEST_PACKET_REPORT_SLAVE_ID_CUSTOM = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
-                                      ModbusPDUXX_Custom_Request(customBytes=[0x11])"  # fmt: skip
-TEST_PACKET_REPORT_SLAVE_ID = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
-                               ModbusPDU11_Report_Slave_Id(funcCode=MB_DEF_FUNC_REPORT_SLAVE_ID)"  # fmt: skip
+
+TEST_PACKET_REPORT_CUSTOM_0X41 = (
+    "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                                  ModbusPDUXX_Custom_Request(customBytes=[0x41])"
+)
+TEST_PACKET_REPORT_SLAVE_ID_CUSTOM = (
+    "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                                      ModbusPDUXX_Custom_Request(customBytes=[0x11])"
+)
+TEST_PACKET_REPORT_SLAVE_ID = (
+    "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
+                               ModbusPDU11_Report_Slave_Id()"
+)
 TEST_PACKET_HOLDING_READ = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0, len=6)/\
-                            ModbusPDU03_Read_Holding_Registers(funcCode=MB_DEF_FUNC_HOLDING_READ, startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)"  # fmt: skip
+                            ModbusPDU03_Read_Holding_Registers(startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)"
 TEST_PACKET_HOLDING_WRITE = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0)/\
-                            ModbusPDU10_Write_Multiple_Registers(funcCode=MB_DEF_FUNC_HOLDING_WRITE, startAddr=MB_DEF_START_OFFS, quantityRegisters=2, outputsValue=[0x1122, 0x3344])"  # fmt: skip
+                             ModbusPDU10_Write_Multiple_Registers(startAddr=MB_DEF_START_OFFS, quantityRegisters=2, outputsValue=[0x1122, 0x3344])"
 TEST_PACKET_INPUT_READ = "ModbusADU_Request(transId=MB_DEF_TRANS_ID, unitId=0x01, protoId=0, len=6)/\
-                            ModbusPDU04_Read_Input_Registers(funcCode=MB_DEF_FUNC_INPUT_READ, startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)"  # fmt: skip
+                          ModbusPDU04_Read_Input_Registers(startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)"
 TEST_PACKET_COILS_READ = "ModbusADU_Request(unitId=0x01, protoId=0)/\
-                            ModbusPDU01_Read_Coils(funcCode=MB_DEF_FUNC_COILS_READ, startAddr=MB_DEF_START_OFFS, quantity=MB_DEF_QUANTITY)"  # fmt: skip
+                          ModbusPDU01_Read_Coils(startAddr=MB_DEF_START_OFFS, quantity=8)"
+TEST_PACKET_DISCRETE_READ = "ModbusADU_Request(unitId=0x01, protoId=0)/\
+                          ModbusPDU02_Read_Discrete_Inputs(startAddr=MB_DEF_START_OFFS, quantity=8)"
 TEST_PACKET_COILS_WRITE = "ModbusADU_Request(unitId=0x01, protoId=0)/\
-                            ModbusPDU0F_Write_Multiple_Coils(funcCode=MB_DEF_FUNC_COILS_WRITE, startAddr=MB_DEF_START_OFFS, quantityOutput=MB_DEF_QUANTITY, outputsValue=[0xFF])"  # fmt: skip
+                           ModbusPDU0F_Write_Multiple_Coils(startAddr=MB_DEF_START_OFFS, quantityOutput=MB_DEF_QUANTITY, outputsValue=[0xFF])"
+TEST_PACKET_SINGLE_COIL_WRITE = "ModbusADU_Request(unitId=0x01, protoId=0)/\
+                                 ModbusPDU05_Write_Single_Coil(outputAddr=MB_DEF_START_OFFS, outputValue=0xFF00)"
+TEST_PACKET_HOLDING_REG_WRITE = "ModbusADU_Request(unitId=0x01, protoId=0)/\
+                                 ModbusPDU06_Write_Single_Register(registerAddr=MB_DEF_START_OFFS, registerValue=[0x1234])"
 
 
-# The simplified version of custom Modbus Library to check robot framework
-@library(scope="GLOBAL", version="2.0.0")  # fmt: skip
-class ModbusTestLib:
+# The simplified version of custom Modbus Master Library for robot framework
+@library(scope="GLOBAL", version="2.1.0")  # fmt: skip
+class ModbusMasterLib:
     """
-    ModbusTestLib class is the custom Modbus library for robot framework.
+    ModbusMasterLib class is the custom Modbus Master library for robot framework.
     The test class for Modbus includes common functionality to receive and parse Modbus frames.
     """
-
-    MB_EXCEPTION_MASK = 0x0080
-    MB_EXCEPTION_FUNC_MASK = 0x007F
 
     def __init__(
         self,
@@ -103,7 +110,7 @@ class ModbusTestLib:
         self.in_pdu: Optional[Any] = None
         self.resp_timeout = timeout
         self.pcap_file_name = "{path}/{file}_{id}.{ext}".format(
-            path=MB_LOGGING_PATH, file="mb_frames", ext="pcap", id=str(self.class_id)
+            path=MB_LOGGING_PATH, file="mbm_frames", ext="pcap", id=str(self.class_id)
         )
         if os.path.isfile(self.pcap_file_name):
             os.remove(self.pcap_file_name)
@@ -177,7 +184,7 @@ class ModbusTestLib:
         except Exception as exception:
             raise Scapy_Exception(f"Send fail: {exception}")
 
-    @keyword('Get Class Id')  # fmt: skip
+    @keyword("Get Class Id")
     def get_class_id(self) -> int:
         """
         Return unique class ID for robot suit debugging.
@@ -198,7 +205,7 @@ class ModbusTestLib:
         if not packet[ModbusADU_Request].transId:
             packet.transId = self.get_trans_id()
 
-    @keyword('Create Request')  # fmt: skip
+    @keyword("Create Request")  # fmt: skip
     def create_request(self, packet_str: str) -> Packet:
         """
         Create a Modbus packet based on the given string representation.
@@ -219,7 +226,7 @@ class ModbusTestLib:
             raise ValueError(f"Failed to create packet: {str(exception)}")
 
     # Connects to a target via TCP socket
-    @keyword('Connect')  # fmt: skip
+    @keyword("Connect")  # fmt: skip
     def connect(
         self, ip_addr: str = MB_DEF_SERVER_IP, port: int = MB_DEF_PORT
     ) -> StreamSocket:
@@ -239,6 +246,7 @@ class ModbusTestLib:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             print(f"Connect to server: {ip_addr}:{port}")
+            s.settimeout(8)
             s.connect((ip_addr, port))
             self._connection = StreamSocket(s, basecls=ModbusADU_Response)
             self.host_ip = self.get_host_ip()
@@ -250,10 +258,12 @@ class ModbusTestLib:
             self.node_address = ""
             self.node_port = 0
             self.socket = None
-            raise Scapy_Exception(f"Could not connect to socket: {exception}")
+            raise Scapy_Exception(
+                f"Could not connect to socket {ip_addr}:{port}: {exception}"
+            )
         return self._connection
 
-    @keyword('Disconnect')  # fmt: skip
+    @keyword("Disconnect")  # fmt: skip
     def disconnect(self) -> None:
         """
         The disconnect from socket method to work as robot framework keyword.
@@ -275,7 +285,7 @@ class ModbusTestLib:
                     f"Connection close fail, exception occurred: ({exception})"
                 )
 
-    @keyword('Send Packet')  # fmt: skip
+    @keyword("Send Packet")  # fmt: skip
     def send_packet_and_get_response(
         self, pkt: Packet, timeout: int = 2, verbose: bool = True
     ) -> Optional[bytes]:
@@ -304,7 +314,6 @@ class ModbusTestLib:
             response: Optional[Packet] = self._req_send_recv(
                 mb_request, timeout=timeout, verbose=verbose
             )
-            # assert response is not None, "No respond from slave"
             if request is None or response is None:
                 print("No response from slave.")
                 return None
@@ -336,7 +345,7 @@ class ModbusTestLib:
         except Exception as exception:
             raise Scapy_Exception(f"Send data fail, exception occurred: ({exception})")
 
-    @keyword('Translate Response')  # fmt: skip
+    @keyword("Translate Response")  # fmt: skip
     def translate_response(self, pkt: bytes) -> Optional[Any]:
         """
         Translates response received from server. Does dissection of the received packet.
@@ -351,45 +360,60 @@ class ModbusTestLib:
             packet: Packet = ModbusADU_Response(pkt)
             if packet is None:  # or not packet.haslayer(ModbusADU_Response)
                 raise ValueError("Only Modbus TCP responses are allowed!")
-            print(f"Packet received: {packet.show(dump=True)}")
+            print(f"Packet received: {packet.summary()}")  # show(dump=True)
+
+            # Default extraction (may be Raw or a PDU class)
             self.in_pdu, __ = packet.extract_padding(packet)
-            print(
-                f"Test received: pdu: {type(self.in_pdu)} {self.in_pdu!r}, {bytes(self.in_pdu)!r}"
-            )
-            # workaround to use dissected packets under robot framework
-            # issue with scapy dissector on incomplete packets
+
+            # Workaround: if Raw present try to identify correct PDU class using payload's guess_payload_class
             if packet.haslayer(Raw):
                 raw_load = packet[Raw].load
                 print(f"Test workaround PDU: {raw_load!r}")
-                # We need to call guess_payload_class on the ADU layer to dissect the PDU payload
-                # The PDU class (e.g., ModbusPDU03_Read_Holding_Registers_Answer) is returned
-                pdu_class = packet.guess_payload_class(raw_load)
-                # Now instantiate the PDU class with the raw load
+                # Use the ADU layer's payload's guess_payload_class for correct PDU detection
+                try:
+                    pdu_class = packet.payload.guess_payload_class(raw_load)
+                except Exception:
+                    pdu_class = None
                 if pdu_class and pdu_class is not Raw:
-                    self.in_pdu = pdu_class(raw_load)
+                    try:
+                        self.in_pdu = pdu_class(raw_load)
+                    except Exception:
+                        self.in_pdu = Raw(raw_load)
                 else:
                     self.in_pdu = Raw(raw_load)
-            # Check for exception
-            # Accessing fields requires type checking or hasattr
-            if hasattr(packet, "funcCode"):
-                func_code = packet.getfieldval("funcCode")
-                if (func_code & self.MB_EXCEPTION_MASK) and hasattr(
-                    self.in_pdu, "exceptCode"
-                ):
-                    except_code = self.in_pdu.getfieldval("exceptCode")
-                    if except_code in modbus_exceptions:
-                        self.exception = except_code  # Fixed: assign int
-                        self.exception_message = modbus_exceptions[
-                            self.exception
-                        ]  # Fixed: index with int
+
+            # Check for exception: map exceptCode safely to Exceptions enum
+            try:
+                func_code = (
+                    packet.getfieldval("funcCode")
+                    if hasattr(packet, "getfieldval")
+                    else None
+                )
+            except Exception:
+                func_code = None
+
+            if func_code is not None and (func_code & MB_EXCEPTION_MASK):
+                try:
+                    if hasattr(self.in_pdu, "exceptCode"):
+                        except_code = self.in_pdu.getfieldval("exceptCode")
+                        # assign numeric exception and try to map to Exceptions enum
+                        self.exception = int(except_code)
+                        try:
+                            self.exception_message = Exceptions(self.exception).name
+                        except Exception:
+                            self.exception_message = str(self.exception)
+                except Exception:
+                    # best-effort: ignore mapping errors
+                    pass
+
             self.in_adu = packet[ModbusADU_Response]
             print(f"PDU: {self.in_pdu}")
             return self.in_pdu
 
-        except Exception as exception:
+        except Exception as e:
             self.in_adu = None
             self.in_pdu = None
-            raise Scapy_Exception(f"Parsing of response : ({exception})")
+            raise Scapy_Exception(f"Parsing of response : ({str(e)})")
 
     def get_int(self, val: Any) -> int:
         if isinstance(val, str):
@@ -408,7 +432,7 @@ class ModbusTestLib:
         Check PDU frame from response. Check exception code
         Args:
             pdu: A Modbus PDU frame.
-            expected_func: timeout to send the data
+            expected_func: the expected function code
         Returns:
             exception: The exception code from Modbus frame
             exception_message: exception message
@@ -430,13 +454,13 @@ class ModbusTestLib:
             print(
                 f"Test PDU: type:{type(pdu)}, PDU:{pdu}, Func:{type(pdu.funcCode.i2repr(pdu, pdu.funcCode))}, {pdu.funcCode.i2repr(pdu, pdu.funcCode)}"
             )
-            func_code = pdu.getfieldval(pdu, "funcCode")
+            func_code = pdu.getfieldval("funcCode")
             print(f"PDU has funcCode attribute, value: {pdu.funcCode} {func_code}")
         else:
             raise ValueError(f"Invalid PDU type or missing function code: {type(pdu)}")
         print(f"func code: {type(func_code)} {func_code}")
         if (
-            (func_code & self.MB_EXCEPTION_MASK)
+            (func_code & MB_EXCEPTION_MASK)
             and hasattr(pdu, "exceptCode")
             and pdu.exceptCode
         ):
@@ -448,14 +472,14 @@ class ModbusTestLib:
             if isinstance(expected_func, str)
             else expected_func
         )
-        assert (func_code & self.MB_EXCEPTION_FUNC_MASK) == exp_func, (
-            f"Unexpected function code: {func_code & self.MB_EXCEPTION_FUNC_MASK}, {exp_func}"
+        assert (func_code & MB_EXCEPTION_FUNC_MASK) == exp_func, (
+            f"Unexpected function code: {func_code & MB_EXCEPTION_FUNC_MASK}, {exp_func}"
         )
-        self.exception_message = modbus_exceptions[self.exception]
+        self.exception_message = Exceptions(self.exception).name
         print(f"MB exception: {self.exception}, {self.exception_message}")
         return self.exception, self.exception_message
 
-    @keyword('Check ADU')  # fmt: skip
+    @keyword("Check ADU")  # fmt: skip
     def check_adu(self, adu_out: Packet, adu_in: Packet) -> Optional[int]:
         """
         Check ADU frame fields.
@@ -482,7 +506,7 @@ class ModbusTestLib:
         except Exception as exception:
             raise Scapy_Exception(f"ADU check failed: ({exception})")
 
-    @keyword('Get Bits From PDU')  # fmt: skip
+    @keyword("Get Bits From PDU")  # fmt: skip
     def get_bits_from_pdu(self, pdu: Packet) -> List[bool]:
         """
         Check PDU frame, extract bits (coils or discrete) from PDU.
@@ -525,51 +549,54 @@ class ModbusTestLib:
         print(f"Test: 0x41 <Custom command> packet: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
         assert response and len(response) > 1, "No response from slave"
-        print(f"Test: received: {response!r}")
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
         if pdu is not None:
-            print(f"Received: {pdu}")
-            # print(f"PDU Exception: {self.check_response(pdu, packet.customBytes[0])}")
+            exception, msg = self.check_response(pdu, packet.customBytes[0])
+            if exception == Exceptions.UNDEFINED:
+                print(f"Received: {pdu}")
+                # print(f"PDU Exception: {self.check_response(pdu, packet.customBytes[0])}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         # Test 0x11 Report Slave ID
         packet = self.create_request(TEST_PACKET_REPORT_SLAVE_ID_CUSTOM)
         print(f"Test: 0x11 <Report Slave ID> packet: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
         assert response and len(response) > 1, "No response from slave"
-        print(f"Test: received: {response!r}")
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
         if pdu is not None:
             # Assuming customBytes[0] holds the funcCode 0x11
             exception, msg = self.check_response(pdu, packet.customBytes[0])
-            print(f"PDU Exception: {exception}, {msg}")
-            # Use getfieldval safely
-            slave_uid = (
-                pdu.getfieldval("slaveUid") if hasattr(pdu, "slaveUid") else "N/A"
-            )
-            run_status = (
-                pdu.getfieldval("runIdicatorStatus")
-                if hasattr(pdu, "runIdicatorStatus")
-                else "N/A"
-            )
-            ident_struct = (
-                pdu.getfieldval("slaveIdent") if hasattr(pdu, "slaveIdent") else "N/A"
-            )
-            print(
-                f"slaveUID: {slave_uid}, runIdicatorStatus: {run_status}, IdStruct:  {ident_struct}"
-            )
+            if exception == Exceptions.UNDEFINED:
+                print(f"PDU Exception: {exception}, {msg}")
+                ident_struct = (
+                    pdu.getfieldval("slaveIdent")
+                    if hasattr(pdu, "slaveIdent")
+                    else "N/A"
+                )
+                print(
+                    f"slaveUID: {ident_struct}" if hasattr(pdu, "slaveIdent") else "N/A"
+                )
         # Test 0x03 Read Holding Registers
         packet = self.create_request(TEST_PACKET_HOLDING_READ)
         print(f"Test: Packet created: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
         assert response and len(response) > 1, "No response from slave"
-        print(f"Test: received: {response!r}")
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
-        if pdu is not None:
-            reg_val = (
-                pdu.getfieldval("registerVal") if hasattr(pdu, "registerVal") else []
-            )
-            print(f"Register values: {pdu}, len:{len(reg_val)}")
-            exception, msg = self.check_response(pdu, packet.getfieldval("funcCode"))
-            print(f"PDU Exception: {exception}, {msg}")
+        if pdu is not None and exception == Exceptions.UNDEFINED:
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                print(f"PDU Exception: {exception}")
+                reg_val = (
+                    pdu.getfieldval("registerVal")
+                    if hasattr(pdu, "registerVal")
+                    else []
+                )
+                print(f"Register values: {pdu}, len:{len(reg_val)}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         # Test 0x10 Write Multiple Registers
         packet = self.create_request(TEST_PACKET_HOLDING_WRITE)
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
@@ -577,50 +604,132 @@ class ModbusTestLib:
         print(f"Write response ack: {response!r} ")
         pdu = self.translate_response(response)
         exception, msg = self.check_response(pdu, packet.getfieldval("funcCode"))
-        if pdu is not None:  # check for pdu is sufficient
-            print(f"PDU Exception: {exception}, {msg}")
+        if pdu is not None:
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                print(f"PDU: StartAddr: {pdu.startAddr}, len:{pdu.quantityRegisters}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         # Test 0x04 Read Input Registers
         packet = self.create_request(TEST_PACKET_INPUT_READ)
         print(f"Test: input read packet: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
-        assert response and len(response) > 1, "incorrect response"
-        print(f"Test: received: {response!r}")
+        assert response and len(response) > 1, "Incorrect response"
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
-        exception, msg = self.check_response(pdu, packet.getfieldval("funcCode"))
         if pdu is not None:
-            reg_val = (
-                pdu.getfieldval("registerVal") if hasattr(pdu, "registerVal") else []
-            )
-            print(f"Register values: {pdu}, len:{len(reg_val)}")
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                reg_val = (
+                    pdu.getfieldval("registerVal")
+                    if hasattr(pdu, "registerVal")
+                    else []
+                )
+                print(f"Register values: {reg_val}, len:{len(reg_val)}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
+        # Test 0x02 Read Discrete Registers
+        packet = self.create_request(TEST_PACKET_DISCRETE_READ)
+        print(f"Test: read discrete inputs request: {packet}")
+        response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
+        assert response and len(response) > 1, "Incorrect discrete input read response"
+        print(f"Test received: {response!r}")
+        pdu = self.translate_response(response)
+        if pdu is not None:
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                coil_status = (
+                    pdu.getfieldval("inputStatus")
+                    if hasattr(pdu, "inputStatus")
+                    else []
+                )
+                print(f"Register values: {coil_status}, len:{len(coil_status)}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         # Test 0x01 Read Coils
         packet = self.create_request(TEST_PACKET_COILS_READ)
         print(f"Test: read coils request: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
         assert response and len(response) > 1, "Incorrect coil read response"
-        print(f"Test: received: {response!r}")
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
-        exception, msg = self.check_response(pdu, packet.getfieldval("funcCode"))
         if pdu is not None:
-            coil_status = (
-                pdu.getfieldval("coilStatus") if hasattr(pdu, "coilStatus") else []
-            )
-            print(f"Register values: {pdu}, len:{len(coil_status)}")
-
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                coil_status = (
+                    pdu.getfieldval("coilStatus") if hasattr(pdu, "coilStatus") else []
+                )
+                print(f"Register values: {coil_status}, len:{len(coil_status)}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         # Test 0x0F Write Multiple Coils
         packet = self.create_request(TEST_PACKET_COILS_WRITE)
         print(f"Test: write coils request: {packet}")
         response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
-        assert response and len(response) > 1, "Incorrect coil read response"
-        print(f"Test: received: {response!r}")
+        assert response and len(response) > 1, "Incorrect coil write response"
+        print(f"Test received: {response!r}")
         pdu = self.translate_response(response)
-        exception, msg = self.check_response(pdu, packet.getfieldval("funcCode"))
         if pdu is not None:
-            qty_output = (
-                pdu.getfieldval("quantityOutput")
-                if hasattr(pdu, "quantityOutput")
-                else 0
-            )
-            print(f"Register values: {pdu}, len: {qty_output}")
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                qty_output = (
+                    pdu.getfieldval("quantityOutput")
+                    if hasattr(pdu, "quantityOutput")
+                    else 0
+                )
+                print(f"Register values: {pdu}, len: {qty_output}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
+        # Test 0x05 Single Coil Write
+        packet = self.create_request(TEST_PACKET_SINGLE_COIL_WRITE)
+        print(f"Test: write coils request: {packet}")
+        response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
+        assert response and len(response) > 1, "Incorrect coil write response"
+        print(f"Test received: {binascii.hexlify(bytes(response)).decode('ascii')}")
+        pdu = self.translate_response(response)
+        if pdu is not None:
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                qty_output = (
+                    pdu.getfieldval("quantityOutput")
+                    if hasattr(pdu, "quantityOutput")
+                    else 0
+                )
+                reg_val = (
+                    pdu.getfieldval("outputValue")
+                    if hasattr(pdu, "outputValue")
+                    else []
+                )
+                print(f"PDU: {pdu}, len: {qty_output}, values: {reg_val}")
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
+        # Test 0x06 Write Single Register
+        packet = self.create_request(TEST_PACKET_HOLDING_REG_WRITE)
+        print(f"Test: write holding register request: {packet}")
+        response = self.send_packet_and_get_response(packet, timeout=1, verbose=0)
+        assert response and len(response) > 1, (
+            "Incorrect write holding register response"
+        )
+        print(f"Test received: {binascii.hexlify(bytes(response)).decode('ascii')}")
+        pdu = self.translate_response(response)
+        if pdu is not None:
+            exception, msg = self.check_response(pdu, packet.funcCode)
+            if exception == Exceptions.UNDEFINED:
+                reg_addr = (
+                    pdu.getfieldval("registerAddr")
+                    if hasattr(pdu, "registerAddr")
+                    else 0
+                )
+                reg_val = (
+                    pdu.getfieldval("registerValue")
+                    if hasattr(pdu, "registerValue")
+                    else 0
+                )
+                print(
+                    f"Info: {pdu}, Register addr: {reg_addr}, registerValue: {reg_val}"
+                )
+            else:
+                print(f"PDU Exception: {exception}, {msg}")
         self.disconnect()
 
     ####################################################################
@@ -629,6 +738,6 @@ class ModbusTestLib:
 
 if __name__ == "__main__":
     # interact(mydict=globals(), mybanner=banner)
-    test_lib = ModbusTestLib()
+    test_lib = ModbusMasterLib()
     test_lib.self_test()
     print("Test completed.")

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 # This is the script to reproduce the issue when the expect() is called from
@@ -6,12 +6,11 @@
 
 import logging
 import os
-import subprocess
 
 # pytest required libraries
 import pytest
 from conftest import ModbusTestDut, Stages
-
+from robot import run
 
 TEST_DIR = os.path.abspath(os.path.dirname(__file__))
 TEST_ROBOT_DIR = os.path.abspath(
@@ -19,13 +18,8 @@ TEST_ROBOT_DIR = os.path.abspath(
 )
 LOG_LEVEL = logging.DEBUG
 LOGGER_NAME = "modbus_test"
+ROBOT_SUITE_NAME = "ModbusTestSuiteMaster"
 logger = logging.getLogger(LOGGER_NAME)
-
-if os.name == "nt":
-    CLOSE_FDS = False
-else:
-    CLOSE_FDS = True
-
 
 pattern_dict_slave = {
     Stages.STACK_IPV4: (
@@ -38,19 +32,19 @@ pattern_dict_slave = {
     Stages.STACK_CONNECT: (
         r"I\s\(([0-9]+)\) port.utils: Socket \(#[0-9]+\), accept client connection from address\[port\]: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\[[0-9]+\]"
     ),
-    Stages.STACK_START: (r"I\s\(([0-9]+)\) [A-Z_]+: Slave TCP [#0-9]*\s*is started"),
+    Stages.STACK_START: (r"I\s\(([0-9]+)\) [A-Z_]+: (Start modbus test...)"),
     Stages.STACK_PAR_OK: (
         r"I\s\(([0-9]+)\) [A-Z_]+: OBJ (0x[a-fA-Z0-9]+),() ([A-Za-z\s]+) \([0-9]+ us\),\s*[A-Z:]*\s*[0-9,]*\s*[A-Z:]*[0-9]*, TYPE:[0-9]+, INST_ADDR:0x[a-fA-Z0-9]+[()0-9a-z]+, SIZE:[0-9]+"
     ),
     Stages.STACK_PAR_FAIL: (
         r"E \(([0-9]+)\) SLAVE_TEST: Response time exceeds configured [0-9]+ [ms], ignore packet"
     ),
-    Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: Destroy slave"),
+    Stages.STACK_DESTROY: (r"I\s\(([0-9]+)\) [A-Z_]+: (Destroy slave)"),
     Stages.STACK_OBJECT_CREATE: (
-        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mb[a-z]\_tcp[#@](0x[0-9a-f]+)"
+        r"D \(([0-9]+)\) [a-z]+_[a-z]+\.([a-z]+)\: created object mbs_tcp[#@](0x[0-9a-f]+)"
     ),
     Stages.STACK_BAD_CONNECTION: (
-        r"I \([0-9]+\) example_connect: WiFi Connect failed [0-9]* times, stop reconnect."
+        r"E \([0-9]+\) mb_port[\.a-z]+: (0x[a-zA-Z0-9]+), node #[0-9]+, socket\(\#([0-9]+)\)\(([\.0-9a-f]+)\), communication fail, err= -([0-9]+)"
     ),
     Stages.STACK_CID_RESPONSE_TIME: (
         r"D \(([0-9]+)\) mbc_[a-z]+.slave: mbc_[a-z]+_slave_get_parameter: Good response for get cid\(([0-9]+)\) = ESP_OK"
@@ -66,7 +60,7 @@ pattern_dict_slave = {
     [(1, f"{os.path.join(os.path.dirname(__file__), 'mb_tcp_slave')}")],
     indirect=True,
 )
-@pytest.mark.flaky(reruns=1, reruns_delay=1)
+@pytest.mark.flaky(reruns=1, reruns_delay=2)
 def test_modbus_tcp_host_to_slave_communication(
     app_path: str, dut: ModbusTestDut
 ) -> None:
@@ -77,28 +71,48 @@ def test_modbus_tcp_host_to_slave_communication(
     assert dut_slave_ip_port is not None, (
         f"DUT port is not correct: {dut_slave_ip_port}"
     )
-    logger.info(
-        f"Start test for the slave: {app_path}, {dut_slave_ip_address}:{dut_slave_ip_port}"
-    )
     try:
-        cmd = (
-            "robot "
-            + f"--variable MODBUS_DEF_SERVER_IP:{dut_slave_ip_address} "
-            + f"--variable MODBUS_DEF_SERVER_PORT:{dut_slave_ip_port} "
-            + f"{TEST_ROBOT_DIR}/ModbusTestSuite.robot"
+        # Ensure the Slave test is started correctly and ready for requests
+        if dut.send_message_start_dut():
+            logger.info(
+                f"The DUT is ready for connection with the name: {dut.dut_get_name()}"
+            )
+        logger.info(
+            f"Start test for the slave: {app_path}, {dut_slave_ip_address}:{dut_slave_ip_port}"
         )
-        p = subprocess.Popen(
-            cmd, stdin=None, stdout=None, stderr=None, shell=True, close_fds=CLOSE_FDS
+
+        return_code = run(
+            f"{TEST_ROBOT_DIR}/{ROBOT_SUITE_NAME}.robot",
+            variable=[
+                f"MODBUS_DEF_IP:{dut_slave_ip_address}",
+                f"MODBUS_DEF_PORT:{dut_slave_ip_port}",
+            ],
+            outputdir=f"{ROBOT_SUITE_NAME}_logs",
+            # log=None,      # Prevents stdout clutter
+            report="master_host_report.xml",
+            exitonfailure=False,
+            loglevel="DEBUG",
         )
+
+        # Start and check DUT test sequence
         dut.dut_test_start(dictionary=pattern_dict_slave)
-        p.wait()
-        logger.info(f"Test for the node: {dut_slave_ip_address} is completed.")
+        logging.info(f"Explicitly destroy slave: {dut.dut_get_name()}.")
+        dut.write("mb stop instances\n")  # Intentionally destroy DUT after test
+
         dut.dut_check_errors()
 
-    except subprocess.CalledProcessError as e:
-        logging.error("robot framework fail with error: %d", e.returncode)
-        logging.debug("Command ran: '%s'", e.cmd)
-        logging.debug("Command out:")
-        logging.debug(e.output)
-        logging.error("Check the correctneess of the suite script.")
+        if return_code != 0:
+            raise RuntimeError(
+                f"The robot suite {ROBOT_SUITE_NAME}, returns an exception: {return_code}."
+            )
+        logger.info(
+            f"Suite {ROBOT_SUITE_NAME} for the Modbus Slave node: {dut_slave_ip_address} is completed, return code: {return_code}."
+        )
+
+    except Exception as e:
+        logging.error(f"Robot suite {ROBOT_SUITE_NAME} for {dut.dut_get_name()} fail.")
         raise e
+
+
+if __name__ == "__main__":
+    pytest.main(["pytest_mb_tcp_host_test_slave.py"])

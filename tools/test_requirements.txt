@@ -1,5 +1,7 @@
-robotframework
+# Pin RobotFramework for AsyncLibrary (robotframework-async-keyword) compatibility
+robotframework>=6.0,<=7.3.2
 dataclasses
-scapy>=2.6.1
+scapy==2.5.0 # intentionally use this version to workaround send issues
 numpy>=1.21.6
 matplotlib>=3.5.3
+robotframework-async-keyword==1.1.15 # provides Python package AsyncLibrary (keyword "Async Run")

@@ -210,12 +210,13 @@ class MbObject:
 
 
 class ModbusTestDut(IdfDut):
+    TEST_START_PROMPT = r"I\s\(([0-9]+)\) mb_console: (Start modbus instances)"
     TEST_IP_PROMPT = r"Waiting IP\(([0-9]{1,2})\) from stdin:"
     TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
 
     TEST_EXPECT_STR_TIMEOUT = 120
-    TEST_IP_PROMPT_TOUT = 10
+    TEST_PROMPT_TOUT = 10
     TEST_ACK_TIMEOUT = 60
     TEST_MAX_CIDS = 8
 
@@ -427,6 +428,18 @@ class ModbusTestDut(IdfDut):
         self.logger.info("Master Response time list couldn't be properly retrieved")
         return 0
 
+    def send_message_start_dut(self) -> bool:
+        """The function sends message to start DUT sequence"""
+        result: bool = True
+        self.logger.info(f"Sending start message to {self.dut_get_name()}")
+        self.write("mb start instances\n")
+        try:
+            self.expect(self.TEST_START_PROMPT, timeout=2)
+        except pexpect.TIMEOUT:
+            self.logger.error("Timeout waiting for start prompt confirmation.")
+            result = False
+        return result
+
     def send_message_destroy_dut(self) -> None:
         """The function sends message to end caller DUT"""
         self.logger.info("Sending destroy message to this DUT")
@@ -482,7 +495,6 @@ class ModbusTestDut(IdfDut):
             )
             if isinstance(expect_name, Match):
                 self.app_name = expect_name.group(1).decode("ascii")
-        self.logger.info(f"Project name registered: {self.app_name}")
         return self.app_name
 
     def dut_send_ip(
@@ -491,7 +503,7 @@ class ModbusTestDut(IdfDut):
         """The function sends the slave IP address defined as a parameter to master"""
         addr_num: int = 0
         try:
-            self.expect(self.TEST_IP_PROMPT, timeout=self.TEST_IP_PROMPT_TOUT)
+            self.expect(self.TEST_IP_PROMPT, timeout=self.TEST_PROMPT_TOUT)
         except pexpect.TIMEOUT:
             # Workaround for unreliable parsing of the master prompt.
             # The expect() sometime does not catch it in spite it appears in the log.

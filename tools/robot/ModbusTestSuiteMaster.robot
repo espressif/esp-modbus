@@ -1,10 +1,11 @@
 *** Settings ***
-Documentation     A test suite for Modbus commands.
-...
+Documentation     A test suite for Modbus Slave testing.
+...               Implements the Modbus Master (Client) to send requests
+...               for Modbus Slave side (the DUT) and verifies the answers.
 ...               Keywords are imported from the resource file
-Resource          ModbusTestSuite.resource
+Resource          ModbusTestSuiteMaster.resource
 Default Tags      multi_dut_modbus_generic
-Suite Setup       Create Connection    ${MODBUS_DEF_SERVER_IP}    ${MODBUS_DEF_PORT}
+Suite Setup       Create Connection    ${MODBUS_DEF_IP}    ${MODBUS_DEF_PORT}
 Suite Teardown    Disconnect
 
 *** Variables ***
