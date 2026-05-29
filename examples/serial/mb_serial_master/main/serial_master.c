@@ -64,7 +64,8 @@ static const char *TAG = "MASTER_TEST";
 
 // Enumeration of modbus device addresses accessed by master device
 enum {
-    MB_DEVICE_ADDR1 = 1 // Only one slave device used for the test (add other slave addresses here)
+    MB_DEVICE_ADDR0 = 0, // Only one slave device used for the test (add other slave addresses here)
+    MB_DEVICE_ADDR1 = 1
 };
 
 // Enumeration of all supported CIDs for device (used in parameter definition table)
@@ -113,37 +114,37 @@ enum {
 const mb_parameter_descriptor_t device_parameters[] = {
     // { CID, Param Name, Units, Modbus Slave Addr, Modbus Reg Type, Reg Start, Reg Size, Instance Offset, Data Type, Data Size, Parameter Options, Access Mode}
     {
-        CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        CID_INP_DATA_0, STR("Data_channel_0"), STR("Volts"), MB_DEVICE_ADDR0, MB_PARAM_INPUT,
         TEST_INPUT_REG_START(input_data0), TEST_INPUT_REG_SIZE(input_data0),
         INPUT_OFFSET(input_data0), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        CID_HOLD_DATA_0, STR("Humidity_1"), STR("%rH"), MB_DEVICE_ADDR0, MB_PARAM_HOLDING,
         TEST_HOLD_REG_START(holding_data0), TEST_HOLD_REG_SIZE(holding_data0),
         HOLD_OFFSET(holding_data0), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR0, MB_PARAM_INPUT,
         TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
         INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR0, MB_PARAM_HOLDING,
         TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
         HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        CID_INP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR0, MB_PARAM_INPUT,
         TEST_INPUT_REG_START(input_data2), TEST_INPUT_REG_SIZE(input_data2),
         INPUT_OFFSET(input_data2), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        CID_HOLD_DATA_2, STR("Humidity_3"), STR("%rH"), MB_DEVICE_ADDR0, MB_PARAM_HOLDING,
         TEST_HOLD_REG_START(holding_data2), TEST_HOLD_REG_SIZE(holding_data2),
         HOLD_OFFSET(holding_data2), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
@@ -161,17 +162,17 @@ const mb_parameter_descriptor_t device_parameters[] = {
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, TEST_ASCII_BIN ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
+        CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR0, MB_PARAM_COIL, 2, 6,
         COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1,
         OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 10, 6,
+        CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR0, MB_PARAM_COIL, 10, 6,
         COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1,
         OPTS( 0x55, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 2, 7,
+        CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR0, MB_PARAM_DISCRETE, 2, 7,
         DISCR_OFFSET(discrete_input_port1), PARAM_TYPE_U8, 1,
         OPTS( 0xAA, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
