@@ -436,7 +436,11 @@ esp_err_t test_common_read_modbus_parameter(void *handle, uint16_t cid, uint16_t
     esp_err_t err = mbc_master_get_cid_info(handle, cid, &param_descriptor);
     if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
         uint8_t type = 0;
-        err = mbc_master_get_parameter(handle, cid, (uint8_t *)par_data, &type);
+        if (param_descriptor->mb_slave_addr) {
+            err = mbc_master_get_parameter(handle, cid, (uint8_t *)par_data, &type);
+        } else { // if the address is broadcast, try to read from first slave intentionally
+            err = mbc_master_get_parameter_with(handle, cid, param_descriptor->mb_slave_addr + 1, (uint8_t *)par_data, &type);
+        }
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "%p, CHAR #%u %s (%s) value = (0x%04x) parameter read successful.",
                      handle,
@@ -509,6 +513,7 @@ static void test_master_task(void *arg)
     for (cycle_counter = 0; cycle_counter <= TEST_TASK_CYCLE_COUNTER; cycle_counter++) {
         switch (req_type) {
         case RT_HOLDING_RD:
+
             err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
             CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
 
@@ -675,7 +680,7 @@ TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, u
 
     test_common_slave_setup_start(mbs_handle);
 
-    if (priority) {
+    if (!priority) {
         priority = TEST_TASK_PRIO_SLAVE;
     }
 
@@ -709,7 +714,7 @@ TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uin
     TEST_ESP_OK(mbc_master_start(mbm_handle));
     ESP_LOGI(TAG, "%p, modbus master start...", mbm_handle) ;
 
-    if (priority) {
+    if (!priority) {
         priority = TEST_TASK_PRIO_MASTER;
     }
 
