@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -85,12 +85,15 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 mb_err_enum_t mbm_rq_read_coils(mb_base_t *inst, uint8_t snd_addr, uint16_t coil_addr, uint16_t coil_num, uint32_t tout)
 {
     uint8_t *mb_frame_ptr;
+
     if (snd_addr > MB_ADDRESS_MAX) {
         return MB_EINVAL;
     }
+
     if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
+
     inst->get_send_buf(inst, &mb_frame_ptr);
     inst->set_dest_addr(inst, snd_addr);
 
@@ -118,10 +121,14 @@ mb_exception_t mbm_fn_read_coils(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *
     mb_exception_t status = MB_EX_NONE;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    /* If this request is broadcast, and it's read mode. This request don't need execute. */
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_NONE;
+        status = (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE)) ? MB_EX_NONE : MB_EX_ILLEGAL_DATA_VALUE;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
+        ESP_LOGD(__func__, "Length: %u", *len_buf);
         inst->get_send_buf(inst, &mb_frame_ptr);
 
         reg_addr = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8 );
@@ -215,7 +222,13 @@ mb_exception_t mbm_fn_write_coil(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *
     (void)inst;
     (void)frame_ptr;
 
-    if (*len_buf == (MB_PDU_FUNC_WRITE_SIZE + MB_PDU_SIZE_MIN)) {
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
+    if (*len_buf == (MB_PDU_FUNC_WRITE_SIZE + MB_PDU_SIZE_MIN)
+            || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+        ESP_LOGD(__func__, "Length: %u", *len_buf);
         status = MB_EX_NONE;
     } else {
         /* Can't be a valid write coil register request because the length
@@ -298,8 +311,14 @@ mb_exception_t mbm_fn_write_multi_coils(mb_base_t *inst, uint8_t *frame_ptr, uin
     uint8_t byte_cnt_verify;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    /* If this request is broadcast, the *len_buf is not need check. */
-    if ((*len_buf == MB_PDU_FUNC_WRITE_MUL_SIZE) || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
+    /* If this request is broadcast, do not need to call r/w callback. */
+    if ((*len_buf == MB_PDU_FUNC_WRITE_MUL_SIZE)
+            || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+        ESP_LOGD(__func__, "Length: %u", *len_buf);
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_MUL_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_MUL_ADDR_OFF + 1]);

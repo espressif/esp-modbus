@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -101,10 +101,14 @@ mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t
     uint16_t reg_address;
     uint8_t *mb_frame_ptr;
 
-    /* If this request is broadcast, and it's read mode. This request don't need execute. */
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_NONE;
+        status = (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE)) ? MB_EX_NONE : MB_EX_ILLEGAL_DATA_VALUE;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
+        ESP_LOGD(__func__, "Length: %u", *len_buf);
         inst->get_send_buf(inst, &mb_frame_ptr);
 
         reg_address = (uint16_t)( mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8 );
