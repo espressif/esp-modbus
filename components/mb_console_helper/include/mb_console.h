@@ -73,8 +73,6 @@ extern "C" {
      */
     esp_err_t mb_console_destroy(void);
 
-#else
-#error "Console helper is disabled."
 #endif
 
 #if __cplusplus

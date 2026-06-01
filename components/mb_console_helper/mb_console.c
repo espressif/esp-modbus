@@ -84,43 +84,67 @@ static int do_mb_cmd(int argc, char **argv)
 static char *console_cmd_scan_config(int *index, uint16_t *port_ptr, const char *buffer)
 {
     if (!buffer || !index) {
+        ESP_LOGE(TAG, "console_cmd_scan_config: invalid arguments");
         return NULL;
     }
+
     char *ip_str = NULL;
     int a[8] = {0};
     int buf_cnt = 0;
-    uint16_t port_val = 0;
-#if !CONFIG_EXAMPLE_CONNECT_IPV6
-    buf_cnt = sscanf(buffer, "%d=%d.%d.%d.%d;%" PRIu16, index, &a[0], &a[1], &a[2], &a[3], &port_val);
-    if (buf_cnt == 6) {
-        if (-1 == asprintf(&ip_str, "%02x;%d.%d.%d.%d;%" PRIu16, (int)(*index + 1), a[0], a[1], a[2], a[3], port_val)) {
-            abort();
+    uint16_t port_val = 502;
+    int disp_uid = -1;
+
+#if CONFIG_EXAMPLE_CONNECT_IPV6
+    buf_cnt = sscanf(buffer, "%d=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x;%" PRIu16,
+                     index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &port_val);
+    if (buf_cnt == 10 || buf_cnt == 9) {
+        disp_uid = (int)(*index + 1);
+        if (buf_cnt == 10) {
+            if (-1 == asprintf(&ip_str, "%02x;%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x;%" PRIu16,
+                               disp_uid, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], port_val)) {
+                abort();
+            }
+        } else {
+            if (-1 == asprintf(&ip_str, "%02x;%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+                               disp_uid, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
+                abort();
+            }
         }
-    } else if (buf_cnt == 5) {
-        if (-1 == asprintf(&ip_str, "%02x;%d.%d.%d.%d", (int)(*index + 1), a[0], a[1], a[2], a[3])) {
-            abort();
-        }
-    } else {
-        return NULL;
-    }
-#else
-    buf_cnt = sscanf(buffer, "%d=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x;%" PRIu16, index, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7], &port_val);
-    if (buf_cnt == 9) {
-        if (-1 == asprintf(&ip_str, "%02x;%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x;%" PRIu16, (int)(*index + 1), a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], port_val)) {
-            abort();
-        }
-    } else if (buf_cnt == 8) {
-        if (-1 == asprintf(&ip_str, "%02x;%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x", (int)(*index + 1), a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])) {
-            abort();
-        }
-    } else {
-        return NULL;
     }
 #endif
+
+    if (!ip_str) {
+        buf_cnt = sscanf(buffer, "%d=%d.%d.%d.%d;%" PRIu16,
+                         index, &a[0], &a[1], &a[2], &a[3], &port_val);
+        if (buf_cnt == 6 || buf_cnt == 5) {
+            disp_uid = (int)(*index + 1);
+            if (buf_cnt == 6) {
+                if (-1 == asprintf(&ip_str, "%02x;%d.%d.%d.%d;%" PRIu16,
+                                   disp_uid, a[0], a[1], a[2], a[3], port_val)) {
+                    abort();
+                }
+            } else {
+                if (-1 == asprintf(&ip_str, "%02x;%d.%d.%d.%d",
+                                   disp_uid, a[0], a[1], a[2], a[3])) {
+                    abort();
+                }
+            }
+        } else {
+            ESP_LOGW(TAG, "console_cmd_scan_config: failed to parse input: '%s'", buffer);
+            return NULL;
+        }
+    }
+
+    if (*index < 0) {
+        free(ip_str);
+        return NULL;
+    }
+
     if (port_ptr) {
         *port_ptr = port_val;
     }
-    printf("IP string: %s\r\n", ip_str);
+
+    ESP_LOGI(TAG, "IP string: %s", ip_str);
     return ip_str;
 }
 
