@@ -49,7 +49,7 @@ Please refer to the specific example README.md for details.
 
 ## Protocol References
 
-- [Modbus Organization with protocol specifications](https://modbus.org/specs.php)
+- [Modbus.org Specifications and Implementation Guides](https://www.modbus.org/modbus-specifications)
 
 ## Contributing
 
