@@ -327,18 +327,26 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
         mb_port_ser_rx_flush(inst);
         count = uart_write_bytes(port_obj->ser_opts.port, p_ser_frame, ser_length);
         // Waits while UART sending the packet
-        esp_err_t status = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
+        esp_err_t ret = uart_wait_tx_done(port_obj->ser_opts.port, MB_SERIAL_TX_TOUT_TICKS);
         ESP_LOGD(TAG, "%s, tx buffer sent: (%d) bytes.", inst->descr.parent_name, (int)count);
-        MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
-                           inst->descr.parent_name);
+        MB_GOTO_ON_FALSE((ret == ESP_OK), MB_EILLSTATE, error, TAG,
+                         "%s, mb serial sent buffer failure.",
+                         inst->descr.parent_name);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_SEND", p_ser_frame, ser_length, ESP_LOG_DEBUG);
         port_obj->send_time_stamp = esp_timer_get_time();
         res = true;
     } else {
         ESP_LOGE(TAG, "%s, send fail state:%d, %p, %u. ", inst->descr.parent_name, (int)port_obj->tx_state_en, p_ser_frame, (unsigned)ser_length);
     }
-    mb_port_ser_bus_sema_release(inst);
+
+    if (res) {
+        mb_port_ser_bus_sema_release(inst);
+    }
     return res;
+
+error:
+    mb_port_ser_bus_sema_release(inst);
+    return false;
 }
 
 #endif
