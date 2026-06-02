@@ -317,7 +317,7 @@ int port_keep_alive_enable(int sock, int timeout_sec)
     return 0;
 }
 
-// Check connection for timeout helper
+// Check if connection is alive
 err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms)
 {
     fd_set write_set;
@@ -325,44 +325,46 @@ err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms)
     err_t err = -1;
     struct timeval time_val;
 
-    if (info_ptr && info_ptr->sock_id != -1) {
-        FD_ZERO(&write_set);
-        FD_ZERO(&err_set);
-        FD_SET(info_ptr->sock_id, &write_set);
-        FD_SET(info_ptr->sock_id, &err_set);
-        port_ms_to_tv(timeout_ms, &time_val);
-        // Check if the socket is writable
-        err = select(info_ptr->sock_id + 1, NULL, &write_set, &err_set, &time_val);
-        if ((err < 0) || FD_ISSET(info_ptr->sock_id, &err_set)) {
-            if (errno == EINPROGRESS) {
-                err = ERR_INPROGRESS;
-            } else {
-                ESP_LOGV(TAG, MB_NODE_FMT(" connection, select write err(errno) = %d(%d)."),
-                         info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
-                err = ERR_CONN;
-            }
-        } else if (err == 0) {
-            ESP_LOGV(TAG, "Socket(#%d)(%s), connection timeout occurred, err(errno) = %d(%d).",
-                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
-            return ERR_INPROGRESS;
-        } else {
-            int opt_err = 0;
-            uint32_t opt_len = sizeof(opt_err);
-            // Check socket error
-            err = getsockopt(info_ptr->sock_id, SOL_SOCKET, SO_ERROR, (void *)&opt_err, (socklen_t *)&opt_len);
-            if (opt_err != 0) {
-                ESP_LOGD(TAG, "Socket(#%d)(%s), sock error occurred (%d).",
-                         info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, opt_err);
-                return ERR_CONN;
-            }
-            ESP_LOGV(TAG, "Socket(#%d)(%s), is alive.",
-                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
-            return ERR_OK;
-        }
-    } else {
-        err = ERR_CONN;
+    if (!info_ptr || info_ptr->sock_id == -1) {
+        return ERR_VAL;
     }
-    return err;
+    FD_ZERO(&write_set);
+    FD_ZERO(&err_set);
+    FD_SET(info_ptr->sock_id, &write_set);
+    FD_SET(info_ptr->sock_id, &err_set);
+    port_ms_to_tv(timeout_ms, &time_val);
+    // Check if the socket is writable and no errors
+    err = select(info_ptr->sock_id + 1, NULL, &write_set, &err_set, &time_val);
+    if (err < 0 || FD_ISSET(info_ptr->sock_id, &err_set)) {
+        ESP_LOGV(TAG, MB_NODE_FMT(" connection, select write err(errno) = %d(%d)."),
+                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
+        return ERR_CONN;
+    }
+    if (err == 0) {
+        ESP_LOGV(TAG, "Socket(#%d)(%s), connection timeout occurred, err(errno) = %d(%d).",
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
+        return ERR_INPROGRESS;
+    }
+    int opt_err = 0;
+    socklen_t opt_len = sizeof(opt_err);
+    // Check socket error
+    if (getsockopt(info_ptr->sock_id, SOL_SOCKET, SO_ERROR, &opt_err, &opt_len) < 0) {
+        ESP_LOGV(TAG, "Socket(#%d)(%s), sock error occurred (%d).",
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, opt_err);
+        return ERR_CONN;
+    }
+    if (opt_err == 0) {
+        ESP_LOGV(TAG, "Socket(#%d)(%s), is alive.",
+                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str);
+        return ERR_OK;
+    }
+    if (opt_err == EINPROGRESS || opt_err == EALREADY) {
+        return ERR_INPROGRESS;
+    }
+    ESP_LOGV(TAG, "Socket(#%d)(%s), sock error occurred (%d).",
+             info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, opt_err);
+    errno = opt_err; // optional, only for logging
+    return ERR_CONN;
 }
 
 // Unblocking connect function
