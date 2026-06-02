@@ -324,10 +324,22 @@ mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb
 {
     mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
     mb_uid_info_t *addr_info = NULL;
-    mb_node_info_t *info_ptr = mb_drv_get_node_info_from_addr(port_obj->drv_obj, uid);
-    if (info_ptr && (MB_GET_NODE_STATE(info_ptr) >= exp_state)) {
-        addr_info = &info_ptr->addr_info;
+    mb_node_info_t *node_ptr = mb_drv_get_node_info_from_addr(port_obj->drv_obj, uid);
+    if (!node_ptr) {
+        return NULL;
+    } else {
+        if (MB_GET_NODE_STATE(node_ptr) >= exp_state) {
+            addr_info = &node_ptr->addr_info;
+        } else {
+            ESP_LOGW(TAG, "The node #%d, uid = %d, is not alive, try to repair connection.", node_ptr->index, node_ptr->addr_info.uid);
+            addr_info = NULL;
+            if ((node_ptr->sock_id < 0) && FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
+                // Try to restore node connection as soon as possible
+                DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
+            }
+        }
     }
+
     return addr_info;
 }
 
@@ -478,21 +490,24 @@ MB_EVENT_HANDLER(mbm_on_connect)
                         drv_obj->node_conn_count--;
                     }
                     mb_drv_unlock(ctx);
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, event_info->opt_fd);
                     port_close_connection(node_ptr);
                 } else {
                     ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connection is in progress.",
                              ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id,
                              node_ptr->addr_info.ip_addr_str);
                     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CONNECTING);
-                    vTaskDelay(MB_CONN_TICK_TIMEOUT);
-                    // try to connect to slave and check connection again if it is not connected
+                    DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
+                    // Follow reconnecion cycle
                     DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, event_info->opt_fd);
                 }
                 break;
             case ERR_CONN:
                 ESP_LOGE(TAG, "Modbus connection phase, slave: %d (%s), connection error (%d).",
                          (int)event_info->opt_fd, node_ptr->addr_info.ip_addr_str, (int)err);
+                port_close_connection(node_ptr);
+                DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
+                // On connection error, try to reconnect node as soon as possible
+                DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, node_ptr->index);
                 break;
             default:
                 ESP_LOGE(TAG, "Invalid error state, slave: %d (%s), error = %d.",
