@@ -566,9 +566,14 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
             MB_RETURN_ON_FALSE(mbm_obj->snd_frame, MB_EILLSTATE, TAG, "Send buffer initialization fail.");
             if (event.trans_id == mbm_obj->curr_trans_id) {
                 mb_port_timer_disable(MB_OBJ(inst->port_obj));
+                
                 // Check if the frame is for us. If not ,send an error process event.
+                // For TCP master, we do not check the receive address because we may have changed it to handled
+                // the change of Unit ID per parameter. 
+                // The transaction ID and the TCP transport layer should be enough to identify that this frame is for us.
                 if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr)
-                                              || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS))) {
+                                              || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS)
+                                              || (mbm_obj->cur_mode == MB_TCP))) {
                     if ((mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR) == (mbm_obj->snd_frame[MB_PDU_FUNC_OFF])) {
                         ESP_LOGD(TAG, MB_OBJ_FMT", frame data received successfully, (%d).", MB_OBJ_PARENT(inst), (int)status);
                         MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",

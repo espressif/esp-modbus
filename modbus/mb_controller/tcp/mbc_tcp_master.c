@@ -172,6 +172,7 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;
         uint16_t mb_size = request->reg_size;
+        uint8_t mb_unit_id = request->unit_id;
 
         // Set the buffer for callback function processing of received data
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
@@ -306,6 +307,7 @@ static esp_err_t mbc_tcp_master_set_request(void *ctx, uint16_t cid, mb_param_mo
         request->reg_start = reg_ptr->mb_reg_start;
         request->reg_size = reg_ptr->mb_size;
         request->command = mbc_master_get_command(reg_ptr, mode);
+        request->unit_id = reg_ptr->mb_unit_id;
         MB_RETURN_ON_FALSE((request->command > 0), ESP_ERR_INVALID_ARG, TAG, "mb incorrect command or parameter type.");
         if (reg_data) {
             *reg_data = *reg_ptr; // Set the cid registered parameter data
@@ -328,12 +330,36 @@ static esp_err_t mbc_tcp_master_get_parameter(void *ctx, uint16_t cid, uint8_t *
 
     error = mbc_tcp_master_set_request(ctx, cid, MB_PARAM_READ, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
+        
+        /* Get the address info for the CID. 
+        I'm not sure why the original `esp-modbus` wanted to continue with the request even if the node is not connected, 
+        but I lowered it to undefined, so that we would always get the `addr_info` unless something really strange happened.
+        When we have the `addr_info`, we will log it, and then override the UID in the address info with the one 
+        from the parameter descriptor. If something strange does happen and we don't get the `addr_info`, 
+        then we will log an error and return. */
         mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
-                                   request.slave_addr, MB_SOCK_STATE_CONNECTED);
+                                   request.slave_addr, MB_SOCK_STATE_UNDEF);
         if (!addr_info) {
-            ESP_LOGW(TAG, "%p Try to send request for cid #%u with uid = %d, node is disconnected.",
+            /* should never get here */
+            ESP_LOGE(TAG, "%p Try to send request for cid #%u with server_idx = %d, node is not found.",
                      mbm_controller_iface, (unsigned)reg_info.cid, (int)request.slave_addr);
+            return ESP_ERR_INVALID_STATE;
+        
+        } else {
+            ESP_LOGI(TAG, "%p Found config for cid #%u, server_idx=%d, ip: %s.",
+                     mbm_controller_iface, (unsigned)reg_info.cid, (int)request.slave_addr, addr_info->ip_addr_str);
+
+            /* override the UID in the address info with the one from the parameter descriptor */
+            addr_info->uid = request.unit_id;
+            ESP_LOGI(TAG, "%p requests for CID #%u with UID = %d on server_idx = %d (%s)", 
+                mbm_controller_iface,
+                (unsigned)reg_info.cid,
+                (int)request.unit_id,
+                (int)request.slave_addr,
+                addr_info->ip_addr_str
+            );
         }
+        
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
         data_ptr = calloc(1, (reg_info.mb_size << 1));

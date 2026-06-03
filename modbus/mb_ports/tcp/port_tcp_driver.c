@@ -464,13 +464,21 @@ mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fd
     return NULL;
 }
 
-mb_node_info_t *mb_drv_get_node_info_from_addr(void *ctx, uint8_t uid)
+/**
+ * @brief Return the node according to the server index.
+ * The server index is the same as the index in the node array but 1-based.
+ * 
+ * @param ctx the modbus instance context
+ * @param srv_idx the server index, which is 1-based index in the node array
+ * @return mb_node_info_t* a pointer to the node info, or NULL if not found
+ */
+mb_node_info_t *mb_drv_get_node_info_from_addr(void *ctx, uint8_t srv_idx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *node_ptr = NULL;
     for (int fd = 0; fd < MB_MAX_FDS; fd++) {
         node_ptr = drv_obj->mb_nodes[fd];
-        if (node_ptr && node_ptr->addr_info.uid == uid) {
+        if (node_ptr && (node_ptr->addr_info.index + 1) == srv_idx) {
             return node_ptr;
         }
     }
