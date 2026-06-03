@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -486,7 +486,11 @@ static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr)
 static uint8_t mbm_get_dest_addr(mb_base_t *inst)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
-    return mbm_obj->master_dst_addr;
+    uint8_t dest_addr = 0;
+    CRITICAL_SECTION(inst->lock) {
+        dest_addr = mbm_obj->master_dst_addr;
+    }
+    return dest_addr;
 }
 
 void mbm_error_cb_respond_timeout(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
@@ -517,7 +521,6 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
 
-    uint16_t length;
     mb_exception_t exception;
     mb_err_enum_t status = MB_ENOERR;
     mb_event_t event;
@@ -599,25 +602,16 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                 if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)
                         && ((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
                     mbm_obj->rcv_frame = mbm_obj->snd_frame;
+                    mbm_obj->pdu_rcv_len = mbm_obj->pdu_snd_len;
+                    mbm_obj->rcv_addr = mbm_obj->master_dst_addr;
                 }
                 MB_RETURN_ON_FALSE(mbm_obj->rcv_frame, MB_EILLSTATE, TAG,
                                    MB_OBJ_FMT", receive buffer initialization fail.", MB_OBJ_PARENT(inst));
                 ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PARENT(inst));
                 mbm_obj->func_code = mbm_obj->rcv_frame[MB_PDU_FUNC_OFF];
                 exception = MB_EX_ILLEGAL_FUNCTION;
-                /* If master request is broadcast,
-                 * the master needs to execute function for all slaves.
-                 */
-                if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)) {
-                    length = mbm_obj->pdu_snd_len;
-                    for (int j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++) {
-                        mbm_set_dest_addr(inst, j);
-                        exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &length);
-                    }
-                } else {
-                    ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code);
-                    exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
-                }
+                ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), addr=%u, invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code, (unsigned)mbm_obj->rcv_addr);
+                exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
                 /* If master has exception, will send error process event. Otherwise the master is idle.*/
                 if (exception != MB_EX_NONE) {
                     mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_EXECUTE_FUNCTION);

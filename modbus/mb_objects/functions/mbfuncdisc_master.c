@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -99,7 +99,13 @@ mb_exception_t mbm_fn_read_discrete_inputs(mb_base_t *inst, uint8_t *frame_ptr, 
 
     mb_exception_t status = MB_EX_NONE;
     mb_err_enum_t reg_status = MB_EILLFUNC;
+
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+        ESP_LOGD(__func__, "The length = %u", *len_buf);
         status = MB_EX_NONE;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
