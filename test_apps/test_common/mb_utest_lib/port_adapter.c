@@ -117,7 +117,10 @@ int mb_port_adapter_get_rx_buffer(mb_port_base_t *inst, uint8_t **frame_ptr, int
     int sz = port_obj->recv_length;
     if (*frame_ptr && *len >= port_obj->recv_length) {
         CRITICAL_SECTION(inst->lock) {
-            memcpy(*frame_ptr, port_obj->rx_buffer, sz);
+            sz = port_obj->recv_length;
+            if (sz > 0 && sz <= *len) {
+                memcpy(*frame_ptr, port_obj->rx_buffer, sz);
+            }
         }
     } else {
         *frame_ptr = port_obj->rx_buffer;
@@ -133,7 +136,10 @@ int mb_port_adapter_get_tx_buffer(mb_port_base_t *inst, uint8_t **frame_ptr, int
     int sz = port_obj->recv_length;
     if (*frame_ptr && *len >= port_obj->recv_length) {
         CRITICAL_SECTION(inst->lock) {
-            memcpy(*frame_ptr, port_obj->rx_buffer, sz);
+            sz = port_obj->recv_length;
+            if (sz > 0 && sz <= *len) {
+                memcpy(*frame_ptr, port_obj->rx_buffer, sz);
+            }
         }
     } else {
         *frame_ptr = port_obj->rx_buffer;
