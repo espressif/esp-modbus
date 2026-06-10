@@ -117,7 +117,6 @@ Example 1: Configure access to legacy parameter types is described below.
     - ASCII or binary array
     - Not defined
     - Device name (16 bytes) ASCII string. The type of `PARAM_TYPE_ASCII` allows to read/write complex parameter (string or binary data) that corresponds to one CID.
-
 .. code:: c
 
     // Enumeration of modbus slave addresses accessed by master device
