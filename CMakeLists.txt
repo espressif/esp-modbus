@@ -1,74 +1,107 @@
 # The following five lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
 set(srcs
-    "common/esp_modbus_master.c"
-    "common/esp_modbus_slave.c"
-    "modbus/mb.c"
-    "modbus/mb_m.c"
-    "modbus/ascii/mbascii.c"
-    "modbus/ascii/mbascii_m.c"
-    "modbus/rtu/mbrtu_m.c"
-    "modbus/rtu/mbrtu.c"
-    "modbus/rtu/mbcrc.c"
-    "modbus/tcp/mbtcp.c"
-    "modbus/tcp/mbtcp_m.c"
-    "port/port.c"
-    "port/portevent.c"
-    "port/portevent_m.c"
-    "port/portother.c"
-    "port/portother_m.c"
-    "port/portserial.c"
-    "port/portserial_m.c"
-    "port/porttimer.c"
-    "port/porttimer_m.c"
-    "modbus/functions/mbfunccoils.c"
-    "modbus/functions/mbfunccoils_m.c"
-    "modbus/functions/mbfuncdiag.c"
-    "modbus/functions/mbfuncdisc.c"
-    "modbus/functions/mbfuncdisc_m.c"
-    "modbus/functions/mbfuncholding.c"
-    "modbus/functions/mbfuncholding_m.c"
-    "modbus/functions/mbfuncinput.c"
-    "modbus/functions/mbfuncinput_m.c"
-    "modbus/functions/mbfuncother.c"
-    "modbus/functions/mbutils.c"
-    "serial_slave/modbus_controller/mbc_serial_slave.c"
-    "serial_master/modbus_controller/mbc_serial_master.c"
-    "tcp_slave/port/port_tcp_slave.c"
-    "tcp_slave/modbus_controller/mbc_tcp_slave.c"
-    "tcp_master/modbus_controller/mbc_tcp_master.c"
-    "tcp_master/port/port_tcp_master.c"
-    "common/esp_modbus_master_tcp.c"
-    "common/esp_modbus_slave_tcp.c"
-    "common/esp_modbus_master_serial.c"
-    "common/esp_modbus_slave_serial.c")
+    "mb_controller/common/esp_modbus_common.c"
+    "mb_controller/common/esp_modbus_master.c"
+    "mb_controller/common/esp_modbus_slave.c"
+    "mb_controller/common/esp_modbus_master_serial.c"
+    "mb_controller/common/esp_modbus_slave_serial.c"
+    "mb_controller/common/esp_modbus_master_tcp.c"
+    "mb_controller/common/esp_modbus_slave_tcp.c"
+    "mb_controller/serial/mbc_serial_master.c"
+    "mb_controller/serial/mbc_serial_slave.c"
+    "mb_controller/tcp/mbc_tcp_master.c"
+    "mb_controller/tcp/mbc_tcp_slave.c"
+    "mb_objects/mb_master.c"
+    "mb_objects/mb_slave.c"
+    "mb_objects/functions/mbfunc_handling.c"
+    "mb_objects/functions/mbfunccoils_master.c"
+    "mb_objects/functions/mbfunccoils.c"
+    "mb_objects/functions/mbfuncdiag.c"
+    "mb_objects/functions/mbfuncdisc_master.c"
+    "mb_objects/functions/mbfuncdisc.c"
+    "mb_objects/functions/mbfuncholding_master.c"
+    "mb_objects/functions/mbfuncholding.c"
+    "mb_objects/functions/mbfuncinput_master.c"
+    "mb_objects/functions/mbfuncinput.c"
+    "mb_objects/functions/mbfuncother.c"
+    "mb_objects/functions/mbutils.c"
+    "mb_ports/common/port_event.c"
+    "mb_ports/common/port_other.c"
+    "mb_ports/common/port_timer.c"
+    "mb_ports/common/mb_transaction.c"
+    "mb_ports/serial/port_serial.c"
+    "mb_ports/tcp/port_tcp_master.c"
+    "mb_ports/tcp/port_tcp_slave.c"
+    "mb_ports/tcp/port_tcp_driver.c"
+    "mb_ports/tcp/port_tcp_utils.c"
+    "mb_transports/rtu/rtu_master.c"
+    "mb_transports/rtu/rtu_slave.c"
+    "mb_transports/rtu/mbcrc.c"
+    "mb_transports/ascii/ascii_master.c"
+    "mb_transports/ascii/ascii_slave.c"
+    "mb_transports/ascii/ascii_lrc.c"
+    "mb_transports/tcp/tcp_master.c"
+    "mb_transports/tcp/tcp_slave.c"
+)
 
-set(include_dirs common/include)
+set(include_dirs mb_transports mb_controller/common/include mb_objects/common mb_ports/common mb_ports/serial mb_ports/tcp)
 
-set(priv_include_dirs common port modbus modbus/ascii modbus/functions
-                      modbus/rtu modbus/tcp modbus/include)
+set(priv_include_dirs mb_controller/serial mb_controller/tcp mb_controller/common mb_objects/include mb_transports/rtu mb_transports/ascii mb_transports/tcp)
 
-list(APPEND priv_include_dirs serial_slave/port serial_slave/modbus_controller
-     serial_master/port serial_master/modbus_controller
-     tcp_slave/port tcp_slave/modbus_controller
-     tcp_master/port tcp_master/modbus_controller)
+if(CONFIG_FMB_EXT_TYPE_SUPPORT)
+     list(APPEND srcs "mb_controller/common/mb_endianness_utils.c")
+endif()
 
-add_prefix(srcs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${srcs})
-add_prefix(include_dirs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${include_dirs})
-add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/freemodbus/" ${priv_include_dirs})
+add_prefix(srcs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${srcs})
+add_prefix(include_dirs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${include_dirs})
+add_prefix(priv_include_dirs "${CMAKE_CURRENT_LIST_DIR}/modbus/" ${priv_include_dirs})
 
 message(STATUS "DEBUG: Use esp-modbus component folder: ${CMAKE_CURRENT_LIST_DIR}.")
 
-set(requires driver lwip)
-
-# esp_timer component was introduced in v4.2
-if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "4.1")
-    list(APPEND requires esp_timer)
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "5.2")
+set(requires esp_driver_uart)
+set(priv_requires
+        esp_timer   # mb timer implementation
+        esp_event   # mb tcp event loops
+        esp_netif   # mb tcp workaround for ipv6
+        vfs         # mb tcp uses event_fd
+)
+else()
+set(requires driver)
+set(priv_requires esp_timer esp_event esp_netif vfs)
 endif()
 
-idf_component_register(SRCS "${srcs}"
-                    INCLUDE_DIRS "${include_dirs}"
-                    PRIV_INCLUDE_DIRS "${priv_include_dirs}"
-                    REQUIRES ${requires}
-                    PRIV_REQUIRES esp_netif)
 
+idf_component_register(SRCS "${srcs}"
+                        INCLUDE_DIRS "${include_dirs}"
+                        PRIV_INCLUDE_DIRS "${priv_include_dirs}"
+                        REQUIRES ${requires}
+                        PRIV_REQUIRES ${priv_requires}
+                        LDFRAGMENTS linker.lf)
+
+# This is an alternative of macro `idf_component_optional_requires(PUBLIC mdns)` to support all versions of esp-idf
+if(CONFIG_FMB_MDNS_INTEGRATION_ENABLE)
+    set(optional_reqs mdns espressif__mdns)
+    idf_build_get_property(build_components BUILD_COMPONENTS)
+    message(STATUS "build_components = ${build_components}")
+    foreach(req ${optional_reqs} ${exclude_comps})
+        if(req IN_LIST build_components)
+            idf_component_get_property(req_lib ${req} COMPONENT_LIB)
+            target_link_libraries(${COMPONENT_LIB} PRIVATE ${req_lib})
+            message(STATUS "Req ${req} is found and added into ${COMPONENT_NAME} dependencies.")
+            target_compile_definitions(${COMPONENT_LIB} PUBLIC -DMB_MDNS_IS_INCLUDED)
+        endif()
+    endforeach()
+endif()
+
+# target_link_options(${COMPONENT_LIB} INTERFACE -fsanitize=undefined -fsanitize=alignment) #-fsanitize=address -fsanitize=undefined
+# target_link_options(${COMPONENT_LIB} INTERFACE -fsanitize=address)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-strict-aliasing -Wno-write-strings -Werror)
+
+if(CONFIG_FMB_COMPILER_STATIC_ANALYZER_ENABLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${COMPONENT_LIB} PRIVATE "-fanalyzer")
+    message(STATUS "Static analyzer option `-analyzer` is applied for ${COMPONENT_NAME}.")
+endif()
+
+message(STATUS "The mdns included is: ${MB_MDNS_IS_INCLUDED}")

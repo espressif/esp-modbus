@@ -12,3 +12,5 @@ The Modbus is a data communications protocol originally published by Modicon (no
      Modbus Master API <master_api_overview>
      Modbus Slave API <slave_api_overview>
      Applications and References <applications_and_references>
+
+.. note:: The ESP-Modbus library starting from version v2.0.0 supports creation of several instances of Modbus master and slave objects. The instance of each type shall be created using appropriate constructor API which uses the pointer to predefined object configuration options as first parameter and returns the pointer to created communication object as a second parameter. The returned pointer shall be saved and later be used as instance identifier in first parameter of each call of Modbus API functions.

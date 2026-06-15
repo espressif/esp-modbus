@@ -16,7 +16,7 @@ menu "Modbus configuration"
 
     config FMB_TCP_PORT_MAX_CONN
         int "Maximum allowed connections for TCP stack"
-        range 1 8
+        range 1 LWIP_MAX_SOCKETS
         default 5
         depends on FMB_COMM_MODE_TCP_EN
         help
@@ -27,14 +27,27 @@ menu "Modbus configuration"
 
     config FMB_TCP_CONNECTION_TOUT_SEC
         int "Modbus TCP connection timeout"
-        range 1 3600
-        default 20
+        range 1 7200
+        default 2
         depends on FMB_COMM_MODE_TCP_EN
         help
                 Modbus TCP connection timeout in seconds.
                 Once expired the current connection with the client will be closed
-                and Modbus slave will be waiting for new connection to accept.
-    
+                and Modbus TCP slave will be waiting for new connection to accept.
+                This timeout is applicable for Modbus TCP master when it tries to connect to the Modbus TCP slaves.
+
+    config FMB_TCP_KEEP_ALIVE_TOUT_SEC
+        int "Modbus TCP keep alive timeout (seconds)"
+        default 4
+        range 1 7200
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                This option is used to set keep-alive time for Modbus TCP connections.
+                This timeout is the interval after which the device sends keep-alive messages
+                to maintain a connection with a server before register the error.
+                The keep-alive time can be configured and should be set based on the actual needs of the application,
+                considering the trade-off between keeping the connection alive and minimizing system load.
+
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
         default n
@@ -57,10 +70,10 @@ menu "Modbus configuration"
 
     config FMB_MASTER_TIMEOUT_MS_RESPOND
         int "Slave respond timeout (Milliseconds)"
-        default 3000
-        range 150 15000
+        default 10000
+        range 150 30000
         help
-                If master sends a frame which is not broadcast, it has to wait sometime for slave response.
+                If master sends a frame which is not broadcast, it has to wait some time for slave response.
                 if slave is not respond in this time, the master will process timeout error.
 
     config FMB_MASTER_DELAY_MS_CONVERT
@@ -72,29 +85,30 @@ menu "Modbus configuration"
                 then master can send next frame.
 
     config FMB_QUEUE_LENGTH
-        int "Modbus serial task queue length"
-        range 0 200
-        default 20
+        int "Modbus event task queue length"
+        range 10 500
+        default 50
         help
-                Modbus serial driver queue length. It is used by event queue task.
-                See the serial driver API for more information.
+                Modbus event queue length. It is used by event queue tasks
+                for corresponding communication mode.
 
     config FMB_PORT_TASK_STACK_SIZE
         int "Modbus port task stack size"
-        range 2048 8192
+        range 2048 16384
         default 4096
         help
                 Modbus port task stack size for rx/tx event processing.
                 It may be adjusted when debugging is enabled (for example).
 
-    config FMB_SERIAL_BUF_SIZE
-        int "Modbus serial task RX/TX buffer size"
-        range 0 2048
-        default 256
+    config FMB_BUFFER_SIZE
+        int "Modbus RX/TX buffer size"
+        range 256 2048
+        default 260 if FMB_COMM_MODE_TCP_EN
+        default 256 if !FMB_COMM_MODE_TCP_EN
         help
-                Modbus serial task RX and TX buffer size for UART driver initialization.
+                Modbus RX/TX buffer size for UART driver initialization.
                 This buffer is used for modbus frame transfer. The Modbus protocol maximum
-                frame size is 256 bytes. Bigger size can be used for non standard implementations.
+                frame size is 260 bytes (TCP). Bigger size can be used for non standard implementations.
 
     config FMB_SERIAL_ASCII_BITS_PER_SYMB
         int "Number of data bits per ASCII character"
@@ -162,6 +176,15 @@ menu "Modbus configuration"
                 Most significant byte of ID is used as short device ID and
                 other three bytes used as long ID.
 
+    config FMB_CONTROLLER_SLAVE_ID_MAX_SIZE
+        int "Modbus Slave ID maximum buffer size (bytes)"
+        range 4 255
+        default 32
+        depends on FMB_CONTROLLER_SLAVE_ID_SUPPORT
+        help
+                Modbus slave ID buffer size used to store vendor specific ID information
+                for the <Report Slave ID> command.
+
     config FMB_CONTROLLER_NOTIFY_TIMEOUT
         int "Modbus controller notification timeout (ms)"
         range 0 200
@@ -180,7 +203,7 @@ menu "Modbus configuration"
 
     config FMB_CONTROLLER_STACK_SIZE
         int "Modbus controller stack size"
-        range 0 8192
+        range 2048 32768
         default 4096
         help
                 Modbus controller task stack size. The Stack size may be adjusted when
@@ -188,18 +211,11 @@ menu "Modbus configuration"
 
     config FMB_EVENT_QUEUE_TIMEOUT
         int "Modbus stack event queue timeout (ms)"
-        range 0 500
+        range 10 500
         default 20
         help
                 Modbus stack event queue timeout in milliseconds. This may help to optimize
                 Modbus stack event processing time.
-
-    config FMB_TIMER_PORT_ENABLED
-        bool "Modbus stack use timer for 3.5T symbol time measurement"
-        default n
-        help
-                If this option is set the Modbus stack uses timer for T3.5 time measurement.
-                Else the internal UART TOUT timeout is used for 3.5T symbol time measurement.
 
     config FMB_TIMER_USE_ISR_DISPATCH_METHOD
         bool "Modbus timer uses ISR dispatch method"
@@ -211,5 +227,38 @@ menu "Modbus configuration"
                 to send timeout events from the callback function called from ISR.
                 This option has dependency with the UART_ISR_IN_IRAM option which places UART interrupt
                 handler into IRAM to prevent delays related to processing of UART events.
+
+    config FMB_EXT_TYPE_SUPPORT
+        bool "Modbus uses extended types to support third party devices"
+        default n
+        help
+                If this option is set the Modbus stack supports extended list of types
+                in data dictionary and conversion API to work with the extended types
+                otherwise the only legacy types are supported. The extended types include
+                integer, float, double types with different endianness and size.
+
+    config FMB_FUNC_HANDLERS_MAX
+        int "Maximum number of Modbus function handlers"
+        range 16 255
+        default 16
+        help
+                This option defines the maximum number of Modbus command handlers for Modbus master and slave.
+                The option can be useful to register additional commands and its handlers.
+
+    config FMB_COMPILER_STATIC_ANALYZER_ENABLE
+        bool "Enable compiler static analyzer for Modbus library"
+        default "n"
+        depends on IDF_TOOLCHAIN_GCC
+        help
+            Enable compiler static analyzer for Modbus library.
+            This is workaround to avoid false-positives for some IDF related components.
+            When enabled, the library files will be analysed with GCC static analyzer.
+
+    config FMB_MDNS_INTEGRATION_ENABLE
+        bool "Enable MDNS integration for Modbus library"
+        default "y"
+        help
+            This option enables the integration of Modbus library with MDNS library.
+            When enabled, the Modbus library will use the MDNS API to resolve the node names within Modbus segment.
 
 endmenu

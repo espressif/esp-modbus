@@ -1,0 +1,12 @@
+menu "Modbus Example Configuration"
+
+    config MB_SLAVE_ADDR
+        int "Modbus slave address"
+        range 1 247 if !FMB_TCP_UID_ENABLED
+        range 0 247 if FMB_TCP_UID_ENABLED
+        default 1
+        help
+            This is the Modbus slave address in the network.
+            The address is used as an index to resolve slave ip address.
+
+endmenu

@@ -36,23 +36,23 @@ If the examples do not work as expected and slave and master boards are not able
 Application Example
 -------------------
 
-The examples below use the FreeModbus library port for serial TCP slave and master implementations accordingly. The selection of stack is performed through KConfig menu option "Enable Modbus stack support ..." for appropriate communication mode and related configuration keys.
+The examples below demonstrate the library port for serial, TCP slave and master implementations accordingly. The selection of stack is performed through KConfig menu option "Enable Modbus stack support ..." for appropriate communication mode and related configuration keys.
 
 .. _example_mb_slave:
 
-- `Modbus serial slave example <https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/serial/mb_slave>`__
+- `Modbus serial slave example <https://github.com/espressif/esp-modbus/tree/main/examples/serial/mb_serial_slave>`__
 
 .. _example_mb_master:
 
-- `Modbus serial master example <https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/serial/mb_master>`__
+- `Modbus serial master example <https://github.com/espressif/esp-modbus/tree/main/examples/serial/mb_serial_master>`__
 
 .. _example_mb_tcp_master:
 
-- `Modbus TCP master example <https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/tcp/mb_tcp_master>`__
+- `Modbus TCP master example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_master>`__
 
 .. _example_mb_tcp_slave:
 
-- `Modbus TCP slave example <https://github.com/espressif/esp-idf/tree/master/examples/protocols/modbus/tcp/mb_tcp_slave>`__
+- `Modbus TCP slave example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_slave>`__
 
 Please refer to the specific example README.md for details.
 
@@ -70,3 +70,9 @@ API Reference
 .. include-build-file:: inc/esp_modbus_master.inc
 .. include-build-file:: inc/esp_modbus_slave.inc
 
+.. _modbus_api_endianness_conversion:
+
+Modbus Endianness Conversion API Reference
+------------------------------------------
+
+.. include-build-file:: inc/mb_endianness_utils.inc

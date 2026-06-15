@@ -21,10 +21,15 @@ GPATH
 # MacOS directory files
 .DS_Store
 
-# Test files
-test/build
-test/sdkconfig
-test/sdkconfig.old
+# Build related files
+build*
+sdkconfig
+sdkconfig.old
+managed_components
+dependencies.lock
+.vscode
+doxygen_output/**
+dist
 
 # Doc build artifacts
 docs/_build/
@@ -47,3 +52,4 @@ coverage_report/
 
 # VS Code Settings
 .vscode/
+/.pytest_cache/

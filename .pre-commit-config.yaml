@@ -1,0 +1,83 @@
+minimum_pre_commit_version: 2.17.0                        # Specifies the minimum version of pre-commit required for this configuration
+default_install_hook_types: [commit-msg]                  # Default hook types to install if not specified in individual hooks
+default_stages: [commit-msg]
+
+repos:
+-   repo: https://github.com/igrr/astyle_py.git
+    rev: v1.1.0
+    hooks:
+    -   id: astyle_py
+        args: ['--style=otbs', '--attach-namespaces', '--attach-classes', '--indent=spaces=4', '--convert-tabs', '--align-pointer=name', '--align-reference=name', '--keep-one-line-statements', '--pad-header', '--pad-oper']
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace                          # Removes trailing whitespaces from lines
+        exclude: &whitespace_excludes |
+          (?x)^(
+            .+\.(md|rst|map|bin|drawio|elf)|
+            .+\.log$|
+            compile_commands\.json$|
+            dependencies\.lock$|
+            build.*/.*|
+            __pycache__/.*
+          )$
+      - id: end-of-file-fixer                           # Ensures files end with a newline
+        exclude: *whitespace_excludes
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs              # Checks executables have a proper shebang
+      - id: mixed-line-ending                            # Detects mixed line endings (CRLF/LF)
+        args: ['--fix=lf']
+        description: Forces to replace line ending by the UNIX 'lf' character
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      # Run the ruff linter (replaces flake8)
+      - id: ruff-check
+        types_or: [ python, pyi ]
+        args: ['--fix', '--exit-non-zero-on-fix']
+      # Run the formatter.
+      - id: ruff-format
+        types_or: [ python, pyi ]
+
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell # Code spell checker
+        args: ["--write-changes"]
+        additional_dependencies: [tomli]
+        exclude: |
+          (?x)^(
+            .+\.(bin|elf|map)|
+            .+\.(code-workspace)|
+            build.*/.*|
+            dependencies\.lock$|
+            compile_commands\.json$|
+            pytest_embedded_log/.*|
+            .ruff_cache/.*|
+            __pycache__/.*
+          )$
+
+-   repo: https://github.com/espressif/conventional-precommit-linter
+    rev: v1.10.0
+    hooks:
+      - id: conventional-precommit-linter                # Lints commit messages for conventional format
+        stages: [commit-msg]
+        args:
+          - --types=ci,docs,feat,fix,perf,refactor,chore,test
+          - --subject-min-length=10
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy                                         # Runs mypy for Python type checking
+        additional_dependencies: ['PyYAML', 'types-PyYAML']
+        files: \.py$
+        exclude: ^docs/.*/conf\.py$
+
+-   repo: https://github.com/espressif/check-copyright/
+    rev: v1.1.1
+    hooks:
+      - id: check-copyright
+        args: ['--config', 'tools/ci/check_copyright_config.yaml']

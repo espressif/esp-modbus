@@ -1,0 +1,10 @@
+pytest
+pytest-embedded>=1.18.2
+pytest-embedded-idf
+pytest-embedded-serial>=1.18.2
+pytest-embedded-serial-esp
+robotframework
+dataclasses
+scapy>=2.6.1
+numpy>=1.21.6
+matplotlib>=3.5.3
