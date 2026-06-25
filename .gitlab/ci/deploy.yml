@@ -4,12 +4,42 @@ upload_to_component_manager:
   tags:
     - deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"' # the main branch is a component release branch for v2
     - if: '$FORCE_PUSH_COMPONENT == "1"'
       when: manual
       allow_failure: true
-  script:
-    - pip install idf-component-manager
-    - export IDF_COMPONENT_API_TOKEN=${ESP_MODBUS_API_KEY}
-    - export COMP_VERSION=$(grep 'version:' idf_component.yml | head -n 1 | awk '{print $2}' | tr -d '"')
-    - compote component upload --namespace=espressif --name=esp-modbus --allow-existing --version=${COMP_VERSION}
+    - if: '$CI_COMMIT_BRANCH == "main"' # the main branch is a component release branch for v2
+    - when: manual
+      allow_failure: true
+  script: |
+    set -eu
+    python -m pip install --upgrade idf-component-manager
+
+    : "${IDF_COMPONENT_REGISTRY_URL:?IDF_COMPONENT_REGISTRY_URL is required for release}"
+    : "${ESP_MODBUS_API_KEY:?ESP_MODBUS_API_KEY is required for release}"
+    : "${ESP_MB_CONSOLE_HELPER_API_KEY:?ESP_MB_CONSOLE_HELPER_API_KEY is required for release}"
+
+    get_component_version() {
+      awk '/^version:/ { gsub(/"/, "", $2); print $2; exit }' "$1/idf_component.yml"
+    }
+
+    : > component_upload_status.env
+    : > component_upload_status.log
+
+    # Publish dependencies first so dependent components can resolve them.
+    CONSOLE_HELPER_VERSION=$(get_component_version "${CI_PROJECT_DIR}/components/mb_console_helper")
+    sh "${CI_PROJECT_DIR}/tools/upload_component.sh" "mb_console_helper" "${CI_PROJECT_DIR}/components/mb_console_helper" "${CONSOLE_HELPER_VERSION}" "${ESP_MB_CONSOLE_HELPER_API_KEY}"
+
+    COMP_VERSION=$(get_component_version "${CI_PROJECT_DIR}")
+    sh "${CI_PROJECT_DIR}/tools/upload_component.sh" "esp-modbus" "${CI_PROJECT_DIR}" "${COMP_VERSION}" "${ESP_MODBUS_API_KEY}"
+
+    echo "Components released; esp-modbus ${COMP_VERSION}; mb_console_helper ${CONSOLE_HELPER_VERSION}"
+    cat component_upload_status.env
+  artifacts:
+    when: always
+    expire_in: 8 hrs
+    paths:
+      - component_upload_status.env
+      - component_upload_status.log
+      - ${CI_PROJECT_DIR}/**/dist/*.tgz
+    reports:
+      dotenv: component_upload_status.env
