@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,8 @@
                                                ((mode == MB_PARAM_READ) && (access & PAR_PERMS_READ)) ? rd_cmd : 0)
 
 static const char TAG[] __attribute__((unused)) = "MB_CONTROLLER_MASTER";
+
+#define API_BLOCKING_THRESHOLD 500
 
 // This file implements public API for Modbus master controller.
 
@@ -203,6 +205,20 @@ esp_err_t mbc_master_start(void *ctx)
     MB_RETURN_ON_FALSE(ctx, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
     mbm_controller_iface_t *mbm_controller = MB_MASTER_GET_IFACE(ctx);
+
+    uint32_t response_tout_ms = mbm_controller->opts.comm_opts.common_opts.response_tout_ms;
+    // Keep stack response timeout below API blocking threshold
+    if (!response_tout_ms || (response_tout_ms >= CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS)) {
+        response_tout_ms = (CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+                            <= (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS - API_BLOCKING_THRESHOLD))
+                           ? CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
+                           : (CONFIG_FMB_MASTER_MAX_API_BLOCKING_TIME_MS - API_BLOCKING_THRESHOLD);
+        ESP_LOGW(TAG,
+                 "Master timeout option = (%u) exceeded the maximum API threshold or is uninitialized, will be set to configured value = %u.",
+                 (unsigned)mbm_controller->opts.comm_opts.common_opts.response_tout_ms, (unsigned)response_tout_ms);
+        mbm_controller->opts.comm_opts.common_opts.response_tout_ms = response_tout_ms;
+    }
+
     MB_RETURN_ON_FALSE(mbm_controller->start, ESP_ERR_INVALID_STATE, TAG,
                        "Master interface is not correctly initialized.");
     error = mbm_controller->start(ctx);
