@@ -536,7 +536,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                     uint64_t tick = (transaction_tick_t)transaction_item_get_tick(item);
                     uint64_t time_div_us = (esp_timer_get_time() - tick);
                     if (tid != pnode->tid_counter) {
-                        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master, TID:0x%04" PRIx16 " != TID:0x%04" PRIx16),
+                        ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", handling time [ms]: %" PRIu64 ", exceeds slave response time in master, TID:0x%04" PRIx16 " != TID:0x%04" PRIx16),
                                  ctx, (int)pnode->index, (int)pnode->sock_id,
                                  pnode->addr_info.ip_addr_str, (time_div_us / 1000),
                                  pnode->tid_counter, tid

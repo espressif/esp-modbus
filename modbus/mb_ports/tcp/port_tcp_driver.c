@@ -653,46 +653,44 @@ void mb_drv_tcp_task(void *ctx)
                     }
                 }
             }
-            {
-                // socket event is ready, process each socket event
-                mb_drv_check_suspend_shutdown(ctx);
-                int curr_fd = 0;
-                mb_node_info_t *node_ptr = NULL;
-                while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
-                        && (curr_fd < MB_MAX_FDS))) {
-                    if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
-                        // The data is ready in the socket, read frame and queue
-                        FD_CLR(node_ptr->sock_id, &readset);
-                        int ret = port_read_packet(node_ptr);
-                        if (ret > 0) {
-                            ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame received."), ctx, (int)node_ptr->fd,
-                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-                            mb_drv_lock(ctx);
-                            node_ptr->recv_time = esp_timer_get_time();
-                            mb_drv_unlock(ctx);
-                            DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, node_ptr->index);
-                        } else if (ret == ERR_TIMEOUT) {
-                            ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame read timeout or closed connection."), ctx, (int)node_ptr->fd,
-                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-                        } else if (ret == ERR_BUF) {
-                            // After retries a response with incorrect TID received, process failure.
-                            drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_FAIL);
-                            ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame error."), ctx, (int)node_ptr->fd,
+            // If socket events are ready, process each socket event
+            mb_drv_check_suspend_shutdown(ctx);
+            int curr_fd = 0;
+            mb_node_info_t *node_ptr = NULL;
+            while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
+                    && (curr_fd < MB_MAX_FDS))) {
+                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+                    // The data is ready in the socket, read frame and queue
+                    FD_CLR(node_ptr->sock_id, &readset);
+                    int ret = port_read_packet(node_ptr);
+                    if (ret > 0) {
+                        ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame received."), ctx, (int)node_ptr->fd,
+                                 (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                        mb_drv_lock(ctx);
+                        node_ptr->recv_time = esp_timer_get_time();
+                        mb_drv_unlock(ctx);
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, node_ptr->index);
+                    } else if (ret == ERR_TIMEOUT) {
+                        ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame read timeout or closed connection."), ctx, (int)node_ptr->fd,
+                                 (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                    } else if (ret == ERR_BUF) {
+                        // After retries a response with incorrect TID received, process failure.
+                        drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_FAIL);
+                        ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame error."), ctx, (int)node_ptr->fd,
+                                 (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                    } else {
+                        if (ret == ERR_CONN) {
+                            ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,
                                      (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                         } else {
-                            if (ret == ERR_CONN) {
-                                ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,
-                                         (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
-                            } else {
-                                ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)node_ptr->fd,
-                                         (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
-                            }
-                            DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ret);
+                            ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", critical read error=%d, errno=%u."), ctx, (int)node_ptr->fd,
+                                     (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str, (int)ret, (unsigned)errno);
                         }
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ret);
                     }
-                    curr_fd++;
-                    mb_drv_check_suspend_shutdown(ctx);
                 }
+                curr_fd++;
+                mb_drv_check_suspend_shutdown(ctx);
             }
         }
     }
