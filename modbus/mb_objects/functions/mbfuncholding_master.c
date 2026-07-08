@@ -131,7 +131,7 @@ mb_exception_t mbm_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
     /* For broadcast request do not check the buffer size. */
     if (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_SIZE)
             || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        ESP_LOGD(__func__, "Length: %u", *len_buf);
+
         uint16_t reg_address;
         reg_address = (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF + 1]);
@@ -220,7 +220,7 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
 
     if ((*len_buf == MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_MUL_SIZE)
             || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        ESP_LOGD(__func__, "Length: %u", *len_buf);
+
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF + 1]);
@@ -305,8 +305,6 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
     uint16_t reg_count;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    ESP_LOGD(__func__, "Buffer length: %u, bcast: %u", *len_buf, (unsigned)inst->transp_obj->frm_is_bcast(inst->transp_obj));
-    ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)frame_ptr, *len_buf, ESP_LOG_DEBUG);
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
         status = MB_EX_ILLEGAL_DATA_ADDRESS;
     } else if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN)) {
@@ -415,7 +413,7 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
     /* If this request is broadcast, do not check the length */
     if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN)
             || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        ESP_LOGD(__func__, "Length: %u", *len_buf);
+
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_rd_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF] << 8);
         reg_rd_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF + 1]);
