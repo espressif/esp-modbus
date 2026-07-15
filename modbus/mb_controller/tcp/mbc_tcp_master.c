@@ -179,6 +179,19 @@ static esp_err_t mbc_tcp_master_send_request(void *ctx, mb_param_request_t *requ
         uint16_t mb_size = request->reg_size;
         uint8_t mb_unit_id = request->unit_id;
 
+	/**
+	 * Override the UID in the address info with the one from the parameter descriptor.
+	 * If it failed to override, log warning for diagnosis and continue to send request.
+	 */
+	mb_uid_info_t *addr_info = mbm_port_tcp_get_slave_info(mbm_controller_iface->mb_base->port_obj,
+            						       mb_slave_addr, MB_SOCK_STATE_UNDEF);					       
+        if (addr_info) {
+            	addr_info->uid = mb_unit_id;
+        } else {
+		ESP_LOGW(TAG, "%p Missing address info for server_idx = %d while applying uid = %d, continuing without override",
+			 mbm_controller_iface, (int)mb_slave_addr, (int)mb_unit_id);
+        }
+
         // Set the buffer for callback function processing of received data
         mbm_opts->reg_buffer_ptr = (uint8_t *)data_ptr;
         mbm_opts->reg_buffer_size = mb_size;
