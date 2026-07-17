@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "mbcontroller.h"       // for mbcontroller defines and api
-#include "rtu_transport.h"      // for stock RTU transport factory delegate
 #include "modbus_params.h"      // for modbus parameters structures
 #include "esp_log.h"            // for log_write
 #include "sdkconfig.h"
@@ -18,6 +17,7 @@
 #define MB_DEV_SPEED    (CONFIG_MB_UART_BAUD_RATE)  // The communication speed of the UART
 
 #if CONFIG_MB_USE_TRANSPORT_FACTORY
+#include "rtu_transport.h"      // for stock RTU transport factory delegate
 /**
  * @brief Create the standard RTU transport through the custom factory interface.
  *
@@ -30,7 +30,20 @@ static mb_err_enum_t serial_slave_transport_factory(const mbc_slave_transport_fa
         mb_trans_base_t **transport)
 {
     mb_serial_opts_t serial_opts = args->comm_info->ser_opts;
-    return mbs_rtu_transp_create(&serial_opts, (void **)transport);
+    mb_port_base_t port_parent = {
+        .descr = {
+            .parent_name = "factory_example",
+            .obj_name = "factory_example",
+            .parent = args->parent,
+            .is_master = false,
+        },
+    };
+    void *transport_instance = &port_parent;
+    mb_err_enum_t err = mbs_rtu_transp_create(&serial_opts, &transport_instance);
+    if (err == MB_ENOERR) {
+        *transport = transport_instance;
+    }
+    return err;
 }
 #endif
 
