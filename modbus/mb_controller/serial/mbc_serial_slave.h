@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,6 +15,7 @@ extern "C" {
 #include <stdint.h>                 // for standard int types definition
 #include <stddef.h>                 // for NULL and std defines
 #include "esp_modbus_common.h"      // for common defines
+#include "esp_modbus_slave.h"       // for custom transport factory
 #include "sdkconfig.h"
 
 /* ----------------------- Defines ------------------------------------------*/
@@ -33,6 +34,11 @@ extern "C" {
  *     - ESP_ERR_NO_MEM Parameter error
  */
 esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx);
+
+esp_err_t mbc_serial_slave_create_with_transport(mb_communication_info_t *config,
+        mbc_slave_transport_factory_t factory,
+        void *user_ctx,
+        void **ctx);
 
 #endif
 

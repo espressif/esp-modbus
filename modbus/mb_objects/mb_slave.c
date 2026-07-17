@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -171,9 +171,14 @@ static mb_err_enum_t mbs_unregister_handlers(mb_base_t *inst)
 
 #if (MB_SLAVE_RTU_ENABLED)
 
-mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
+mb_err_enum_t mbs_rtu_create_with_transport(mb_communication_info_t *comm_info,
+        void **in_out_obj,
+        mbc_slave_transport_factory_t factory,
+        void *user_ctx)
 {
     mb_err_enum_t ret = MB_ENOERR;
+    MB_RETURN_ON_FALSE(comm_info, MB_EINVAL, TAG, "invalid communication options for the instance.");
+    mb_serial_opts_t *ser_opts = &comm_info->ser_opts;
     MB_RETURN_ON_FALSE(ser_opts, MB_EINVAL, TAG, "invalid options for the instance.");
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_RTU), MB_EILLSTATE, TAG, "incorrect mode != RTU.");
     mbs_object_t *mbs_obj = NULL;
@@ -198,8 +203,17 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     int res = asprintf(&mbs_obj->base.descr.parent_name, "mbs_rtu@%p", *in_out_obj);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    transp_obj = (mb_trans_base_t *)mbs_obj;
-    ret = mbs_rtu_transp_create(ser_opts, (void **)&transp_obj);
+    if (factory) {
+        const mbc_slave_transport_factory_args_t args = {
+            .comm_info = comm_info,
+            .parent = *in_out_obj,
+            .user_ctx = user_ctx,
+        };
+        ret = factory(&args, &transp_obj);
+    } else {
+        transp_obj = (mb_trans_base_t *)mbs_obj;
+        ret = mbs_rtu_transp_create(ser_opts, (void **)&transp_obj);
+    }
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
     ret = mbs_register_default_handlers(&mbs_obj->base);
@@ -217,14 +231,26 @@ mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 
 error:
     if (transp_obj) {
-        mbs_rtu_transp_delete(transp_obj);
+        (void)transp_obj->frm_delete(transp_obj);
     }
-    (void)mbs_unregister_handlers(&mbs_obj->base);
-    free(mbs_obj->base.descr.parent_name);
-    CRITICAL_SECTION_CLOSE(mbs_obj->base.lock);
-    free(mbs_obj);
+    if (mbs_obj) {
+        if (mbs_obj->handler_descriptor.sema) {
+            (void)mbs_unregister_handlers(&mbs_obj->base);
+        }
+        free(mbs_obj->base.descr.parent_name);
+        CRITICAL_SECTION_CLOSE(mbs_obj->base.lock);
+        free(mbs_obj);
+    }
     mb_port_get_inst_counter_dec();
     return ret;
+}
+
+mb_err_enum_t mbs_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
+{
+    mb_communication_info_t comm_info = {
+        .ser_opts = *ser_opts,
+    };
+    return mbs_rtu_create_with_transport(&comm_info, in_out_obj, NULL, NULL);
 }
 
 #endif /* MB_SLAVE_RTU_ENABLED */
