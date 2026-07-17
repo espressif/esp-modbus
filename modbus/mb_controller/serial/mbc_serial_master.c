@@ -597,7 +597,10 @@ error:
 }
 
 // Initialization of resources for Modbus serial master controller
-esp_err_t mbc_serial_master_create(mb_communication_info_t *config, void **ctx)
+esp_err_t mbc_serial_master_create_with_transport(mb_communication_info_t *config,
+        mbc_master_transport_factory_t factory,
+        void *user_ctx,
+        void **ctx)
 {
     mbm_controller_iface_t *mbm_controller_iface = NULL;
     MB_RETURN_ON_FALSE((ctx && config), ESP_ERR_INVALID_STATE, TAG,
@@ -632,7 +635,7 @@ esp_err_t mbc_serial_master_create(mb_communication_info_t *config, void **ctx)
 
     if (pcomm_info->mode == MB_RTU) {
 #if ( CONFIG_FMB_COMM_MODE_RTU_EN )
-        err = mbm_rtu_create(pcomm_info, &inst);
+        err = mbm_rtu_create_with_transport(config, &inst, factory, user_ctx);
 #else
         ESP_LOGE(TAG, "RTU mode is not enabled in the configuration.");
         ret = ESP_ERR_NOT_SUPPORTED;
@@ -673,6 +676,11 @@ error:
         *ctx = NULL;
     }
     return ret;
+}
+
+esp_err_t mbc_serial_master_create(mb_communication_info_t *config, void **ctx)
+{
+    return mbc_serial_master_create_with_transport(config, NULL, NULL, ctx);
 }
 
 #endif

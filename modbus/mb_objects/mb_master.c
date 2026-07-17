@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -183,9 +183,13 @@ static mb_err_enum_t mbm_unregister_handlers(mb_base_t *inst)
 
 #if (MB_MASTER_RTU_ENABLED)
 
-mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
+mb_err_enum_t mbm_rtu_create_with_transport(mb_communication_info_t *comm_info,
+        void **in_out_obj,
+        mbc_master_transport_factory_t factory,
+        void *user_ctx)
 {
-    MB_RETURN_ON_FALSE((ser_opts && in_out_obj), MB_EINVAL, TAG, "invalid options for the instance.");
+    MB_RETURN_ON_FALSE((comm_info && in_out_obj), MB_EINVAL, TAG, "invalid options for the instance.");
+    mb_serial_opts_t *ser_opts = &comm_info->ser_opts;
     MB_RETURN_ON_FALSE((ser_opts->mode == MB_RTU), MB_EILLSTATE, TAG, "incorrect mode != RTU.");
     mb_err_enum_t ret = MB_ENOERR;
     mbm_object_t *mbm_obj = NULL;
@@ -215,8 +219,17 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
     int res = asprintf(&mbm_obj->base.descr.parent_name, "mbm_rtu@%p", mbm_obj->base.descr.parent);
     MB_GOTO_ON_FALSE((res), MB_EILLSTATE, error,
                      TAG, "name alloc fail, err: %d", (int)res);
-    transp_obj = (mb_trans_base_t *)mbm_obj;
-    ret = mbm_rtu_transp_create(ser_opts, (void **)&transp_obj);
+    if (factory) {
+        const mbc_master_transport_factory_args_t args = {
+            .comm_info = comm_info,
+            .parent = *in_out_obj,
+            .user_ctx = user_ctx,
+        };
+        ret = factory(&args, &transp_obj);
+    } else {
+        transp_obj = (mb_trans_base_t *)mbm_obj;
+        ret = mbm_rtu_transp_create(ser_opts, (void **)&transp_obj);
+    }
     MB_GOTO_ON_FALSE((transp_obj && (ret == MB_ENOERR)), MB_EILLSTATE, error,
                      TAG, "transport creation, err: %d", (int)ret);
     mbm_obj->cur_mode = ser_opts->mode;
@@ -235,14 +248,26 @@ mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
 
 error:
     if (transp_obj) {
-        mbm_rtu_transp_delete(transp_obj);
+        (void)transp_obj->frm_delete(transp_obj);
     }
-    (void)mbm_unregister_handlers(&mbm_obj->base);
-    free(mbm_obj->base.descr.parent_name);
-    CRITICAL_SECTION_CLOSE(mbm_obj->base.lock);
-    free(mbm_obj);
+    if (mbm_obj) {
+        if (mbm_obj->handler_descriptor.sema) {
+            (void)mbm_unregister_handlers(&mbm_obj->base);
+        }
+        free(mbm_obj->base.descr.parent_name);
+        CRITICAL_SECTION_CLOSE(mbm_obj->base.lock);
+        free(mbm_obj);
+    }
     mb_port_get_inst_counter_dec();
     return ret;
+}
+
+mb_err_enum_t mbm_rtu_create(mb_serial_opts_t *ser_opts, void **in_out_obj)
+{
+    mb_communication_info_t comm_info = {
+        .ser_opts = *ser_opts,
+    };
+    return mbm_rtu_create_with_transport(&comm_info, in_out_obj, NULL, NULL);
 }
 
 #endif /* MB_MASTER_RTU_ENABLED */
