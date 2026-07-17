@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "mbcontroller.h"       // for mbcontroller defines and api
+#include "rtu_transport.h"      // for stock RTU transport factory delegate
 #include "modbus_params.h"      // for modbus parameters structures
 #include "esp_log.h"            // for log_write
 #include "sdkconfig.h"
@@ -15,6 +16,23 @@
 #define MB_PORT_NUM     (CONFIG_MB_UART_PORT_NUM)   // Number of UART port used for Modbus connection
 #define MB_SLAVE_ADDR   (CONFIG_MB_SLAVE_ADDR)      // The address of device in Modbus network
 #define MB_DEV_SPEED    (CONFIG_MB_UART_BAUD_RATE)  // The communication speed of the UART
+
+#if CONFIG_MB_USE_TRANSPORT_FACTORY
+/**
+ * @brief Create the standard RTU transport through the custom factory interface.
+ *
+ * @param[in] args Controller-provided communication settings.
+ * @param[out] transport Initialized RTU transport.
+ *
+ * @return `MB_ENOERR` on success; another `mb_err_enum_t` value on failure.
+ */
+static mb_err_enum_t serial_slave_transport_factory(const mbc_slave_transport_factory_args_t *args,
+        mb_trans_base_t **transport)
+{
+    mb_serial_opts_t serial_opts = args->comm_info->ser_opts;
+    return mbs_rtu_transp_create(&serial_opts, (void **)transport);
+}
+#endif
 
 // Note: Some pins on target chip cannot be assigned for UART communication.
 // Please refer to documentation for selected board and target to configure pins using Kconfig.
@@ -198,7 +216,14 @@ void app_main(void)
         .ser_opts.stop_bits = UART_STOP_BITS_1
     };
 
-    ESP_ERROR_CHECK(mbc_slave_create_serial(&comm_config, &mbc_slave_handle)); // Initialization of Modbus controller
+#if CONFIG_MB_USE_TRANSPORT_FACTORY
+    ESP_ERROR_CHECK(mbc_slave_create_serial_with_transport(&comm_config,
+                    serial_slave_transport_factory,
+                    NULL,
+                    &mbc_slave_handle));
+#else
+    ESP_ERROR_CHECK(mbc_slave_create_serial(&comm_config, &mbc_slave_handle));
+#endif
 
     const uint8_t custom_command = 0x41; // The custom command to be sent to slave
     // Try to delete the handler for specified command.
