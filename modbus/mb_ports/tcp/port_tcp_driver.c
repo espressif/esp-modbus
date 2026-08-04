@@ -59,9 +59,14 @@ int32_t write_event(void *ctx, mb_event_info_t *event)
 {
     MB_RETURN_ON_FALSE((event && ctx), -1, TAG, "wrong arguments.");
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    if (xQueueSend(drv_obj->event_queue, event, MB_EVENT_TOUT) != pdTRUE) {
+    bool is_driver_task = (xTaskGetCurrentTaskHandle() == drv_obj->mb_tcp_task_handle);
+    TickType_t timeout = is_driver_task ? 0 : MB_EVENT_TOUT;
+    if (xQueueSend(drv_obj->event_queue, event, timeout) != pdTRUE) {
         ESP_LOGE(TAG, "%p, event queue is full.", ctx);
         return -1;
+    }
+    if (is_driver_task) {
+        return event->event_id;
     }
     const uint64_t wake_count = 1;
     int32_t ret = write(drv_obj->event_fd, &wake_count, sizeof(wake_count));
@@ -76,11 +81,14 @@ static uint64_t read_event(void *ctx)
     return (ret == sizeof(event_count)) ? event_count : 0;
 }
 
-static void mb_drv_dispatch_events(void *ctx, uint64_t event_count)
+static void mb_drv_dispatch_events(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_event_info_t event_info;
-    while (event_count-- && (xQueueReceive(drv_obj->event_queue, &event_info, 0) == pdTRUE)) {
+    uint32_t event_count = 0;
+    while ((event_count < MB_EVENT_DISPATCH_MAX)
+            && (xQueueReceive(drv_obj->event_queue, &event_info, 0) == pdTRUE)) {
+        event_count++;
         mb_driver_event_num_t event_num = MB_EVENT_READY_NUM;
         while ((event_num < MB_EVENT_COUNT) && (MB_EVENT_FROM_NUM(event_num) != event_info.event_id)) {
             event_num++;
@@ -535,14 +543,18 @@ void mb_drv_tcp_task(void *ctx)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     ESP_LOGD(TAG, "Start of driver task.");
     while (1) {
+        mb_drv_dispatch_events(ctx);
+        int wait_ms = uxQueueMessagesWaiting(drv_obj->event_queue) ? 0 : MB_SELECT_WAIT_MS;
         fd_set readset, errorset;
         FD_ZERO(&readset);
         FD_ZERO(&errorset);
         // check all active socket and fd events
-        int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, MB_SELECT_WAIT_MS);
+        int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, wait_ms);
         if (ret == ERR_TIMEOUT) {
-            // timeout occurred waiting for the vfds
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
+            if (wait_ms > 0) {
+                // timeout occurred waiting for the vfds
+                DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
+            }
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
             // error occurred during waiting for vfds activation
@@ -556,7 +568,6 @@ void mb_drv_tcp_task(void *ctx)
                 uint64_t event_count = read_event(ctx);
                 ESP_LOGD(TAG, "%p, event count: %" PRIu64, ctx, event_count);
                 mb_drv_check_suspend_shutdown(ctx);
-                mb_drv_dispatch_events(ctx, event_count);
             }
             if ((drv_obj->listen_sock_fd >= 0) && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
