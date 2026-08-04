@@ -615,8 +615,6 @@ MB_EVENT_HANDLER(mbm_on_send_data)
         mb_drv_lock(ctx);
         drv_obj->mb_node_curr = info_ptr;
         drv_obj->curr_node_index = info_ptr->index;
-        info_ptr->send_time = esp_timer_get_time();
-        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1)) ? (info_ptr->send_counter + 1) : 0;
         mb_drv_unlock(ctx);
         // Get send buffer from stack
         ESP_LOG_BUFFER_HEX_LEVEL("SENT", tx_buffer, sz, ESP_LOG_DEBUG);

@@ -472,32 +472,58 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout)
 {
-    if (frame_len > MB_TCP_BUFF_MAX_SIZE) {
+    if (!info_ptr || !frame || (info_ptr->sock_id < 0) || !frame_len
+            || (frame_len > MB_TCP_BUFF_MAX_SIZE)) {
         ESP_LOGE(TAG, MB_NODE_FMT(", refuse send: length %u > max %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                 info_ptr ? info_ptr->index : UNDEF_FD,
+                 info_ptr ? info_ptr->sock_id : UNDEF_FD,
+                 (info_ptr && info_ptr->addr_info.ip_addr_str) ? info_ptr->addr_info.ip_addr_str : "NULL",
                  (unsigned)frame_len, MB_TCP_BUFF_MAX_SIZE);
-        return -1;
+        return ERR_ARG;
     }
-    // Check if the socket is alive (writable and SO_ERROR == 0)
-    int ret = (int)port_check_alive(info_ptr, timeout);
-    if ((ret < 0) && (ret != ERR_INPROGRESS)) {
-        ESP_LOGE(TAG, MB_NODE_FMT(", is not writable, error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-        return ret;
+
+    int64_t deadline_us = port_get_timestamp() + ((int64_t)timeout * 1000);
+    size_t sent_length = 0;
+    while (sent_length < frame_len) {
+        ssize_t ret = send(info_ptr->sock_id, &frame[sent_length], frame_len - sent_length, MSG_DONTWAIT);
+        if (ret > 0) {
+            sent_length += (size_t)ret;
+            continue;
+        }
+        if (ret == 0) {
+            info_ptr->error = ERR_CONN;
+            return ERR_CONN;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+            ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
+                     info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                     (int)ret, (int)errno);
+            info_ptr->error = ERR_CONN;
+            return ERR_CONN;
+        }
+
+        int64_t remaining_us = deadline_us - port_get_timestamp();
+        if (remaining_us <= 0) {
+            info_ptr->error = ERR_TIMEOUT;
+            return ERR_TIMEOUT;
+        }
+        uint32_t remaining_ms = (uint32_t)((remaining_us + 999) / 1000);
+        err_t err = port_check_alive(info_ptr, remaining_ms);
+        if (err != ERR_OK) {
+            info_ptr->error = (err == ERR_INPROGRESS) ? ERR_TIMEOUT : err;
+            return info_ptr->error;
+        }
     }
-    ret = send(info_ptr->sock_id, frame, frame_len, 0);
-    if (ret < 0) {
-        ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-        info_ptr->error = ret;
-    } else {
-        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, ret, ESP_LOG_DEBUG);
-        info_ptr->error = 0;
-        info_ptr->send_time = port_get_timestamp();
-        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
-                                 ? (info_ptr->send_counter + 1) : 0;
-    }
-    return ret;
+
+    ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, frame_len, ESP_LOG_DEBUG);
+    info_ptr->error = ERR_OK;
+    info_ptr->send_time = port_get_timestamp();
+    info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
+                             ? (info_ptr->send_counter + 1) : 0;
+    return frame_len;
 }
 
 // Scan IP address according to IPV settings

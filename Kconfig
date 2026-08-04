@@ -77,8 +77,9 @@ menu "Modbus configuration"
         default 100
         depends on FMB_COMM_MODE_TCP_EN
         help
-                This is a timeout for the socket writability check and send operation.
-                Before each send, the driver verifies the socket is writable via select function.
+                This is the total timeout for sending a complete Modbus TCP frame.
+                The driver sends without blocking first and waits for socket writability only
+                when the TCP send buffer cannot accept more data immediately.
                 Reduce for faster failure detection; increase on high-latency links.
 
     config FMB_TCP_UID_ENABLED
