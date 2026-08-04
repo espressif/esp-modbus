@@ -667,7 +667,7 @@ MB_EVENT_HANDLER(mbs_on_close)
     } else if (MB_CHECK_FD_RANGE(event_info->opt_fd)) {
         pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
         if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)) {
-            if ((pnode->sock_id < 0) && FD_ISSET(pnode->sock_id, &drv_obj->open_set)) {
+            if (FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 mb_drv_lock(drv_obj);
                 (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
                 mb_drv_unlock(drv_obj);

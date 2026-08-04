@@ -687,7 +687,7 @@ MB_EVENT_HANDLER(mbm_on_close)
         pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
         if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)) {
             ESP_LOGD(TAG, "%p, Close node %d, sock #%d, intentionally.", ctx, (int)event_info->opt_fd, pnode->sock_id);
-            if ((pnode->sock_id < 0) && FD_ISSET(pnode->sock_id, &drv_obj->open_set)) {
+            if (FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 mb_drv_close(drv_obj, event_info->opt_fd);
             }
         }

@@ -63,13 +63,12 @@ if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER "5.2")
 set(requires esp_driver_uart)
 set(priv_requires
         esp_timer   # mb timer implementation
-        esp_event   # mb tcp event loops
         esp_netif   # mb tcp workaround for ipv6
         vfs         # mb tcp uses event_fd
 )
 else()
 set(requires driver)
-set(priv_requires esp_timer esp_event esp_netif vfs)
+set(priv_requires esp_timer esp_netif vfs)
 endif()
 
 
