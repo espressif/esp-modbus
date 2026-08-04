@@ -81,17 +81,6 @@ menu "Modbus configuration"
                 Before each send, the driver verifies the socket is writable via select function.
                 Reduce for faster failure detection; increase on high-latency links.
 
-    config FMB_TCP_EVENT_LOOP_TICK_MS
-        int "Modbus TCP event loop processing budget (ms)"
-        range 10 300
-        default 50
-        depends on FMB_COMM_MODE_TCP_EN
-        help
-                This option represents the maximum time allocated to event loop run function per driver loop iteration.
-                The value controls how many queued events (connect, send, error, etc.) are dispatched
-                before returning to check sockets. Lower values reduce latency for socket
-                I/O at the cost of processing fewer events per iteration.
-
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
         default n

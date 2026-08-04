@@ -354,22 +354,21 @@ static uint64_t mbm_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event)
 
 MB_EVENT_HANDLER(mbm_on_ready)
 {
-    // The driver is registered
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
 }
 
 MB_EVENT_HANDLER(mbm_on_open)
 {
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
 }
 
 MB_EVENT_HANDLER(mbm_on_resolve)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
 
     if (MB_CHECK_FD_RANGE(event_info->opt_fd)) {
         ESP_LOGD(TAG, "%p, Node: %d, resolve.", ctx, (int)event_info->opt_fd);
@@ -431,7 +430,7 @@ MB_EVENT_HANDLER(mbm_on_connect)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *node_ptr = NULL;
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
     err_t err = ERR_CONN;
     if (MB_CHECK_FD_RANGE(event_info->opt_fd)) {
         node_ptr = mb_drv_get_node(drv_obj, event_info->opt_fd);
@@ -567,7 +566,7 @@ MB_EVENT_HANDLER(mbm_on_send_data)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
     mb_drv_check_suspend_shutdown(ctx);
     mb_node_info_t *info_ptr = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (info_ptr && !queue_is_empty(info_ptr->tx_queue)) {
@@ -628,7 +627,7 @@ MB_EVENT_HANDLER(mbm_on_recv_data)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
     uint8_t buf[MB_TCP_BUFF_MAX_SIZE] = {0};
     mb_drv_check_suspend_shutdown(ctx);
     // Get frame from queue, check for correctness, push back correct frame and generate receive condition.
@@ -664,7 +663,7 @@ MB_EVENT_HANDLER(mbm_on_recv_data)
 MB_EVENT_HANDLER(mbm_on_close)
 {
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s, fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s, fd: %d", __func__, (int)event_info->opt_fd);
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *pnode = NULL;
     // if close all sockets event is received
@@ -699,7 +698,7 @@ MB_EVENT_HANDLER(mbm_on_timeout)
 {
     // Socket read/write timeout is triggered
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    ESP_LOGD(TAG, "%s: fd: %d", __func__, (int)event_info->opt_fd);
     // Todo: this event can be used to check network state (keep empty for now)
     mb_drv_check_suspend_shutdown(ctx);
 }

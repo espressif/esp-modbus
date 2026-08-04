@@ -3,7 +3,6 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <stdio.h>
 #include <sys/fcntl.h>
 #include <sys/param.h>
 #include "errno.h"
@@ -26,33 +25,6 @@
 static const char *TAG = "mb_driver";
 
 static int mb_drv_inst_counter = 0;
-static char msg_buffer[100]; // The buffer for event debugging (used for all instances)
-
-static const event_msg_t event_msg_table[] = {
-    MB_EVENT_TBL_IT(MB_EVENT_READY),
-    MB_EVENT_TBL_IT(MB_EVENT_OPEN),
-    MB_EVENT_TBL_IT(MB_EVENT_RESOLVE),
-    MB_EVENT_TBL_IT(MB_EVENT_CONNECT),
-    MB_EVENT_TBL_IT(MB_EVENT_SEND_DATA),
-    MB_EVENT_TBL_IT(MB_EVENT_RECV_DATA),
-    MB_EVENT_TBL_IT(MB_EVENT_ERROR),
-    MB_EVENT_TBL_IT(MB_EVENT_CLOSE),
-    MB_EVENT_TBL_IT(MB_EVENT_TIMEOUT),
-};
-
-// The function to print event
-const char *driver_event_to_name_r(mb_driver_event_t event)
-{
-    msg_buffer[0] = 0;
-    size_t i;
-    for (i = 0; i < sizeof(event_msg_table) / sizeof(event_msg_table[0]); ++i) {
-        if (event_msg_table[i].event & event) {
-            strlcat(msg_buffer, "|", sizeof(msg_buffer));
-            strlcat(msg_buffer, event_msg_table[i].msg, sizeof(msg_buffer));
-        }
-    }
-    return msg_buffer;
-}
 
 static esp_err_t init_event_fd(void *ctx)
 {
@@ -114,7 +86,7 @@ static void mb_drv_dispatch_events(void *ctx, uint64_t event_count)
             event_num++;
         }
         if ((event_num < MB_EVENT_COUNT) && drv_obj->event_handler[event_num]) {
-            drv_obj->event_handler[event_num](ctx, TAG, event_info.event_id, &event_info);
+            drv_obj->event_handler[event_num](ctx, &event_info);
         } else {
             ESP_LOGE(TAG, "%p, no handler for event 0x%x.", ctx, (unsigned)event_info.event_id);
         }

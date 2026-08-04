@@ -30,10 +30,9 @@ extern "C" {
 #define MB_PORT_DEFAULT         (CONFIG_FMB_TCP_PORT_DEFAULT)
 #define UNDEF_FD                (-1)
 #define MB_EVENT_TOUT           (300 / portTICK_PERIOD_MS)
-#define MB_CONN_TICK_TIMEOUT    (10 / portTICK_PERIOD_MS)
 
-typedef void (*mb_event_handler_fp)(void *ctx, const char *base, int32_t id, void *data);
-#define MB_EVENT_HANDLER(handler_name) void (handler_name)(void *ctx, const char *base, int32_t id, void *data)
+typedef void (*mb_event_handler_fp)(void *ctx, void *data);
+#define MB_EVENT_HANDLER(handler_name) void (handler_name)(void *ctx, void *data)
 
 #define MB_TASK_STACK_SZ            (CONFIG_FMB_PORT_TASK_STACK_SIZE)
 #define MB_TASK_PRIO                (CONFIG_FMB_PORT_TASK_PRIO)
@@ -50,7 +49,6 @@ typedef void (*mb_event_handler_fp)(void *ctx, const char *base, int32_t id, voi
 #define MB_WAIT_DONE_MS             (5000)
 #define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_EVENT_WAIT_MS)
 #define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
-#define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
 
 #define MB_DRIVER_CONFIG_DEFAULT {              \
     .spin_lock = portMUX_INITIALIZER_UNLOCKED,  \
@@ -84,8 +82,6 @@ typedef struct _port_driver port_driver_t;
     ((port_driver_t *)ctx);                 \
 }                                           \
 ))
-
-#define MB_EVENT_TBL_IT(event)    {event, #event}
 
 #define MB_ADD_FD(fd, max_fd, fdset) do {       \
     if ((fd) >= 0) {                            \
@@ -175,17 +171,9 @@ typedef enum _mb_driver_event {
 } mb_driver_event_t;
 
 typedef struct {
-    mb_driver_event_t event;
-    const char *msg;
-} event_msg_t;
-
-typedef union {
-    struct {
-        int32_t event_id;               /*!< an event */
-        int16_t opt_fd;                 /*!< fd option for an event */
-        int16_t opt_val;                /*!< value option for an event */
-    };
-    uint64_t val;
+    int32_t event_id;                   /*!< an event */
+    int16_t opt_fd;                     /*!< fd option for an event */
+    int16_t opt_val;                    /*!< value option for an event */
 } mb_event_info_t;
 
 typedef struct mb_node_info_s {
@@ -333,8 +321,6 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 int mb_drv_close(void *ctx, int fd);
 
 int32_t write_event(void *ctx, mb_event_info_t *event);
-
-const char *driver_event_to_name_r(mb_driver_event_t event);
 
 void mb_drv_set_cb(void *ctx, void *conn_cb, void *arg);
 
