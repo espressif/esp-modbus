@@ -295,25 +295,12 @@ void mbm_port_tcp_set_conn_cb(mb_port_base_t *inst, void *conn_fp, void *arg)
 // Timer handler to check timeout of socket response
 bool mbm_port_timer_expired(void *inst)
 {
-    mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
     bool need_poll = false;
-    BaseType_t task_unblocked;
-    mb_event_info_t mb_event;
-    esp_err_t err = ESP_FAIL;
 
     ESP_EARLY_LOGD(TAG, "Timer timeout event: %p", inst);
     mb_port_timer_disable(inst);
     // If timer mode is respond timeout, the master event then turns EV_MASTER_EXECUTE status.
     if (mb_port_get_cur_timer_mode(inst) == MB_TMODE_RESPOND_TIMEOUT) {
-        // It is now to check solution.
-        mb_event.event_id = MB_EVENT_TIMEOUT;
-        mb_event.opt_fd = port_obj->drv_obj->curr_node_index;
-        err = esp_event_isr_post_to(port_obj->drv_obj->event_loop_hdl, MB_EVENT_BASE(port_obj->drv_obj),
-                                    (int32_t)MB_EVENT_TIMEOUT, (void *)&mb_event, sizeof(mb_event_info_t *), &task_unblocked);
-        if (err != ESP_OK) {
-            ESP_EARLY_LOGE(TAG, "Timeout event send error: %d", err);
-        }
-        need_poll = task_unblocked;
         mb_port_event_set_err_type(inst, EV_ERROR_RESPOND_TIMEOUT);
         need_poll = mb_port_event_post(inst, EVENT(EV_ERROR_PROCESS));
     }
@@ -468,6 +455,7 @@ MB_EVENT_HANDLER(mbm_on_connect)
                          node_ptr->addr_info.ip_addr_str);
                 MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CONNECTED);
                 (void)port_keep_alive_enable(node_ptr->sock_id, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
+                (void)port_tcp_set_no_delay(node_ptr->sock_id);
                 ESP_LOGD(TAG, "Opened/connected: %u, %u.",
                          (unsigned)drv_obj->mb_node_open_count, (unsigned)drv_obj->node_conn_count);
                 if (drv_obj->mb_node_open_count == drv_obj->node_conn_count) {
@@ -714,8 +702,6 @@ MB_EVENT_HANDLER(mbm_on_timeout)
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
     // Todo: this event can be used to check network state (keep empty for now)
     mb_drv_check_suspend_shutdown(ctx);
-    // Intentionally allow IDLE task to trigger if other tasks do not perform it properly.
-    vTaskDelay(1);
 }
 
 #endif

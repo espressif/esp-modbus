@@ -207,6 +207,9 @@ typedef struct mb_node_info_s {
     int recv_err;                       /*!< socket receive error */
     QueueHandle_t rx_queue;             /*!< receive response queue */
     QueueHandle_t tx_queue;             /*!< send request queue */
+    uint8_t rx_buffer[MB_TCP_BUFF_MAX_SIZE]; /*!< partially received TCP frame */
+    uint16_t rx_length;                 /*!< number of bytes accumulated in rx_buffer */
+    uint16_t rx_expected_length;        /*!< complete frame length, zero until MBAP header is received */
     int64_t send_time;                  /*!< send request time stamp */
     int64_t recv_time;                  /*!< receive response time stamp */
     uint16_t tid_counter;               /*!< transaction identifier (TID) for slave */
@@ -269,6 +272,7 @@ typedef struct _port_driver {
     EventGroupHandle_t status_flags_hdl;        /*!< status bits to control nodes states */
     TaskHandle_t mb_tcp_task_handle;            /*!< TCP/UDP handling task handle */
     esp_event_loop_handle_t event_loop_hdl;     /*!< event loop handle */
+    _Atomic(uint32_t) pending_events;            /*!< number of events waiting for dispatch */
     esp_event_handler_instance_t event_handler[MB_EVENT_COUNT]; /*!< event handler instance */
     char *loop_name;                            /*!< name for event loop used as base */
     mb_driver_event_cb_t event_cbs;

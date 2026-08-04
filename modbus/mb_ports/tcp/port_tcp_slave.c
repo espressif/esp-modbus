@@ -389,6 +389,7 @@ MB_EVENT_HANDLER(mbs_on_connect)
         return;
     }
     (void)port_keep_alive_enable(pnode->sock_id, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
+    (void)port_tcp_set_no_delay(pnode->sock_id);
     mb_drv_lock(ctx);
     MB_SET_NODE_STATE(pnode, MB_SOCK_STATE_CONNECTED);
     FD_SET(pnode->sock_id, &drv_obj->conn_set);
@@ -702,7 +703,6 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     } else {
         curr_fd++;
     }
-    vTaskDelay(1);
 }
 
 #endif
