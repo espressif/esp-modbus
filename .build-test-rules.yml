@@ -7,6 +7,10 @@ examples/tcp/mb_tcp_slave:
   disable:
     - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
 
+examples/get_started/basic_master:
+  disable:
+    - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
+
 ## TEST APPS Folder
 test_apps/physical_tests:
   disable:

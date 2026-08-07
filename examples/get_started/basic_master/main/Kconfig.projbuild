@@ -1,0 +1,123 @@
+comment "WARNING: FMB_COMM_MODE_TCP_EN cannot be combined with RTU/ASCII mode"
+    depends on FMB_COMM_MODE_TCP_EN && (FMB_COMM_MODE_RTU_EN || FMB_COMM_MODE_ASCII_EN)
+
+menu "Modbus Example Serial Configuration"
+
+    depends on FMB_COMM_MODE_RTU_EN || FMB_COMM_MODE_ASCII_EN
+
+    config MB_UART_PORT_ONE
+        bool
+        default y
+        depends on (ESP_CONSOLE_UART_NUM !=1) && (SOC_UART_NUM > 1)
+
+    config MB_UART_PORT_TWO
+        bool
+        default y
+        depends on (ESP_CONSOLE_UART_NUM !=2) && (SOC_UART_NUM > 2)
+
+    config MB_UART_PORT_NUM
+        int "UART port number"
+        range 0 2 if MB_UART_PORT_TWO
+        default 2 if MB_UART_PORT_TWO
+        range 0 1 if MB_UART_PORT_ONE
+        default 1 if MB_UART_PORT_ONE
+        help
+            UART communication port number for Modbus example.
+
+    config MB_UART_BAUD_RATE
+        int "UART communication speed"
+        range 1200 115200
+        default 115200
+        help
+            UART communication speed for Modbus example.
+
+    config MB_UART_RXD
+        int "UART RXD pin number"
+        range 0 34 if IDF_TARGET_ESP32
+        range 0 23 if IDF_TARGET_ESP32C6
+        range 0 56 if IDF_TARGET_ESP32P4
+        range 0 28 if IDF_TARGET_ESP32C5
+        default 22 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 47 if IDF_TARGET_ESP32S3
+        range 0 19 if IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        range 0 21 if IDF_TARGET_ESP32C61
+        default 8 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32H2
+        default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
+        default 8 if IDF_TARGET_ESP32C61
+        help
+            GPIO number for UART RX pin. See UART documentation for more information
+            about available pin numbers for UART.
+
+    config MB_UART_TXD
+        int "UART TXD pin number"
+        range 0 34 if IDF_TARGET_ESP32
+        range 0 23 if IDF_TARGET_ESP32C6
+        range 0 56 if IDF_TARGET_ESP32P4
+        range 0 28 if IDF_TARGET_ESP32C5
+        default 23 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 47 if IDF_TARGET_ESP32S3
+        range 0 19 if IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        range 0 21 if IDF_TARGET_ESP32C61
+        default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32H2
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
+        default 9 if IDF_TARGET_ESP32C61
+        help
+            GPIO number for UART TX pin. See UART documentation for more information
+            about available pin numbers for UART.
+
+    config MB_UART_RTS
+        int "UART RTS pin number"
+        range 0 34 if IDF_TARGET_ESP32
+        range 0 23 if IDF_TARGET_ESP32C6
+        range 0 56 if IDF_TARGET_ESP32P4
+        range 0 28 if IDF_TARGET_ESP32C5
+        default 20 if IDF_TARGET_ESP32P4
+        default 18 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6
+        range 0 46 if IDF_TARGET_ESP32S2
+        range 0 47 if IDF_TARGET_ESP32S3
+        range 0 19 if IDF_TARGET_ESP32C3
+        range 0 20 if IDF_TARGET_ESP32C2
+        range 0 27 if IDF_TARGET_ESP32H2
+        range 0 21 if IDF_TARGET_ESP32C61
+        default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32H2
+        default 10 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
+        default 10 if IDF_TARGET_ESP32C61
+        help
+            GPIO number for UART RTS pin. This pin is connected to
+            ~RE/DE pin of RS485 transceiver to switch direction.
+            See UART documentation for more information about available pin
+            numbers for UART.
+
+    config MB_USE_RS485_HALF_DUPLEX_EN
+        bool "Enable RS485 driver in half-duplex mode"
+        default y
+        help
+            Enable RS485 driver for UART communication in half-duplex mode,
+            the RTS signal is used to control the RS485 transceiver direction (DE/~RE).
+
+endmenu
+
+menu "Modbus Example TCP Configuration"
+
+    depends on FMB_COMM_MODE_TCP_EN
+
+    choice MB_SLAVE_IP_RESOLVER
+        prompt "Select method to resolve slave IP addresses"
+        help
+                Select method which is used to resolve slave IP addresses
+                and configure Master TCP IP stack.
+
+            config MB_MDNS_IP_RESOLVER
+                bool "Resolve Modbus slave addresses using mDNS service."
+
+            config MB_SLAVE_IP_FROM_STDIN
+                bool "Configure Modbus slave addresses from stdin"
+    endchoice
+
+endmenu
