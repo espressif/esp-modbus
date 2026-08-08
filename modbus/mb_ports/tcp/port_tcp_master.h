@@ -10,7 +10,6 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
-#include "esp_event.h"          // for esp event loop
 
 #include "mb_common.h"
 #include "mb_frame.h"

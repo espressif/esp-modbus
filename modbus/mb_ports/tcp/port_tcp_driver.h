@@ -5,14 +5,11 @@
  */
 #pragma once
 
-#include <stdatomic.h>
-
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
-#include "esp_event.h"          // for esp event loop
 
 #if __has_include("mdns.h")
 #include "mdns.h"
@@ -33,10 +30,9 @@ extern "C" {
 #define MB_PORT_DEFAULT         (CONFIG_FMB_TCP_PORT_DEFAULT)
 #define UNDEF_FD                (-1)
 #define MB_EVENT_TOUT           (300 / portTICK_PERIOD_MS)
-#define MB_CONN_TICK_TIMEOUT    (10 / portTICK_PERIOD_MS)
 
-typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id, void *data);
-#define MB_EVENT_HANDLER(handler_name) void (handler_name)(void *ctx, esp_event_base_t base, int32_t id, void *data)
+typedef void (*mb_event_handler_fp)(void *ctx, void *data);
+#define MB_EVENT_HANDLER(handler_name) void (handler_name)(void *ctx, void *data)
 
 #define MB_TASK_STACK_SZ            (CONFIG_FMB_PORT_TASK_STACK_SIZE)
 #define MB_TASK_PRIO                (CONFIG_FMB_PORT_TASK_PRIO)
@@ -47,13 +43,13 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_RX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_TX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_EVENT_QUEUE_SZ           (CONFIG_FMB_QUEUE_LENGTH * MB_TCP_PORT_MAX_CONN)
+#define MB_EVENT_DISPATCH_MAX       (16)
 
 #define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
 
 #define MB_WAIT_DONE_MS             (5000)
 #define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_EVENT_WAIT_MS)
 #define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
-#define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
 
 #define MB_DRIVER_CONFIG_DEFAULT {              \
     .spin_lock = portMUX_INITIALIZER_UNLOCKED,  \
@@ -70,6 +66,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
     .close_done_sema = NULL,                    \
     .node_conn_count = 0,                       \
     .event_fd = UNDEF_FD,                       \
+    .event_queue = NULL,                        \
 }
 
 #define MB_EVENTFD_CONFIG() (esp_vfs_eventfd_config_t) {    \
@@ -87,17 +84,8 @@ typedef struct _port_driver port_driver_t;
 }                                           \
 ))
 
-#define MB_EVENT_TBL_IT(event)    {event, #event}
-
-#define MB_EVENT_BASE(context) (__extension__(                                      \
-{                                                                                   \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(context);                               \
-    (drv_obj->loop_name) ? (esp_event_base_t)(drv_obj->loop_name) : "UNK_BASE";     \
-}                                                                                   \
-))
-
 #define MB_ADD_FD(fd, max_fd, fdset) do {       \
-    if (fd) {                                   \
+    if ((fd) >= 0) {                            \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
         FD_SET(fd, fdset);                      \
     }                                           \
@@ -119,8 +107,7 @@ typedef struct _port_driver port_driver_t;
 }                                                       \
 ))
 
-// Post event to event loop and unblocks the select through the eventfd to handle the event loop run,
-// So, the eventfd value keeps last event and its fd.
+// Queue an event and unblock select through eventfd.
 #define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
@@ -185,17 +172,9 @@ typedef enum _mb_driver_event {
 } mb_driver_event_t;
 
 typedef struct {
-    mb_driver_event_t event;
-    const char *msg;
-} event_msg_t;
-
-typedef union {
-    struct {
-        int32_t event_id;               /*!< an event */
-        int16_t opt_fd;                 /*!< fd option for an event */
-        int16_t opt_val;                /*!< value option for an event */
-    };
-    uint64_t val;
+    int32_t event_id;                   /*!< an event */
+    int16_t opt_fd;                     /*!< fd option for an event */
+    int16_t opt_val;                    /*!< value option for an event */
 } mb_event_info_t;
 
 typedef struct mb_node_info_s {
@@ -207,6 +186,9 @@ typedef struct mb_node_info_s {
     int recv_err;                       /*!< socket receive error */
     QueueHandle_t rx_queue;             /*!< receive response queue */
     QueueHandle_t tx_queue;             /*!< send request queue */
+    uint8_t rx_buffer[MB_TCP_BUFF_MAX_SIZE]; /*!< partially received TCP frame */
+    uint16_t rx_length;                 /*!< number of bytes accumulated in rx_buffer */
+    uint16_t rx_expected_length;        /*!< complete frame length, zero until MBAP header is received */
     int64_t send_time;                  /*!< send request time stamp */
     int64_t recv_time;                  /*!< receive response time stamp */
     uint16_t tid_counter;               /*!< transaction identifier (TID) for slave */
@@ -264,13 +246,12 @@ typedef struct _port_driver {
     uint16_t curr_node_index;                   /*!< current processing slave index */
     fd_set open_set;                            /*!< file descriptor set for opened nodes */
     fd_set conn_set;                            /*!< file descriptor set for associated nodes */
-    int event_fd;                               /*!< eventfd descriptor for modbus event tracking */
+    int event_fd;                               /*!< eventfd used to wake select */
+    QueueHandle_t event_queue;                  /*!< queued driver events */
     SemaphoreHandle_t close_done_sema;          /*!< close and done semaphore */
     EventGroupHandle_t status_flags_hdl;        /*!< status bits to control nodes states */
     TaskHandle_t mb_tcp_task_handle;            /*!< TCP/UDP handling task handle */
-    esp_event_loop_handle_t event_loop_hdl;     /*!< event loop handle */
-    esp_event_handler_instance_t event_handler[MB_EVENT_COUNT]; /*!< event handler instance */
-    char *loop_name;                            /*!< name for event loop used as base */
+    mb_event_handler_fp event_handler[MB_EVENT_COUNT]; /*!< driver event handlers */
     mb_driver_event_cb_t event_cbs;
     //LIST_HEAD(mb_uid_info_, mb_uid_entry_s) node_list; /*!< node address information list */
     //uint16_t node_list_count;
@@ -341,8 +322,6 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 int mb_drv_close(void *ctx, int fd);
 
 int32_t write_event(void *ctx, mb_event_info_t *event);
-
-const char *driver_event_to_name_r(mb_driver_event_t event);
 
 void mb_drv_set_cb(void *ctx, void *conn_cb, void *arg);
 

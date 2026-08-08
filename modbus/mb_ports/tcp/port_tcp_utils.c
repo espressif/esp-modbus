@@ -158,122 +158,90 @@ int port_dequeue_packet(QueueHandle_t queue, frame_entry_t *frame_info_ptr)
     return ERR_BUF;
 }
 
-static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t len, uint16_t read_tick_ms)
+static void port_reset_rx(mb_node_info_t *info_ptr)
 {
-    int ret = 0;
-    uint8_t *buf = pdst_buf;
-    uint16_t bytes_left = len;
-    struct timeval time_val;
-
-    MB_RETURN_ON_FALSE((info_ptr && (info_ptr->sock_id > UNDEF_FD)), -1, TAG, "Try to read incorrect socket = #%d.", info_ptr->sock_id);
-
-    // Set receive timeout for socket <= slave respond time
-    time_val.tv_sec = read_tick_ms / 1000;
-    time_val.tv_usec = (read_tick_ms % 1000) * 1000;
-    setsockopt(info_ptr->sock_id, SOL_SOCKET, SO_RCVTIMEO, &time_val, sizeof(time_val));
-
-    // blocking read of data from socket
-    ret = recv(info_ptr->sock_id, buf, bytes_left, 0);
-    if (ret == 0) {
-        return ERR_CONN;  // FIN received, peer closed
-    }
-    if (ret < 0) {
-        ESP_LOGD(TAG, "socket(#%d)(%s) recv return, ret=%d, errno=%d.",
-                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-        if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
-            // Read timeout occurred, check the timeout and return
-            return 0;
-        }
-        if ((errno == ENOTCONN) || (errno == ECONNRESET)) {
-            ESP_LOGD(TAG, "socket(#%d)(%s) connection closed, ret=%d, errno=%d.",
-                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-            // Socket connection closed
-            return ERR_CONN;
-        }
-        // Other error occurred during receiving
-        ESP_LOGD(TAG, "Socket(#%d)(%s) receive error, ret = %d, errno = %d(%s)",
-                 info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno, strerror(errno));
-        ret = -1;
-    }
-    return ret;
+    info_ptr->rx_length = 0;
+    info_ptr->rx_expected_length = 0;
 }
 
 int port_read_packet(mb_node_info_t *info_ptr)
 {
-    uint16_t temp = 0;
-    int ret = 0;
-    uint8_t ptemp_buf[MB_TCP_BUFF_MAX_SIZE] = {0};
+    MB_RETURN_ON_FALSE((info_ptr && (info_ptr->sock_id > 0)), -1, TAG,
+                       "try to read incorrect socket = #%d", info_ptr ? info_ptr->sock_id : UNDEF_FD);
 
-    // Receive data from connected client
-    if (info_ptr) {
-        MB_RETURN_ON_FALSE((info_ptr->sock_id > 0), -1, TAG, "try to read incorrect socket = #%d", info_ptr->sock_id);
-        // Read packet header
-        ret = port_get_buf(info_ptr, ptemp_buf, MB_TCP_UID, MB_READ_TICK);
+    while (true) {
+        uint16_t target_length = info_ptr->rx_expected_length;
+        if (!target_length) {
+            target_length = MB_TCP_UID;
+        }
+
+        size_t bytes_left = target_length - info_ptr->rx_length;
+        ssize_t ret = recv(info_ptr->sock_id, &info_ptr->rx_buffer[info_ptr->rx_length],
+                           bytes_left, MSG_DONTWAIT);
         if (ret == 0) {
-            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), socket connection is closed or timeout, err=%d, ",
-                     info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
+            port_reset_rx(info_ptr);
+            info_ptr->recv_err = ERR_CONN;
             return ERR_CONN;
         }
-
         if (ret < 0) {
-            info_ptr->recv_err = ret;
-            return ret;
+            if ((errno == EINPROGRESS) || (errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                info_ptr->recv_err = ERR_TIMEOUT;
+                return ERR_TIMEOUT;
+            }
+            if ((errno == ENOTCONN) || (errno == ECONNRESET)) {
+                port_reset_rx(info_ptr);
+                info_ptr->recv_err = ERR_CONN;
+                return ERR_CONN;
+            }
+            ESP_LOGD(TAG, "Socket(#%d)(%s) receive error, ret=%d, errno=%d(%s)",
+                     info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                     (int)ret, (int)errno, strerror(errno));
+            port_reset_rx(info_ptr);
+            info_ptr->recv_err = ERR_IF;
+            return ERR_IF;
         }
 
-        if (ret != MB_TCP_UID) {
-            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), fail to read modbus header, err=%d",
-                     info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
-            info_ptr->recv_err = ERR_VAL;
-            return ERR_VAL;
+        info_ptr->rx_length += (uint16_t)ret;
+        if (info_ptr->rx_length < target_length) {
+            continue;
         }
 
-        temp = MB_TCP_MBAP_GET_FIELD(ptemp_buf, MB_TCP_PID);
-        if (temp != 0) {
+        if (!info_ptr->rx_expected_length) {
+            uint16_t protocol_id = MB_TCP_MBAP_GET_FIELD(info_ptr->rx_buffer, MB_TCP_PID);
+            uint16_t payload_length = MB_TCP_MBAP_GET_FIELD(info_ptr->rx_buffer, MB_TCP_LEN);
+            const uint16_t payload_max = (uint16_t)(MB_TCP_BUFF_MAX_SIZE - MB_TCP_UID);
+
+            const uint16_t payload_min = (uint16_t)(MB_TCP_FUNC - MB_TCP_UID + MB_PDU_SIZE_MIN);
+            if ((protocol_id != 0) || (payload_length < payload_min) || (payload_length > payload_max)) {
+                ESP_LOGD(TAG, "Invalid MBAP header: pid=%u, length=%u.",
+                         (unsigned)protocol_id, (unsigned)payload_length);
+                ESP_LOG_BUFFER_HEX_LEVEL(TAG, info_ptr->rx_buffer, MB_TCP_UID, ESP_LOG_DEBUG);
+                port_reset_rx(info_ptr);
+                info_ptr->recv_err = ERR_BUF;
+                return ERR_BUF;
+            }
+            info_ptr->rx_expected_length = MB_TCP_UID + payload_length;
+            continue;
+        }
+
+        uint16_t frame_length = info_ptr->rx_expected_length;
+        if (info_ptr->rx_buffer[MB_TCP_UID] > MB_ADDRESS_MAX) {
+            port_reset_rx(info_ptr);
             info_ptr->recv_err = ERR_BUF;
             return ERR_BUF;
         }
 
-        // If we have received the MBAP header we can analyze it and calculate
-        // the number of bytes left to complete the current response.
-        // Second chunk is stored from ptemp_buf[MB_TCP_UID], so temp must be
-        // <= (MB_TCP_BUFF_MAX_SIZE - MB_TCP_UID) to fit in ptemp_buf[].
-        temp = MB_TCP_MBAP_GET_FIELD(ptemp_buf, MB_TCP_LEN);
-        const uint16_t mbap_payload_max = (uint16_t)(MB_TCP_BUFF_MAX_SIZE - MB_TCP_UID);
-        if (temp > mbap_payload_max) {
-            ESP_LOGD(TAG, "Incorrect packet length: %u (max %u)", (unsigned)temp, (unsigned)mbap_payload_max);
-            ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_FUNC, ESP_LOG_DEBUG);
-            info_ptr->recv_err = ERR_BUF;
-            temp = mbap_payload_max; // read all remaining data from buffer
-        }
-        // Sequential frame read with minimal timeout to reduce delays
-        ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, MB_READ_TICK);
-        if (ret < 0) {
-            info_ptr->recv_err = ret;
-            return ret;
-        }
-
-        if ((ret < temp) || (ret < MB_PDU_SIZE_MIN)) {
-            info_ptr->recv_err = ERR_VAL;
-            return ERR_VAL;
-        }
-
-        if (ptemp_buf[MB_TCP_UID] > MB_ADDRESS_MAX) {
-            info_ptr->recv_err = ERR_BUF;
-            return ERR_BUF;
-        }
-
-        ret = port_enqueue_packet(info_ptr->rx_queue, ptemp_buf, temp + MB_TCP_UID);
-        if (ret < 0) {
-            info_ptr->recv_err = ret;
-            return ret;
+        int enqueue_result = port_enqueue_packet(info_ptr->rx_queue, info_ptr->rx_buffer, frame_length);
+        port_reset_rx(info_ptr);
+        if (enqueue_result < 0) {
+            info_ptr->recv_err = enqueue_result;
+            return enqueue_result;
         }
 
         info_ptr->recv_counter++;
-
         info_ptr->recv_err = ERR_OK;
-        return ret + MB_TCP_FUNC;
+        return frame_length;
     }
-    return -1;
 }
 
 err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
@@ -303,6 +271,16 @@ int mb_set_linger(int sock, int tout)
     res = setsockopt(sock, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
 #endif
     return res;
+}
+
+int port_tcp_set_no_delay(int sock)
+{
+    int enabled = 1;
+    int ret = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &enabled, sizeof(enabled));
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Sock %d, set TCP_NODELAY fail, errno=%d.", sock, (int)errno);
+    }
+    return ret;
 }
 
 int port_keep_alive_enable(int sock, int timeout_sec)
@@ -494,32 +472,58 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout)
 {
-    if (frame_len > MB_TCP_BUFF_MAX_SIZE) {
+    if (!info_ptr || !frame || (info_ptr->sock_id < 0) || !frame_len
+            || (frame_len > MB_TCP_BUFF_MAX_SIZE)) {
         ESP_LOGE(TAG, MB_NODE_FMT(", refuse send: length %u > max %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                 info_ptr ? info_ptr->index : UNDEF_FD,
+                 info_ptr ? info_ptr->sock_id : UNDEF_FD,
+                 (info_ptr && info_ptr->addr_info.ip_addr_str) ? info_ptr->addr_info.ip_addr_str : "NULL",
                  (unsigned)frame_len, MB_TCP_BUFF_MAX_SIZE);
-        return -1;
+        return ERR_ARG;
     }
-    // Check if the socket is alive (writable and SO_ERROR == 0)
-    int ret = (int)port_check_alive(info_ptr, timeout);
-    if ((ret < 0) && (ret != ERR_INPROGRESS)) {
-        ESP_LOGE(TAG, MB_NODE_FMT(", is not writable, error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-        return ret;
+
+    int64_t deadline_us = port_get_timestamp() + ((int64_t)timeout * 1000);
+    size_t sent_length = 0;
+    while (sent_length < frame_len) {
+        ssize_t ret = send(info_ptr->sock_id, &frame[sent_length], frame_len - sent_length, MSG_DONTWAIT);
+        if (ret > 0) {
+            sent_length += (size_t)ret;
+            continue;
+        }
+        if (ret == 0) {
+            info_ptr->error = ERR_CONN;
+            return ERR_CONN;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
+            ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
+                     info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
+                     (int)ret, (int)errno);
+            info_ptr->error = ERR_CONN;
+            return ERR_CONN;
+        }
+
+        int64_t remaining_us = deadline_us - port_get_timestamp();
+        if (remaining_us <= 0) {
+            info_ptr->error = ERR_TIMEOUT;
+            return ERR_TIMEOUT;
+        }
+        uint32_t remaining_ms = (uint32_t)((remaining_us + 999) / 1000);
+        err_t err = port_check_alive(info_ptr, remaining_ms);
+        if (err != ERR_OK) {
+            info_ptr->error = (err == ERR_INPROGRESS) ? ERR_TIMEOUT : err;
+            return info_ptr->error;
+        }
     }
-    ret = send(info_ptr->sock_id, frame, frame_len, TCP_NODELAY);
-    if (ret < 0) {
-        ESP_LOGE(TAG, MB_NODE_FMT(", send data error: %d, errno %d"),
-                 info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
-        info_ptr->error = ret;
-    } else {
-        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, ret, ESP_LOG_DEBUG);
-        info_ptr->error = 0;
-        info_ptr->send_time = port_get_timestamp();
-        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
-                                 ? (info_ptr->send_counter + 1) : 0;
-    }
-    return ret;
+
+    ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, frame_len, ESP_LOG_DEBUG);
+    info_ptr->error = ERR_OK;
+    info_ptr->send_time = port_get_timestamp();
+    info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
+                             ? (info_ptr->send_counter + 1) : 0;
+    return frame_len;
 }
 
 // Scan IP address according to IPV settings
