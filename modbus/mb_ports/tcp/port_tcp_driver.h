@@ -51,6 +51,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
 
 #define MB_WAIT_DONE_MS             (5000)
+#define MB_SELECT_ERROR_DELAY_MAX_MS (1000)
 #define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_EVENT_WAIT_MS)
 #define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
 #define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
@@ -96,11 +97,11 @@ typedef struct _port_driver port_driver_t;
 }                                                                                   \
 ))
 
-#define MB_ADD_FD(fd, max_fd, fdset) do {       \
-    if (fd) {                                   \
-        (max_fd = (fd > max_fd) ? fd : max_fd); \
-        FD_SET(fd, fdset);                      \
-    }                                           \
+#define MB_ADD_FD(fd, max_fd, fdset) do {                   \
+    if (((fd) >= 0) && ((fd) < FD_SETSIZE)) {               \
+        (max_fd = ((fd) > (max_fd)) ? (fd) : (max_fd));     \
+        FD_SET((fd), (fdset));                              \
+    }                                                       \
 } while(0)
 
 

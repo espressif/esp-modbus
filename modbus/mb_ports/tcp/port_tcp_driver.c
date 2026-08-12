@@ -483,24 +483,30 @@ mb_node_info_t *mb_drv_get_node_info_from_addr(void *ctx, uint8_t uid)
     return NULL;
 }
 
-static int mb_drv_register_fds(void *ctx, fd_set *fdset)
+static int mb_drv_register_fds(void *ctx, fd_set *readset, fd_set *errorset)
 {
     mb_node_info_t *node_ptr = NULL;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     // Setup select waiting for eventfd && socket events
-    FD_ZERO(fdset);
+    FD_ZERO(readset);
+    if (errorset) {
+        FD_ZERO(errorset);
+    }
     int max_fd = UNDEF_FD;
     // Add to the set all connected slaves
     for (int i = 0; i < MB_MAX_FDS; i++) {
         node_ptr = drv_obj->mb_nodes[i];
         if (node_ptr && node_ptr->sock_id && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
-            MB_ADD_FD(node_ptr->sock_id, max_fd, fdset);
+            MB_ADD_FD(node_ptr->sock_id, max_fd, readset);
+            if (errorset) {
+                MB_ADD_FD(node_ptr->sock_id, max_fd, errorset);
+            }
         }
     }
     // Add event fd events to the set to handle them in one select
-    MB_ADD_FD(drv_obj->event_fd, max_fd, fdset);
+    MB_ADD_FD(drv_obj->event_fd, max_fd, readset);
     // Add listen socket to handle incoming connections (for slave only)
-    MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, fdset);
+    MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, readset);
     return max_fd;
 }
 
@@ -519,10 +525,7 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
     tv.tv_usec = (time_ms - (tv.tv_sec * 1000)) * 1000;
 
     // fill the readset according to the active fds
-    int max_fd = mb_drv_register_fds(ctx, &readset);
-    if (perrset) {
-        *perrset = readset; // initialize error set if used
-    }
+    int max_fd = mb_drv_register_fds(ctx, &readset, perrset);
 
     ret = select(max_fd + 1, &readset, NULL, perrset, &tv);
     if (ret == 0) {
@@ -533,6 +536,33 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
     }
     *fdset = readset;
     return ret;
+}
+
+// Handle exceptional socket conditions reported by select(). Modbus TCP does
+// not use out-of-band data, so an exception means the connection is no longer
+// usable and must be passed through the normal driver error path.
+static void mb_drv_handle_fd_errors(void *ctx, fd_set *readset, fd_set *errorset)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    if (!errorset) {
+        return;
+    }
+
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+        if (node_ptr && (node_ptr->sock_id >= 0) && FD_ISSET(node_ptr->sock_id, errorset)) {
+            int sock_error = 0;
+            socklen_t opt_len = sizeof(sock_error);
+            if (getsockopt(node_ptr->sock_id, SOL_SOCKET, SO_ERROR, &sock_error, &opt_len) < 0) {
+                sock_error = errno;
+            }
+            FD_CLR(node_ptr->sock_id, readset);
+            ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", socket exception, errno=%d (%s)."),
+                     ctx, (int)node_ptr->fd, (int)node_ptr->sock_id,
+                     node_ptr->addr_info.ip_addr_str, sock_error, strerror(sock_error));
+            DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ERR_CONN);
+        }
+    }
 }
 
 esp_err_t mb_drv_start_task(void *ctx)
@@ -600,6 +630,8 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
 void mb_drv_tcp_task(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    TickType_t select_error_delay = 1;
+    const TickType_t select_error_delay_max = MAX(pdMS_TO_TICKS(MB_SELECT_ERROR_DELAY_MAX_MS), 1);
     ESP_LOGD(TAG, "Start of driver task.");
     while (1) {
         fd_set readset, errorset;
@@ -613,10 +645,19 @@ void mb_drv_tcp_task(void *ctx)
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
             // error occurred during waiting for vfds activation
-            ESP_LOGD(TAG, "%p, task select error.", ctx);
+            int select_errno = errno;
+            ESP_LOGE(TAG, "%p, task select error, errno=%d (%s), retry in %" PRIu32 " ticks.",
+                     ctx, select_errno, strerror(select_errno), (uint32_t)select_error_delay);
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
+            // A persistent descriptor error (for example EBADF) makes select()
+            // return immediately. Back off so this task cannot starve IDLE and
+            // trigger the task watchdog while the underlying fault is logged.
+            vTaskDelay(select_error_delay);
+            select_error_delay = MIN(select_error_delay * 2, select_error_delay_max);
         } else {
+            select_error_delay = 1;
+            mb_drv_handle_fd_errors(ctx, &readset, &errorset);
             // Is the fd event triggered, process the event
             if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
                 FD_CLR(drv_obj->event_fd, &readset);
