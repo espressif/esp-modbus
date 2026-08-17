@@ -42,6 +42,35 @@ static const event_msg_t event_msg_table[] = {
     MB_EVENT_TBL_IT(MB_EVENT_TIMEOUT),
 };
 
+static bool mb_drv_is_fatal_network_error(int error)
+{
+    switch (error) {
+    case ENOMEM:
+    case ENOBUFS:
+    case ENETDOWN:
+    case ENETUNREACH:
+    case EHOSTUNREACH:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void mb_drv_discard_accepted_node(int sock_id, mb_uid_info_t *addr_info)
+{
+    if (sock_id >= 0) {
+        mb_set_linger(sock_id, 0);
+        close(sock_id);
+    }
+    if (addr_info) {
+        if (addr_info->node_name_str != addr_info->ip_addr_str) {
+            free((void *)addr_info->ip_addr_str);
+        }
+        free((void *)addr_info->node_name_str);
+        memset(addr_info, 0, sizeof(*addr_info));
+    }
+}
+
 // The function to print event
 const char *driver_event_to_name_r(mb_driver_event_t event)
 {
@@ -284,56 +313,60 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
     int fd = UNDEF_FD;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *node_ptr = NULL;
-    // Find free fd and initialize
+
+    mb_drv_lock(ctx);
+    // Find a free virtual descriptor before allocating any node resources.
     for (fd = 0; fd < MB_MAX_FDS; fd++) {
-        node_ptr = drv_obj->mb_nodes[fd];
-        if (!node_ptr) {
-            node_ptr = calloc(1, sizeof(mb_node_info_t));
-            mb_drv_lock(ctx);
-            if (!node_ptr) {
-                goto err;
-            }
-            ESP_LOGD(TAG, "%p, open vfd: %d, sl_addr: %02x, node: %s:%u",
-                     ctx, fd, (int8_t)addr_info.uid,
-                     addr_info.ip_addr_str, (unsigned)addr_info.port);
-            if (init_queues(node_ptr) != ESP_OK) {
-                goto err;
-            }
-            if (drv_obj->mb_node_open_count > MB_MAX_FDS) {
-                ESP_LOGE(TAG, "Exceeded maximum node count: %d", drv_obj->mb_node_open_count);
-                goto err;
-            }
-            drv_obj->mb_node_open_count++;
-            node_ptr->index = fd;
-            node_ptr->fd = fd;
-            node_ptr->sock_id = addr_info.fd;
-            node_ptr->error = -1;
-            node_ptr->recv_err = -1;
-            node_ptr->addr_info = addr_info;
-            //node_ptr->addr_info.ip_addr_str = NULL;
-            node_ptr->addr_info.index = fd;
-            node_ptr->send_time = esp_timer_get_time();
-            node_ptr->recv_time = esp_timer_get_time();
-            node_ptr->tid_counter = 0;
-            node_ptr->send_counter = 0;
-            node_ptr->recv_counter = 0;
-            node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
-            drv_obj->mb_nodes[fd] = node_ptr;
-            // mark opened node in the open set
-            FD_SET(fd, &drv_obj->open_set);
-            mb_drv_unlock(ctx);
-            MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_OPENED);
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_OPEN, fd);
-            return fd;
+        if (!drv_obj->mb_nodes[fd]) {
+            break;
         }
     }
 
-err:
-    delete_queues(node_ptr);
-    free(node_ptr);
-    drv_obj->mb_nodes[fd] = NULL;
+    if ((fd >= MB_MAX_FDS) || (drv_obj->mb_node_open_count >= MB_MAX_FDS)) {
+        mb_drv_unlock(ctx);
+        errno = EMFILE;
+        return UNDEF_FD;
+    }
+
+    node_ptr = calloc(1, sizeof(mb_node_info_t));
+    if (!node_ptr) {
+        mb_drv_unlock(ctx);
+        errno = ENOMEM;
+        return UNDEF_FD;
+    }
+
+    ESP_LOGD(TAG, "%p, open vfd: %d, sl_addr: %02x, node: %s:%u",
+             ctx, fd, (int8_t)addr_info.uid,
+             addr_info.ip_addr_str, (unsigned)addr_info.port);
+    if (init_queues(node_ptr) != ESP_OK) {
+        delete_queues(node_ptr);
+        free(node_ptr);
+        mb_drv_unlock(ctx);
+        errno = ENOMEM;
+        return UNDEF_FD;
+    }
+
+    drv_obj->mb_node_open_count++;
+    node_ptr->index = fd;
+    node_ptr->fd = fd;
+    node_ptr->sock_id = addr_info.fd;
+    node_ptr->error = -1;
+    node_ptr->recv_err = -1;
+    node_ptr->addr_info = addr_info;
+    node_ptr->addr_info.index = fd;
+    node_ptr->send_time = esp_timer_get_time();
+    node_ptr->recv_time = esp_timer_get_time();
+    node_ptr->tid_counter = 0;
+    node_ptr->send_counter = 0;
+    node_ptr->recv_counter = 0;
+    node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
+    drv_obj->mb_nodes[fd] = node_ptr;
+    FD_SET(fd, &drv_obj->open_set);
     mb_drv_unlock(ctx);
-    return UNDEF_FD;
+
+    MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_OPENED);
+    DRIVER_SEND_EVENT(ctx, MB_EVENT_OPEN, fd);
+    return fd;
 }
 
 mb_node_info_t *mb_drv_get_node(void *ctx, int fd)
@@ -448,6 +481,19 @@ int mb_drv_close(void *ctx, int fd)
     mb_drv_unlock(ctx);
 
     return 0;
+}
+
+int mb_drv_close_all(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    int closed_count = 0;
+
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        if (drv_obj->mb_nodes[fd] && (mb_drv_close(drv_obj, fd) == 0)) {
+            closed_count++;
+        }
+    }
+    return closed_count;
 }
 
 mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fdset)
@@ -650,6 +696,21 @@ void mb_drv_tcp_task(void *ctx)
                      ctx, select_errno, strerror(select_errno), (uint32_t)select_error_delay);
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
+            // The TCP master owns persistent node descriptors which are used
+            // for reconnects. Only a slave instance may discard all accepted
+            // client nodes after a fatal network-stack error.
+            if (!drv_obj->is_master && mb_drv_is_fatal_network_error(select_errno)) {
+                int closed = mb_drv_close_all(ctx);
+                if (closed > 0) {
+                    ESP_LOGW(TAG, "%p, select failed with fatal network error %d; "
+                             "closed %d stale Modbus TCP client(s).",
+                             ctx, select_errno, closed);
+                    // Let the port layer discard transactions associated with
+                    // the nodes. The descriptors have already been released,
+                    // so this notification is safe even under heap pressure.
+                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, UNDEF_FD);
+                }
+            }
             // A persistent descriptor error (for example EBADF) makes select()
             // return immediately. Back off so this task cannot starve IDLE and
             // trigger the task watchdog while the underlying fault is logged.
@@ -672,24 +733,35 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if ((drv_obj->listen_sock_fd >= 0) && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
-                mb_uid_info_t node_info;
+                mb_uid_info_t node_info = {0};
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
-                if (sock_id) {
+                if (sock_id >= 0) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-                        mb_set_linger(sock_id, 0);
-                        close(sock_id);
+                        mb_drv_discard_accepted_node(sock_id, &node_info);
                     } else {
                         // Create new node info and open it
                         int fd = mb_drv_open(drv_obj, node_info, 0);
                         if (fd < 0) {
                             ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
+                            mb_drv_discard_accepted_node(sock_id, &node_info);
                         } else {
                             DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
+                        }
+                    }
+                } else {
+                    int accept_errno = errno;
+                    if (!drv_obj->is_master && mb_drv_is_fatal_network_error(accept_errno)) {
+                        int closed = mb_drv_close_all(ctx);
+                        if (closed > 0) {
+                            ESP_LOGW(TAG, "%p, accept failed with fatal network error %d; "
+                                     "closed %d stale Modbus TCP client(s).",
+                                     ctx, accept_errno, closed);
+                            DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, UNDEF_FD);
                         }
                     }
                 }

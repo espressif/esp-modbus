@@ -341,6 +341,17 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 
 int mb_drv_close(void *ctx, int fd);
 
+/**
+ * @brief Close and release every opened node owned by the driver.
+ *
+ * The listening socket and driver task are intentionally kept alive so a TCP
+ * slave can accept fresh clients after the network interface recovers.
+ *
+ * @param ctx pointer to the driver context
+ * @return number of nodes that were closed
+ */
+int mb_drv_close_all(void *ctx);
+
 int32_t write_event(void *ctx, mb_event_info_t *event);
 
 const char *driver_event_to_name_r(mb_driver_event_t event);
