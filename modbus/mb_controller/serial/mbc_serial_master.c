@@ -314,10 +314,13 @@ static esp_err_t mbc_serial_master_set_request(void *ctx, uint16_t cid, mb_param
     const mb_parameter_descriptor_t *reg_ptr = mbm_opts->param_descriptor_table;
     reg_ptr += cid;
     if (reg_ptr->cid == cid) {
-        request->slave_addr = reg_ptr->mb_slave_addr;
-        request->reg_start = reg_ptr->mb_reg_start;
-        request->reg_size = reg_ptr->mb_size;
-        request->command = mbc_master_get_command(reg_ptr, mode);
+        // Assign the whole request so unused fields (FC 0x17 write range) are defined.
+        *request = (mb_param_request_t) {
+            .slave_addr = reg_ptr->mb_slave_addr,
+            .reg_start = reg_ptr->mb_reg_start,
+            .reg_size = reg_ptr->mb_size,
+            .command = mbc_master_get_command(reg_ptr, mode),
+        };
         MB_RETURN_ON_FALSE((request->command > 0), ESP_ERR_INVALID_ARG, TAG, "mb incorrect command or parameter type.");
         if (reg_data) {
             *reg_data = *reg_ptr; // Set the cid registered parameter data
@@ -334,7 +337,7 @@ static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid, uint8_
     MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     mbm_controller_iface_t *mbm_controller_iface = MB_MASTER_GET_IFACE(ctx);
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request ;
+    mb_param_request_t request = { 0 };
     mb_parameter_descriptor_t reg_info = { 0 };
     uint8_t *data_ptr = NULL;
 
@@ -381,7 +384,7 @@ static esp_err_t mbc_serial_master_get_parameter_with(void *ctx, uint16_t cid, u
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
     MB_RETURN_ON_FALSE((value_ptr), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request;
+    mb_param_request_t request = { 0 };
     mb_parameter_descriptor_t reg_info = {0};
     uint8_t *data_ptr = NULL;
 
@@ -434,7 +437,7 @@ static esp_err_t mbc_serial_master_set_parameter(void *ctx, uint16_t cid, uint8_
     MB_RETURN_ON_FALSE((value), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request ;
+    mb_param_request_t request = { 0 };
     mb_parameter_descriptor_t reg_info = { 0 };
     uint8_t *data_ptr = NULL;
 
@@ -480,7 +483,7 @@ static esp_err_t mbc_serial_master_set_parameter_with(void *ctx, uint16_t cid, u
     MB_RETURN_ON_FALSE((value_ptr), ESP_ERR_INVALID_ARG, TAG, "value pointer is incorrect.");
     MB_RETURN_ON_FALSE((type), ESP_ERR_INVALID_ARG, TAG, "type pointer is incorrect.");
     esp_err_t error = ESP_ERR_INVALID_RESPONSE;
-    mb_param_request_t request;
+    mb_param_request_t request = { 0 };
     mb_parameter_descriptor_t reg_info = {0};
     uint8_t *data_ptr = NULL;
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
