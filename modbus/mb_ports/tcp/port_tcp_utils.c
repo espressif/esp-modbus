@@ -221,7 +221,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
         }
 
         if (ret != MB_TCP_UID) {
-            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), fail to read modbus header, err=%d",
+            ESP_LOGD(TAG, "node #%d, Socket (#%d)(%s), fail to read modbus header, ret=%d",
                      info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret);
             info_ptr->recv_err = ERR_VAL;
             return ERR_VAL;
@@ -229,6 +229,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
 
         temp = MB_TCP_MBAP_GET_FIELD(ptemp_buf, MB_TCP_PID);
         if (temp != 0) {
+            ESP_LOGD(TAG, "Incorrect packet PID: %u", (unsigned)temp);
             info_ptr->recv_err = ERR_BUF;
             return ERR_BUF;
         }
@@ -245,19 +246,25 @@ int port_read_packet(mb_node_info_t *info_ptr)
             info_ptr->recv_err = ERR_BUF;
             temp = mbap_payload_max; // read all remaining data from buffer
         }
+
         // Sequential frame read with minimal timeout to reduce delays
         ret = port_get_buf(info_ptr, &ptemp_buf[MB_TCP_UID], temp, MB_READ_TICK);
         if (ret < 0) {
             info_ptr->recv_err = ret;
+            ESP_LOGD(TAG, "Could not read: %u", ret);
             return ret;
         }
 
-        if ((ret < temp) || (ret < MB_PDU_SIZE_MIN)) {
+        if ((ret != temp) || (ret <= MB_PDU_SIZE_MIN)) {
             info_ptr->recv_err = ERR_VAL;
+            ESP_LOGD(TAG, "Incorrect length: %u", ret);
+            ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_UID + ret, ESP_LOG_DEBUG);
             return ERR_VAL;
         }
 
         if (ptemp_buf[MB_TCP_UID] > MB_ADDRESS_MAX) {
+            ESP_LOGE(TAG, "Incorrect packet UID: %x", (int)ptemp_buf[MB_TCP_UID]);
+            ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_FUNC, ESP_LOG_DEBUG);
             info_ptr->recv_err = ERR_BUF;
             return ERR_BUF;
         }
@@ -268,6 +275,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
             return ret;
         }
 
+        ESP_LOG_BUFFER_HEX_LEVEL("READ", ptemp_buf, temp + MB_TCP_UID, ESP_LOG_DEBUG);
         info_ptr->recv_counter++;
 
         info_ptr->recv_err = ERR_OK;

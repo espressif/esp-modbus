@@ -9,6 +9,11 @@ Library    Collections
 Library    ModbusMasterLib.py    WITH NAME    ModbusMasterLib
 
 *** Keywords ***
+Create Raw Frame Request
+    [Arguments]    ${protoId}    ${length}    ${uid}    ${customData}    ${validate}=${True}
+    ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=${protoId}, len=${length})/ModbusPDUXX_Custom_Request(customBytes=${customData})    ${validate}
+    RETURN    ${packet}
+
 Create Custom Command Request
     [Arguments]    ${uid}    ${customData}
     ${packet} =    Create Request    ModbusADU_Request(unitId=${uid}, protoId=0)/ModbusPDUXX_Custom_Request(customBytes=${customData})
@@ -71,6 +76,56 @@ Lists Should Be Equal
         ${exp_item} =    Get From List    ${exp_list}    ${i}
         Should Be Equal As Integers    ${get_item}    ${exp_item}
     END
+
+Raw Frame
+    [Arguments]    ${protoId}    ${length}    ${uid}    ${customData}    ${exception_expected}    ${expected_list}
+    ${classId} =    Get Class Id
+    Log    Library ClassId: ${classId}
+    Log    Send raw frame request:${uid}, Custom bytes: ${customData}
+    ${req} =    Create Raw Frame Request    ${protoId}    ${length}    ${uid}    ${customData}
+    #Create Connection    ${server}    ${port}
+    ${response_frame} =    Send Packet And Get Response    ${req}
+    Should Not Be Empty    ${response_frame}
+    ${packet} =    Translate Response    ${response_frame}
+    Should Be Equal As Integers    ${req.transId}    ${packet.transId}
+    ${exception}    ${exp_message} =    Check Response    ${packet}    ${req.customBytes[0]}
+    Should Be Equal As Integers    ${exception}    ${exception_expected}
+    Log    exception: (${exception}: ${exp_message}), expected: ${exception_expected}
+    IF    ${exception} == ${0}
+        ${custom_pkt}    ${pdu_raw} =    Convert To Custom Command    ${packet}
+        Log    SlaveUID:${uid}, Custom_data received:${custom_pkt.customBytes}
+        IF    ${expected_list} != ${None}
+            Log    ${expected_list}
+            Log    ${custom_pkt.customBytes}
+            ${get_list} =    Convert To List    ${custom_pkt.customBytes}
+            ${exp_list} =    Evaluate    ${expected_list}
+            Lists Should Be Equal    ${get_list}    ${exp_list}
+        ELSE
+            Log    "Skip comparison with expected list"
+        END
+    ELSE
+        Log    "Exception is evaluated correctly (${exception}: ${exp_message}) == ${exception_expected}"
+    END
+
+Malformed Frame Should Disconnect
+    [Documentation]    Send a deliberately malformed MBAP frame (bad Protocol
+    ...    ID, bad declared length or out-of-range UID) and verify the slave
+    ...    (bbp572 fix) drops the offending connection instead of leaving it
+    ...    open, then verify the slave still accepts a brand new connection
+    ...    and answers a normal request correctly (i.e. the connection slot
+    ...    was actually freed, not just this client left hanging).
+    [Arguments]    ${protoId}    ${length}    ${uid}    ${customData}    ${validate}=${True}
+    ${classId} =    Get Class Id
+    Log    Library ClassId: ${classId}
+    Log    Send malformed frame (protoId=${protoId}, length=${length}, uid=${uid}, data=${customData}) and expect the slave to drop the connection (bbp572).
+    ${req} =    Create Raw Frame Request    ${protoId}    ${length}    ${uid}    ${customData}    ${validate}
+    ${response_frame} =    Send Packet    ${req}    timeout=1    verbose=1
+    Should Not Be True    ${response_frame}    msg=Slave answered a malformed MBAP frame instead of dropping the connection.
+    ${disconnected} =    Wait For Disconnect    timeout=3
+    Should Be True    ${disconnected}    msg=Slave did not close the connection after a malformed MBAP frame (bbp572 regression).
+    Disconnect
+    Create Connection    ${MODBUS_DEF_IP}    ${MODBUS_DEF_PORT}
+    Read Holding Registers    0x01    0x0000    0x0002    0
 
 Custom Command
     [Arguments]    ${uid}    ${customData}    ${exception_expected}    ${expected_list}

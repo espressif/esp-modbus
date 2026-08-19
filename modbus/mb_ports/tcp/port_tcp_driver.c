@@ -678,6 +678,7 @@ void mb_drv_tcp_task(void *ctx)
                         drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_FAIL);
                         ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame error."), ctx, (int)node_ptr->fd,
                                  (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ret);
                     } else {
                         if (ret == ERR_CONN) {
                             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", connection lost."), ctx, (int)node_ptr->fd,

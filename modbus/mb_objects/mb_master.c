@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -105,6 +105,12 @@ static mb_exception_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_cod
         return MB_EX_ILLEGAL_FUNCTION;
     }
     if (func_code & MB_FUNC_ERROR) {
+        if (!len || (*len <= MB_PDU_DATA_OFF)) {
+            ESP_LOGE(TAG,
+                     "Invalid truncated exception PDU, length=%u",
+                     len ? (unsigned)*len : 0U);
+            return MB_EX_ILLEGAL_DATA_VALUE;
+        }
         exception = (mb_exception_t)buf[MB_PDU_DATA_OFF];
         return exception;
     }
