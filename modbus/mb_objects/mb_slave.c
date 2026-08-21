@@ -88,6 +88,14 @@ mb_err_enum_t mbs_get_handler_count(mb_base_t *inst, uint16_t *count)
     return MB_ENOERR;
 }
 
+mb_err_enum_t mbs_get_request_uid(mb_base_t *inst, uint8_t *uid)
+{
+    MB_RETURN_ON_FALSE((uid && inst), MB_EINVAL, TAG, "get request uid wrong arguments");
+    mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
+    *uid = mbs_obj->rcv_addr;
+    return MB_ENOERR;
+}
+
 static mb_exception_t mbs_check_invoke_handler(mb_base_t *inst, uint8_t func_code, uint8_t *buf, uint16_t *len)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
@@ -394,7 +402,7 @@ mb_err_enum_t mbs_enable(mb_base_t *inst)
             status = MB_EILLSTATE;
         }
     }
-    if (!mbs_obj->mb_address) {
+    if (!mbs_obj->mb_address && (mbs_obj->cur_mode != MB_TCP)) {
         ESP_LOGD(TAG, "incorrect slave address in %p object.", (void *)mbs_obj);
         status = MB_EINVAL;
     }
@@ -476,8 +484,9 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
             // Check if the frame is for us. If not ,send an error process event.
             if (status == MB_ENOERR) {
                 // Check if the frame is for us. If not ignore the frame.
+                const bool tcp_uid_wildcard = (mbs_obj->cur_mode == MB_TCP) && (mbs_obj->mb_address == MB_ADDRESS_BROADCAST);
                 if ((mbs_obj->rcv_addr == mbs_obj->mb_address) || (mbs_obj->rcv_addr == MB_ADDRESS_BROADCAST)
-                        || (mbs_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS)) {
+                        || (mbs_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS) || tcp_uid_wildcard) {
                     mbs_obj->curr_trans_id = event.get_ts;
                     (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE | EV_TRANS_START));
                     MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",

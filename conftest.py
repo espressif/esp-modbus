@@ -55,6 +55,7 @@ PARAM_FAIL = "fail"
 ## Getter tags for readability
 MASTER_TAG = "master"
 SLAVE_TAG = "slave"
+GATEWAY_TAG = "gateway"
 
 DEFAULT_SDKCONFIG = "default"
 ALLOWED_PERCENT_OF_FAILS = 10
@@ -213,7 +214,7 @@ class ModbusTestDut(IdfDut):
     TEST_START_PROMPT = r"I\s\(([0-9]+)\) mb_console: (Start modbus instances)"
     TEST_IP_PROMPT = r"Waiting IP\(([0-9]{1,2})\) from stdin:"
     TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
-    TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
+    TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z0-9]*)"
 
     TEST_EXPECT_STR_TIMEOUT = 120
     TEST_PROMPT_TOUT = 10
@@ -246,32 +247,44 @@ class ModbusTestDut(IdfDut):
     def check_mb_objects_list(self) -> None:
         """Method to check if mb_objects list is not empty"""
         if not self.mb_objects:
-            self.logger.error("list of modbus objects in DUT couldn't be retrieved")
+            self.logger.error(
+                f"List of modbus objects in DUT({self.app_name}) couldn't be retrieved"
+            )
             raise RuntimeError from None
 
         for objects in self.mb_objects:
             if objects is None:
-                self.logger.error("list of modbus objects in DUT is wrongly populated")
+                self.logger.error(
+                    f"List of modbus objects in DUT({self.app_name}) is wrongly populated"
+                )
                 raise RuntimeError from None
 
         return None
 
     def validate_object_creation_tag(self, parsed_obj_tag: str) -> str:
         """Function checking and updating object creation tag master/slave if wrong"""
+        TEST_DUT_TAG_PATTERNS = (MASTER_TAG, SLAVE_TAG, GATEWAY_TAG, "mbs", "mbm")
+
         if self.app_name is None:
-            self.logger.error("app_name not initialized; cannot validate object tag")
+            self.logger.error("App_name not initialized; cannot validate object tag")
             raise RuntimeError from None
 
-        if MASTER_TAG in parsed_obj_tag or SLAVE_TAG in parsed_obj_tag:
+        print(f"Object tag: {parsed_obj_tag}")
+
+        if parsed_obj_tag and any(
+            tag in parsed_obj_tag.lower() for tag in TEST_DUT_TAG_PATTERNS
+        ):
             return parsed_obj_tag
 
-        # Workaround to get master/slave tag from DUT class
+        # Workaround to extract the expected tag from DUT class
         # Checking if app_name contains the  field. Ex: modbus_tcp_master
         obj_tag: str = ""
         if MASTER_TAG in self.app_name.lower():
             obj_tag = MASTER_TAG
         elif SLAVE_TAG in self.app_name.lower():
             obj_tag = SLAVE_TAG
+        elif GATEWAY_TAG in self.app_name.lower():
+            obj_tag = GATEWAY_TAG
         else:
             self.logger.error("Could not determine master/slave tag from app_name")
             raise RuntimeError from None
@@ -554,7 +567,7 @@ class ModbusTestDut(IdfDut):
         if (
             all(all_success_params) is False or not all_success_params
         ):  # Checking only success parameters. Slaves dont have fail parameters, they return a zero list.
-            self.logger.error("success parameters couldn't be retrieved to plot graph")
+            self.logger.error("Success parameters couldn't be retrieved to plot graph")
             raise RuntimeError from None
         else:
             return ModbusDutStats(all_success_params, all_fail_params)
