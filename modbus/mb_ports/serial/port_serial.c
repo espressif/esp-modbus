@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -155,8 +155,7 @@ static void mb_port_ser_task(void *p_args)
                 if (event.timeout_flag) {
                     // If bus is busy or fragmented data is received, then flush buffer
                     if (mb_port_ser_bus_sema_is_busy(&port_obj->base) && port_obj->base.descr.is_master) {
-                        mb_port_ser_rx_flush(&port_obj->base);
-                        break;
+                        ESP_LOGD(TAG, "%s, Fragmented data is detected", port_obj->base.descr.parent_name);
                     }
                     uart_get_buffered_data_len(port_obj->ser_opts.port, (unsigned int *)&event.size);
                     port_obj->recv_length = (event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE;

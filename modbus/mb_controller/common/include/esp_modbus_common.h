@@ -263,6 +263,23 @@ esp_err_t mbc_delete_handler(void *ctx, uint8_t func_code);
 */
 esp_err_t mbc_get_handler_count(void *ctx, uint16_t *count);
 
+/**
+ * @brief Get the Modbus slave UID from the request currently being processed.
+ *
+ * This helper is intended for slave custom function handlers. For Modbus TCP
+ * slaves it returns the MBAP Unit Identifier from the active request. For
+ * serial slaves it returns the request destination address.
+ *
+ * @param[in] ctx context pointer to the slave controller object
+ * @param[out] uid pointer to the returned request UID
+ *
+ * @return
+ *     - esp_err_t ESP_OK - UID returned successfully
+ *     - esp_err_t ESP_ERR_INVALID_ARG - invalid argument
+ *     - esp_err_t ESP_ERR_INVALID_STATE - context is not a slave controller
+ */
+esp_err_t mbc_slave_get_request_uid(void *ctx, uint8_t *uid);
+
 #ifdef __cplusplus
 }
 #endif
