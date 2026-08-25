@@ -9,9 +9,10 @@
 
 void app_main(void)
 {
-    esp_log_level_set("mbc_tcp.slave", ESP_LOG_DEBUG);
     esp_log_level_set("mbc_serial.slave", ESP_LOG_DEBUG);
     esp_log_level_set("mb_object.slave", ESP_LOG_DEBUG);
+    esp_log_level_set("mbc_serial.master", ESP_LOG_DEBUG);
+    esp_log_level_set("mb_object.master", ESP_LOG_DEBUG);
     // Disable VFS logs as they are too verbose
     esp_log_level_set("vfs_calls", ESP_LOG_NONE);
     printf("Modbus RS485 multi-device test cases/n");

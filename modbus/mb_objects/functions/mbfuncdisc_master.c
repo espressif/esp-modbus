@@ -71,7 +71,7 @@ mb_err_enum_t mbm_rq_read_discrete_inputs(mb_base_t *inst, uint8_t snd_addr, uin
         return MB_EINVAL;
     }
 
-    /* The broadcast discrete read request is nt supported. */
+    /* The broadcast discrete read request is not supported. */
     if (!snd_addr) {
         return MB_ENOREG;
     }
@@ -111,7 +111,7 @@ mb_exception_t mbm_fn_read_discrete_inputs(mb_base_t *inst, uint8_t *frame_ptr, 
     }
 
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_ILLEGAL_DATA_ADDRESS;
+        status = MB_EX_NEGATIVE_ACK;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8);

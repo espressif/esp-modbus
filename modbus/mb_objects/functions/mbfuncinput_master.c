@@ -113,7 +113,7 @@ mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t
     }
 
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_ILLEGAL_DATA_ADDRESS;
+        status = MB_EX_NEGATIVE_ACK;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
 

@@ -8,23 +8,23 @@ menu "Modbus Test Configuration"
             port adapter layer to allow testing of higher layers without access to physical layer.
 
     config MB_TEST_SLAVE_TASK_PRIO
-        int "Modbus master test task priority"
-        range 4 23
-        default 4
-        help
-            Modbus master task priority for the test.
-
-    config MB_TEST_MASTER_TASK_PRIO
         int "Modbus slave test task priority"
         range 4 23
         default 4
         help
             Modbus slave task priority for the test.
 
+    config MB_TEST_MASTER_TASK_PRIO
+        int "Modbus master test task priority"
+        range 4 23
+        default 4
+        help
+            Modbus master task priority for the test.
+
     config MB_TEST_COMM_CYCLE_COUNTER
         int "Modbus test communication cycle counter"
-        range 10 1000
-        default 10
+        range 1 1000
+        default 1
         help
             Modbus communication cycle counter for test.
 

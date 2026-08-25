@@ -306,7 +306,7 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_ILLEGAL_DATA_ADDRESS;
+        status = MB_EX_NEGATIVE_ACK;
     } else if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN)) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8);
@@ -411,9 +411,7 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
     }
 
     /* If this request is broadcast, do not check the length */
-    if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN)
-            || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-
+    if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN)) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_rd_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF] << 8);
         reg_rd_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF + 1]);
@@ -438,7 +436,7 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
 
             if (reg_status == MB_ENOERR) {
                 /* Make the read callback. */
-                if (inst->rw_cbs.reg_holding_cb) {
+                if (inst->rw_cbs.reg_holding_cb && !inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
                     reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_READWRITE_READ_VALUES_OFF],
                                  reg_rd_address, reg_rd_cnt, MB_REG_READ);
                 }

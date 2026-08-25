@@ -39,7 +39,7 @@
 // The workaround to statically link the whole test library
 __attribute__((unused)) bool mb_test_include_bcast_serial = true;
 
-#define TAG "MODBUS_SERIAL_COMM_TEST"
+#define TAG "MODBUS_SERIAL_BROADCAST_TEST"
 
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
 
@@ -71,6 +71,88 @@ static const mb_parameter_descriptor_t descriptors[] = {
 
 // The number of parameters in the table
 const uint16_t num_descriptors = (sizeof(descriptors) / sizeof(descriptors[0]));
+
+/**
+ * @brief Helper sends broadcast request through the legacy public master API and checks the mapped error.
+ */
+static void test_send_broadcast_request(void *handle, uint8_t command, uint16_t reg_start,
+                                        uint16_t reg_size, uint16_t wr_reg_start, uint16_t wr_reg_size,
+                                        void *data_ptr, esp_err_t expected_err)
+{
+    mb_param_request_t req = {
+        .slave_addr = 0,
+        .command = command,
+        .reg_start = reg_start,
+        .reg_size = reg_size,
+        .wr_rd_multi_reg_func = {
+            .wr_reg_start = wr_reg_start,
+            .wr_reg_size = wr_reg_size,
+        }
+    };
+
+    ESP_LOGW(TAG, "Send broadcast command 0x%02x: start=%u size=%u wr_start=%u wr_size=%u, expect %s",
+             command, (unsigned)reg_start, (unsigned)reg_size,
+             (unsigned)wr_reg_start, (unsigned)wr_reg_size, esp_err_to_name(expected_err));
+
+    esp_err_t err = mbc_master_send_request(handle, &req, data_ptr);
+    if (err != expected_err) {
+        ESP_LOGE(TAG, "Broadcast command 0x%02x returned %s, expected %s",
+                 command, esp_err_to_name(err), esp_err_to_name(expected_err));
+    }
+    TEST_ESP_ERR(expected_err, err);
+}
+
+/**
+ * @brief Command specific test for broadcast requests
+ *
+ * Read function codes are rejected in the request builder with MB_ENOREG, which
+ * `mbc_master_send_request()` maps to ESP_ERR_NOT_SUPPORTED.
+ * Write function codes are accepted for broadcast: the master waits the convert delay and
+ * does not expect a slave response, so ESP_OK is the success path.
+ * FC 0x17 is a mixed read/write command; the stack still sends it as broadcast
+ * but cannot parse a read response, so ESP_ERR_INVALID_RESPONSE is expected.
+ */
+static void test_check_master_specific_requests(TaskHandle_t master_task_handle)
+{
+    void *handle = test_common_task_get_instance(master_task_handle);
+    uint16_t reg = 0;
+    uint8_t type = 0;
+
+    esp_err_t err = mbc_master_get_parameter(handle, CID_DEV_REG0, (uint8_t *)&reg, &type);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Send broadcast read holding request fail, err = 0x%x (expected).", (int)err);
+    }
+    TEST_ESP_ERR(ESP_ERR_NOT_SUPPORTED, err); // Broadcast read request is not supported
+
+    uint16_t command_data[] = { TEST_REG_VAL1, TEST_REG_VAL2, TEST_REG_VAL3, TEST_REG_VAL4 };
+    uint16_t coil_on = 0xFF00;
+    const uint16_t reg_count = (uint16_t)(sizeof(command_data) / sizeof(command_data[0]));
+    const uint16_t coil_count = (uint16_t)(sizeof(command_data) * 8);
+
+    // Verify standard handlers
+    test_send_broadcast_request(handle, MB_FUNC_READ_COILS, 0, coil_count, 0, 0,
+                                command_data, ESP_ERR_NOT_SUPPORTED);
+    test_send_broadcast_request(handle, MB_FUNC_READ_DISCRETE_INPUTS, 0, coil_count, 0, 0,
+                                command_data, ESP_ERR_NOT_SUPPORTED);
+    test_send_broadcast_request(handle, MB_FUNC_READ_HOLDING_REGISTER, 0, reg_count, 0, 0,
+                                command_data, ESP_ERR_NOT_SUPPORTED);
+    test_send_broadcast_request(handle, MB_FUNC_READ_INPUT_REGISTER, 0, reg_count, 0, 0,
+                                command_data, ESP_ERR_NOT_SUPPORTED);
+    test_send_broadcast_request(handle, MB_FUNC_WRITE_SINGLE_COIL, 0, 1, 0, 0,
+                                &coil_on, ESP_OK);
+    test_send_broadcast_request(handle, MB_FUNC_WRITE_REGISTER, 0, 1, 0, 0,
+                                command_data, ESP_OK);
+    test_send_broadcast_request(handle, MB_FUNC_WRITE_MULTIPLE_COILS, 0, coil_count, 0, 0,
+                                command_data, ESP_OK);
+    test_send_broadcast_request(handle, MB_FUNC_WRITE_MULTIPLE_REGISTERS, 0, reg_count, 0, 0,
+                                command_data, ESP_OK);
+    test_send_broadcast_request(handle, MB_FUNC_READWRITE_MULTIPLE_REGISTERS, 0, reg_count, 0, reg_count,
+                                command_data, ESP_ERR_INVALID_RESPONSE);
+#if CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT
+    test_send_broadcast_request(handle, MB_FUNC_OTHER_REPORT_SLAVEID, 0, 1, 0, 0,
+                                command_data, ESP_ERR_INVALID_RESPONSE);
+#endif
+}
 
 static void test_modbus_rs485_rtu_slave(void)
 {
@@ -126,11 +208,15 @@ static void test_modbus_rs485_rtu_master(void)
     TEST_ESP_OK(uart_set_mode(master_config.ser_opts.port, UART_MODE_RS485_HALF_DUPLEX));
     TEST_ESP_OK(uart_set_pin(master_config.ser_opts.port, TEST_SER_PIN_TX,
                              TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
-    void *handle = test_common_task_get_instance(master_task_handle);
-    uint16_t reg = 0;
-    uint8_t type = 0;
-    esp_err_t err = mbc_master_get_parameter(handle, CID_DEV_REG0, (uint8_t *)&reg, &type);
-    TEST_ESP_ERR(ESP_ERR_NOT_SUPPORTED, err); // Broadcast read request is not supported
+
+    /* Command specific test for broadcast requests */
+    test_check_master_specific_requests(master_task_handle);
+
+    /* The regular API test for broadcast requests:
+     * sends broadcast 0x10 - Write multiple holding registers command,
+     * then reads directly from slave with its UID,
+     * and verifies the actual values of holding registers with expected ones.
+     */
     test_common_task_start(master_task_handle, 1);
 
     TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
@@ -197,6 +283,10 @@ static void test_modbus_rs485_ascii_master(void)
                              TEST_SER_PIN_RX, TEST_SER_PIN_RTS, UART_PIN_NO_CHANGE));
     unity_send_signal("Master_started");
 
+    /* Test for specific requests */
+    test_check_master_specific_requests(master_task_handle);
+
+    /* Test for regular API requests */
     test_common_task_start(master_task_handle, 1);
     TEST_ASSERT_TRUE(test_common_task_wait_done(master_task_handle, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
 }
