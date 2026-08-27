@@ -92,22 +92,29 @@ static bool mb_port_ser_bus_sema_is_busy(mb_port_base_t *inst)
     return status;
 }
 
-static void mb_port_ser_rx_flush(mb_port_base_t *inst)
+static bool mb_port_ser_rx_flush(mb_port_base_t *inst)
 {
+    MB_RETURN_ON_FALSE(inst, false, TAG, "incorrect serial port object.");
     size_t size = 1;
     esp_err_t err = ESP_OK;
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
     for (int cnt = 0; (cnt < MB_SERIAL_RX_FLUSH_RETRY) && size; cnt++) {
         err = uart_get_buffered_data_len(port_obj->ser_opts.port, &size);
-        MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+        MB_RETURN_ON_FALSE((err == ESP_OK), false, TAG,
                            "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
         BaseType_t status = xQueueReset(port_obj->uart_queue);
         if (status) {
             err = uart_flush_input(port_obj->ser_opts.port);
-            MB_RETURN_ON_FALSE((err == ESP_OK), ;, TAG,
+            MB_RETURN_ON_FALSE((err == ESP_OK), false, TAG,
                                "%s, mb flush serial fail, error = 0x%x.", inst->descr.parent_name, (int)err);
         }
     }
+    return true;
+}
+
+bool mb_port_flush_rx(mb_port_base_t *inst)
+{
+    return mb_port_ser_rx_flush(inst);
 }
 
 void mb_port_ser_enable(mb_port_base_t *inst)
@@ -153,7 +160,7 @@ static void mb_port_ser_task(void *p_args)
                 // This flag set in the event means that no more
                 // data received during configured timeout and UART TOUT feature is triggered
                 if (event.timeout_flag) {
-                    // If bus is busy or fragmented data is received, then flush buffer
+                    // If bus is busy or fragmented data is received, just warn here
                     if (mb_port_ser_bus_sema_is_busy(&port_obj->base) && port_obj->base.descr.is_master) {
                         ESP_LOGD(TAG, "%s, Fragmented data is detected", port_obj->base.descr.parent_name);
                     }

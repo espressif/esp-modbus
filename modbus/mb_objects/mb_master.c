@@ -14,6 +14,8 @@
 #include "rtu_transport.h"
 #include "tcp_transport.h"
 
+#include "esp_timer.h"
+
 static const char *TAG = "mb_object.master";
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED)
@@ -39,6 +41,8 @@ typedef struct {
     uint8_t master_dst_addr;
     uint64_t curr_trans_id;
     handler_descriptor_t handler_descriptor;
+    uint64_t cooldown_until_us;
+    bool last_request_timed_out;
 } mbm_object_t;
 
 mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
@@ -519,6 +523,24 @@ void mbm_error_cb_request_success(mb_base_t *inst, uint8_t dest_address, const u
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
+static void mbm_apply_timeout_cooldown(mb_base_t *inst, mbm_object_t *mbm_obj)
+{
+#if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
+    if (!mbm_obj->last_request_timed_out ||
+            !((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
+        return;
+    }
+    const uint64_t now_us = esp_timer_get_time();
+    if (mbm_obj->cooldown_until_us > now_us) {
+        const uint64_t delay_us = mbm_obj->cooldown_until_us - now_us;
+        ESP_LOGD(TAG, "Master apply cooldown time...");
+        vTaskDelay(pdMS_TO_TICKS((uint32_t)((delay_us + 999) / 1000)));
+    }
+    // Cooldown is applied, reset buffer will be performed in port send.
+    mbm_obj->last_request_timed_out = false;
+#endif
+}
+
 mb_err_enum_t mbm_poll(mb_base_t *inst)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
@@ -545,6 +567,9 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
 
         case EV_FRAME_TRANSMIT:
             mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
+
+            mbm_apply_timeout_cooldown(inst, mbm_obj);
+
             MB_PRT_BUF(inst->descr.parent_name, ":MB_TRANSMIT",
                        mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_DEBUG);
             status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbm_obj->master_dst_addr,
@@ -651,6 +676,12 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
             mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
             switch (error_type) {
             case EV_ERROR_RESPOND_TIMEOUT:
+                mbm_obj->last_request_timed_out = true;
+                if (((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII)) &&
+                        CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS > 0) {
+                    mbm_obj->cooldown_until_us =
+                        esp_timer_get_time() + ((uint64_t)CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS * 1000);
+                }
                 mbm_error_cb_respond_timeout(inst, mbm_obj->master_dst_addr,
                                              mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;
@@ -663,6 +694,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                                               mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;
             case EV_ERROR_OK:
+                mbm_obj->last_request_timed_out = false;
+                mbm_obj->cooldown_until_us = 0;
                 mbm_error_cb_request_success(inst, mbm_obj->master_dst_addr,
                                              mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;

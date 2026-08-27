@@ -129,6 +129,15 @@ menu "Modbus configuration"
                 This API blocking time was intentionally separated from master timeout = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
                 to prevent possible misconfiguration and the value must be higher than the master timeout.
 
+    config FMB_MASTER_TIMEOUT_COOLDOWN_MS
+        int "Modbus master cooldown time after response timeout (ms)"
+        range 0 30000
+        default 150
+        help
+            This parameter adds an extra configurable delay before the next master request after a response timeout.
+            This is useful for serial RTU/ASCII devices that may respond after the configured response timeout,
+            causing stale frames to race with the next request. Set this parameter to 0 for disabling cooldown feature.
+
     config FMB_MASTER_DELAY_MS_CONVERT
         int "Slave conversion delay (Milliseconds)"
         default 200
