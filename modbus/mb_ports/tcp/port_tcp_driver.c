@@ -630,13 +630,13 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && MB_FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if ((drv_obj->listen_sock_fd >= 0) && MB_FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 MB_FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
-                mb_uid_info_t node_info;
+                mb_uid_info_t node_info = {0};
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
-                if (sock_id) {
+                if ((sock_id >= 0) && (node_info.ip_addr_str)) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
                         mb_set_linger(sock_id, 0);
