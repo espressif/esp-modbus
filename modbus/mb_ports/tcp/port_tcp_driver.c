@@ -377,11 +377,16 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
             return fd;
         }
     }
+    // No free slot. Do not fall through to err: — node_ptr is a live node
+    // and the lock was never taken.
+    return UNDEF_FD;
 
 err:
     delete_queues(node_ptr);
     free(node_ptr);
-    drv_obj->mb_nodes[fd] = NULL;
+    if (fd < MB_MAX_FDS) {
+        drv_obj->mb_nodes[fd] = NULL;
+    }
     mb_drv_unlock(ctx);
     return UNDEF_FD;
 }
