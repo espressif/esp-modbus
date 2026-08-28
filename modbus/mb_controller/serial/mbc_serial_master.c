@@ -270,10 +270,10 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
             }
             break;
         }
+        (void)xSemaphoreGive(mbm_opts->mbm_sema);
     } else {
         ESP_LOGD(TAG, "%s:MBC semaphore take fail.", __func__);
     }
-    (void)xSemaphoreGive(mbm_opts->mbm_sema);
 
     // Propagate the Modbus errors to higher level
     return MB_ERR_TO_ESP_ERR(mb_error);
