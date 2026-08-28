@@ -253,6 +253,7 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
     port_driver_t *drv_obj = port_obj->drv_obj;
     transaction_item_handle_t item;
     bool retrigger_pending = false;
+    int send_index = UNDEF_FD;
 
     mb_drv_lock(drv_obj);
     item = transaction_get_first(port_obj->transaction);
@@ -263,9 +264,10 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
         uint8_t *buf = transaction_item_get_data(item, NULL, &msg_id, &node_id);
         pnode = mb_drv_get_node(drv_obj, node_id);
         if (pnode && buf && (tid == msg_id)) {
-            int write_length = mb_drv_write(drv_obj, node_id, frame, length);
-            if (pnode && write_length > 0) {
+            int write_length = mb_drv_node_write(drv_obj, pnode, frame, length);
+            if (write_length > 0) {
                 frame_sent = true;
+                send_index = pnode->index;
                 ESP_LOGD(TAG, "%p, node: #%d, socket(#%d)[%s], send packet TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p, len: %d, ",
                          drv_obj, pnode->index, pnode->sock_id,
                          pnode->addr_info.node_name_str, (unsigned)tid, (unsigned)msg_id, frame, length);
@@ -297,6 +299,9 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
     mb_drv_unlock(drv_obj);
     if (retrigger_pending) {
         mbs_retrigger_pending_transactions(port_obj->drv_obj, port_obj);
+    }
+    if (send_index != UNDEF_FD) {
+        DRIVER_SEND_EVENT(drv_obj, MB_EVENT_SEND_DATA, send_index);
     }
 
     return frame_sent;

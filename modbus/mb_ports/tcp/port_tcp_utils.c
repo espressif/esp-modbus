@@ -63,6 +63,21 @@ bool port_check_host_addr(const char *host_str, ip_addr_t *host_addr)
     return true;
 }
 
+bool port_shutdown_socket(int *sock)
+{
+    if (!sock || (*sock <= 0)) {
+        return false;
+    }
+    // linger drops whatever is still unread from the buffer
+    mb_set_linger(*sock, 0);  // RST, avoid TIME_WAIT blocking
+    if (shutdown(*sock, SHUT_RDWR) == -1) {
+        ESP_LOGV(TAG, "Shutdown failed sock %d, errno=%d", *sock, (int)errno);
+    }
+    close(*sock);
+    *sock = UNDEF_FD;
+    return true;
+}
+
 bool port_close_connection(mb_node_info_t *info_ptr)
 {
     if (!info_ptr) {
@@ -72,22 +87,10 @@ bool port_close_connection(mb_node_info_t *info_ptr)
         ESP_LOGD(TAG, "wrong socket info or disconnected socket: %d, skip.", info_ptr->index);
         return false;
     }
-    uint8_t tmp_buff[MB_PDU_SIZE_MAX];
-
-    // Empty tcp buffer before shutdown
-    (void)recv(info_ptr->sock_id, &tmp_buff[0], MB_PDU_SIZE_MAX, MSG_DONTWAIT);
+    (void)port_shutdown_socket(&info_ptr->sock_id);
     queue_flush(info_ptr->rx_queue);
     queue_flush(info_ptr->tx_queue);
-
-    mb_set_linger(info_ptr->sock_id, 0);  // RST, avoid TIME_WAIT blocking
-
-    if (shutdown(info_ptr->sock_id, SHUT_RDWR) == -1) {
-        ESP_LOGV(TAG, "Shutdown failed sock %d, errno=%d", info_ptr->sock_id, (int)errno);
-    }
-
-    close(info_ptr->sock_id);
     MB_SET_NODE_STATE(info_ptr, MB_SOCK_STATE_OPENED);
-    info_ptr->sock_id = UNDEF_FD;
     return true;
 }
 

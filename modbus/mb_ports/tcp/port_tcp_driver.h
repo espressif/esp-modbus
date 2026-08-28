@@ -135,12 +135,11 @@ typedef struct _port_driver port_driver_t;
 // So, the eventfd value keeps last event and its fd.
 #define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
-    (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
+    (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)(event);                   \
     (event_info##__FUNCTION__##__LINE__).opt_fd = (int16_t)(fd);                        \
     (event_info##__FUNCTION__##__LINE__).opt_val = (int16_t)(value);                    \
-    ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)          \
+    ((write_event((void *)(ctx), &(event_info##__FUNCTION__##__LINE__)) > 0)            \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \
 ))
@@ -225,6 +224,7 @@ typedef struct mb_node_info_s {
     uint16_t send_counter;              /*!< number of packets sent to slave during one session */
     uint16_t recv_counter;              /*!< number of packets received from slave during one session */
     bool is_blocking;                   /*!< slave blocking bit state saved */
+    atomic_int ref_count;               /*!< table owns 1; I/O paths hold extra refs to defer free */
 } mb_node_info_t;
 
 typedef enum _mb_sync_event {
@@ -347,6 +347,8 @@ mb_sock_state_t mb_drv_get_node_state(void *ctx, int fd);
 int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags);
 
 ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size);
+
+ssize_t mb_drv_node_write(void *ctx, mb_node_info_t *node_ptr, const void *data, size_t size);
 
 ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 
