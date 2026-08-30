@@ -42,20 +42,6 @@ static const event_msg_t event_msg_table[] = {
     MB_EVENT_TBL_IT(MB_EVENT_TIMEOUT),
 };
 
-static bool mb_drv_is_fatal_network_error(int error)
-{
-    switch (error) {
-    case ENOMEM:
-    case ENOBUFS:
-    case ENETDOWN:
-    case ENETUNREACH:
-    case EHOSTUNREACH:
-        return true;
-    default:
-        return false;
-    }
-}
-
 static void mb_drv_discard_accepted_node(int sock_id, mb_uid_info_t *addr_info)
 {
     if (sock_id >= 0) {
@@ -676,8 +662,6 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
 void mb_drv_tcp_task(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    TickType_t select_error_delay = 1;
-    const TickType_t select_error_delay_max = MAX(pdMS_TO_TICKS(MB_SELECT_ERROR_DELAY_MAX_MS), 1);
     ESP_LOGD(TAG, "Start of driver task.");
     while (1) {
         fd_set readset, errorset;
@@ -692,32 +676,14 @@ void mb_drv_tcp_task(void *ctx)
         } else if (ret == -1) {
             // error occurred during waiting for vfds activation
             int select_errno = errno;
-            ESP_LOGE(TAG, "%p, task select error, errno=%d (%s), retry in %" PRIu32 " ticks.",
-                     ctx, select_errno, strerror(select_errno), (uint32_t)select_error_delay);
+            ESP_LOGE(TAG, "%p, task select error, errno=%d (%s), retry after 1 tick.",
+                     ctx, select_errno, strerror(select_errno));
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
-            // The TCP master owns persistent node descriptors which are used
-            // for reconnects. Only a slave instance may discard all accepted
-            // client nodes after a fatal network-stack error.
-            if (!drv_obj->is_master && mb_drv_is_fatal_network_error(select_errno)) {
-                int closed = mb_drv_close_all(ctx);
-                if (closed > 0) {
-                    ESP_LOGW(TAG, "%p, select failed with fatal network error %d; "
-                             "closed %d stale Modbus TCP client(s).",
-                             ctx, select_errno, closed);
-                    // Let the port layer discard transactions associated with
-                    // the nodes. The descriptors have already been released,
-                    // so this notification is safe even under heap pressure.
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, UNDEF_FD);
-                }
-            }
-            // A persistent descriptor error (for example EBADF) makes select()
-            // return immediately. Back off so this task cannot starve IDLE and
-            // trigger the task watchdog while the underlying fault is logged.
-            vTaskDelay(select_error_delay);
-            select_error_delay = MIN(select_error_delay * 2, select_error_delay_max);
+            // Yield before retrying so a persistent error cannot starve IDLE
+            // while transient errors such as EINTR are retried promptly.
+            vTaskDelay(1);
         } else {
-            select_error_delay = 1;
             mb_drv_handle_fd_errors(ctx, &readset, &errorset);
             // Is the fd event triggered, process the event
             if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
@@ -751,17 +717,6 @@ void mb_drv_tcp_task(void *ctx)
                             mb_drv_discard_accepted_node(sock_id, &node_info);
                         } else {
                             DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
-                        }
-                    }
-                } else {
-                    int accept_errno = errno;
-                    if (!drv_obj->is_master && mb_drv_is_fatal_network_error(accept_errno)) {
-                        int closed = mb_drv_close_all(ctx);
-                        if (closed > 0) {
-                            ESP_LOGW(TAG, "%p, accept failed with fatal network error %d; "
-                                     "closed %d stale Modbus TCP client(s).",
-                                     ctx, accept_errno, closed);
-                            DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, UNDEF_FD);
                         }
                     }
                 }
