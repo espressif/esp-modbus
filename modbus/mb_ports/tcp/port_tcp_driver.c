@@ -42,6 +42,21 @@ static const event_msg_t event_msg_table[] = {
     MB_EVENT_TBL_IT(MB_EVENT_TIMEOUT),
 };
 
+static void mb_drv_discard_accepted_node(int sock_id, mb_uid_info_t *addr_info)
+{
+    if (sock_id >= 0) {
+        mb_set_linger(sock_id, 0);
+        close(sock_id);
+    }
+    if (addr_info) {
+        if (addr_info->node_name_str != addr_info->ip_addr_str) {
+            free((void *)addr_info->ip_addr_str);
+        }
+        free((void *)addr_info->node_name_str);
+        memset(addr_info, 0, sizeof(*addr_info));
+    }
+}
+
 // The function to print event
 const char *driver_event_to_name_r(mb_driver_event_t event)
 {
@@ -284,56 +299,60 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
     int fd = UNDEF_FD;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mb_node_info_t *node_ptr = NULL;
-    // Find free fd and initialize
+
+    mb_drv_lock(ctx);
+    // Find a free virtual descriptor before allocating any node resources.
     for (fd = 0; fd < MB_MAX_FDS; fd++) {
-        node_ptr = drv_obj->mb_nodes[fd];
-        if (!node_ptr) {
-            node_ptr = calloc(1, sizeof(mb_node_info_t));
-            mb_drv_lock(ctx);
-            if (!node_ptr) {
-                goto err;
-            }
-            ESP_LOGD(TAG, "%p, open vfd: %d, sl_addr: %02x, node: %s:%u",
-                     ctx, fd, (int8_t)addr_info.uid,
-                     addr_info.ip_addr_str, (unsigned)addr_info.port);
-            if (init_queues(node_ptr) != ESP_OK) {
-                goto err;
-            }
-            if (drv_obj->mb_node_open_count > MB_MAX_FDS) {
-                ESP_LOGE(TAG, "Exceeded maximum node count: %d", drv_obj->mb_node_open_count);
-                goto err;
-            }
-            drv_obj->mb_node_open_count++;
-            node_ptr->index = fd;
-            node_ptr->fd = fd;
-            node_ptr->sock_id = addr_info.fd;
-            node_ptr->error = -1;
-            node_ptr->recv_err = -1;
-            node_ptr->addr_info = addr_info;
-            //node_ptr->addr_info.ip_addr_str = NULL;
-            node_ptr->addr_info.index = fd;
-            node_ptr->send_time = esp_timer_get_time();
-            node_ptr->recv_time = esp_timer_get_time();
-            node_ptr->tid_counter = 0;
-            node_ptr->send_counter = 0;
-            node_ptr->recv_counter = 0;
-            node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
-            drv_obj->mb_nodes[fd] = node_ptr;
-            // mark opened node in the open set
-            FD_SET(fd, &drv_obj->open_set);
-            mb_drv_unlock(ctx);
-            MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_OPENED);
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_OPEN, fd);
-            return fd;
+        if (!drv_obj->mb_nodes[fd]) {
+            break;
         }
     }
 
-err:
-    delete_queues(node_ptr);
-    free(node_ptr);
-    drv_obj->mb_nodes[fd] = NULL;
+    if ((fd >= MB_MAX_FDS) || (drv_obj->mb_node_open_count >= MB_MAX_FDS)) {
+        mb_drv_unlock(ctx);
+        errno = EMFILE;
+        return UNDEF_FD;
+    }
+
+    node_ptr = calloc(1, sizeof(mb_node_info_t));
+    if (!node_ptr) {
+        mb_drv_unlock(ctx);
+        errno = ENOMEM;
+        return UNDEF_FD;
+    }
+
+    ESP_LOGD(TAG, "%p, open vfd: %d, sl_addr: %02x, node: %s:%u",
+             ctx, fd, (int8_t)addr_info.uid,
+             addr_info.ip_addr_str, (unsigned)addr_info.port);
+    if (init_queues(node_ptr) != ESP_OK) {
+        delete_queues(node_ptr);
+        free(node_ptr);
+        mb_drv_unlock(ctx);
+        errno = ENOMEM;
+        return UNDEF_FD;
+    }
+
+    drv_obj->mb_node_open_count++;
+    node_ptr->index = fd;
+    node_ptr->fd = fd;
+    node_ptr->sock_id = addr_info.fd;
+    node_ptr->error = -1;
+    node_ptr->recv_err = -1;
+    node_ptr->addr_info = addr_info;
+    node_ptr->addr_info.index = fd;
+    node_ptr->send_time = esp_timer_get_time();
+    node_ptr->recv_time = esp_timer_get_time();
+    node_ptr->tid_counter = 0;
+    node_ptr->send_counter = 0;
+    node_ptr->recv_counter = 0;
+    node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
+    drv_obj->mb_nodes[fd] = node_ptr;
+    FD_SET(fd, &drv_obj->open_set);
     mb_drv_unlock(ctx);
-    return UNDEF_FD;
+
+    MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_OPENED);
+    DRIVER_SEND_EVENT(ctx, MB_EVENT_OPEN, fd);
+    return fd;
 }
 
 mb_node_info_t *mb_drv_get_node(void *ctx, int fd)
@@ -450,6 +469,19 @@ int mb_drv_close(void *ctx, int fd)
     return 0;
 }
 
+int mb_drv_close_all(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    int closed_count = 0;
+
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        if (drv_obj->mb_nodes[fd] && (mb_drv_close(drv_obj, fd) == 0)) {
+            closed_count++;
+        }
+    }
+    return closed_count;
+}
+
 mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fdset)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
@@ -483,24 +515,30 @@ mb_node_info_t *mb_drv_get_node_info_from_addr(void *ctx, uint8_t uid)
     return NULL;
 }
 
-static int mb_drv_register_fds(void *ctx, fd_set *fdset)
+static int mb_drv_register_fds(void *ctx, fd_set *readset, fd_set *errorset)
 {
     mb_node_info_t *node_ptr = NULL;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     // Setup select waiting for eventfd && socket events
-    FD_ZERO(fdset);
+    FD_ZERO(readset);
+    if (errorset) {
+        FD_ZERO(errorset);
+    }
     int max_fd = UNDEF_FD;
     // Add to the set all connected slaves
     for (int i = 0; i < MB_MAX_FDS; i++) {
         node_ptr = drv_obj->mb_nodes[i];
         if (node_ptr && node_ptr->sock_id && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
-            MB_ADD_FD(node_ptr->sock_id, max_fd, fdset);
+            MB_ADD_FD(node_ptr->sock_id, max_fd, readset);
+            if (errorset) {
+                MB_ADD_FD(node_ptr->sock_id, max_fd, errorset);
+            }
         }
     }
     // Add event fd events to the set to handle them in one select
-    MB_ADD_FD(drv_obj->event_fd, max_fd, fdset);
+    MB_ADD_FD(drv_obj->event_fd, max_fd, readset);
     // Add listen socket to handle incoming connections (for slave only)
-    MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, fdset);
+    MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, readset);
     return max_fd;
 }
 
@@ -519,10 +557,7 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
     tv.tv_usec = (time_ms - (tv.tv_sec * 1000)) * 1000;
 
     // fill the readset according to the active fds
-    int max_fd = mb_drv_register_fds(ctx, &readset);
-    if (perrset) {
-        *perrset = readset; // initialize error set if used
-    }
+    int max_fd = mb_drv_register_fds(ctx, &readset, perrset);
 
     ret = select(max_fd + 1, &readset, NULL, perrset, &tv);
     if (ret == 0) {
@@ -533,6 +568,33 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
     }
     *fdset = readset;
     return ret;
+}
+
+// Handle exceptional socket conditions reported by select(). Modbus TCP does
+// not use out-of-band data, so an exception means the connection is no longer
+// usable and must be passed through the normal driver error path.
+static void mb_drv_handle_fd_errors(void *ctx, fd_set *readset, fd_set *errorset)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    if (!errorset) {
+        return;
+    }
+
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+        if (node_ptr && (node_ptr->sock_id >= 0) && FD_ISSET(node_ptr->sock_id, errorset)) {
+            int sock_error = 0;
+            socklen_t opt_len = sizeof(sock_error);
+            if (getsockopt(node_ptr->sock_id, SOL_SOCKET, SO_ERROR, &sock_error, &opt_len) < 0) {
+                sock_error = errno;
+            }
+            FD_CLR(node_ptr->sock_id, readset);
+            ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", socket exception, errno=%d (%s)."),
+                     ctx, (int)node_ptr->fd, (int)node_ptr->sock_id,
+                     node_ptr->addr_info.ip_addr_str, sock_error, strerror(sock_error));
+            DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, node_ptr->index, ERR_CONN);
+        }
+    }
 }
 
 esp_err_t mb_drv_start_task(void *ctx)
@@ -613,10 +675,16 @@ void mb_drv_tcp_task(void *ctx)
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
             // error occurred during waiting for vfds activation
-            ESP_LOGD(TAG, "%p, task select error.", ctx);
+            int select_errno = errno;
+            ESP_LOGE(TAG, "%p, task select error, errno=%d (%s), retry after 1 tick.",
+                     ctx, select_errno, strerror(select_errno));
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
+            // Yield before retrying so a persistent error cannot starve IDLE
+            // while transient errors such as EINTR are retried promptly.
+            vTaskDelay(1);
         } else {
+            mb_drv_handle_fd_errors(ctx, &readset, &errorset);
             // Is the fd event triggered, process the event
             if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
                 FD_CLR(drv_obj->event_fd, &readset);
@@ -631,22 +699,22 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if ((drv_obj->listen_sock_fd >= 0) && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
-                mb_uid_info_t node_info;
+                mb_uid_info_t node_info = {0};
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
-                if (sock_id) {
+                if (sock_id >= 0) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-                        mb_set_linger(sock_id, 0);
-                        close(sock_id);
+                        mb_drv_discard_accepted_node(sock_id, &node_info);
                     } else {
                         // Create new node info and open it
                         int fd = mb_drv_open(drv_obj, node_info, 0);
                         if (fd < 0) {
                             ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
+                            mb_drv_discard_accepted_node(sock_id, &node_info);
                         } else {
                             DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
                         }
