@@ -7,6 +7,7 @@
 #include "freertos/portmacro.h"
 #include "freertos/queue.h"
 
+#include "esp_modbus_common.h"
 #include "port_adapter.h"
 #include "mb_common.h"
 #include "mbc_slave.h"
@@ -137,6 +138,27 @@ void test_task_add_entry(TaskHandle_t task_handle, void *inst)
     LIST_INSERT_HEAD(&s_task_list, new_entry, entries);
     portEXIT_CRITICAL(&s_list_spinlock);
     xSemaphoreTake(new_entry->task_sema_handle, 1);
+}
+
+static void *test_task_find_object(bool is_master)
+{
+    task_entry_t *it, *pfound = NULL;
+    if (LIST_EMPTY(&s_task_list)) {
+        return NULL;
+    }
+
+    portENTER_CRITICAL(&s_list_spinlock);
+    LIST_FOREACH(it, &s_task_list, entries) {
+        if (it) {
+            mb_controller_common_t *pobj = (mb_controller_common_t *)it->inst_handle;
+            if (pobj && pobj->mb_base->descr.is_master == is_master) {
+                pfound = (void *)pobj;
+                break;
+            }
+        }
+    }
+    portEXIT_CRITICAL(&s_list_spinlock);
+    return pfound;
 }
 
 static task_entry_t *test_task_find_entry(TaskHandle_t task_handle)
@@ -436,7 +458,19 @@ esp_err_t test_common_read_modbus_parameter(void *handle, uint16_t cid, uint16_t
     esp_err_t err = mbc_master_get_cid_info(handle, cid, &param_descriptor);
     if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
         uint8_t type = 0;
-        err = mbc_master_get_parameter(handle, cid, (uint8_t *)par_data, &type);
+        if (param_descriptor->mb_slave_addr) {
+            err = mbc_master_get_parameter(handle, cid, (uint8_t *)par_data, &type);
+        } else {
+            // if the address is broadcast, try to read from first registered slave intentionally
+            void *pobj = test_task_find_object(false);
+            uint8_t uid = 0x01;
+            if (pobj) {
+                mbs_controller_iface_t *pctrl_obj = ((mbs_controller_iface_t *)pobj);
+                uid = pctrl_obj->opts.comm_opts.common_opts.uid;
+            }
+            ESP_LOGD(TAG, "Use slave object: %p, UID:%u", pobj, uid);
+            err = mbc_master_get_parameter_with(handle, cid, uid, (uint8_t *)par_data, &type);
+        }
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "%p, CHAR #%u %s (%s) value = (0x%04x) parameter read successful.",
                      handle,
@@ -509,6 +543,7 @@ static void test_master_task(void *arg)
     for (cycle_counter = 0; cycle_counter <= TEST_TASK_CYCLE_COUNTER; cycle_counter++) {
         switch (req_type) {
         case RT_HOLDING_RD:
+
             err = test_common_read_modbus_parameter(mbm_handle, CID_DEV_REG0, &holding_registers[CID_DEV_REG0]);
             CHECK_PAR_VALUE(CID_DEV_REG0, err, holding_registers[CID_DEV_REG0], TEST_REG_VAL1);
 
@@ -675,7 +710,7 @@ TaskHandle_t test_common_slave_serial_create(mb_communication_info_t *pconfig, u
 
     test_common_slave_setup_start(mbs_handle);
 
-    if (priority) {
+    if (!priority) {
         priority = TEST_TASK_PRIO_SLAVE;
     }
 
@@ -709,7 +744,7 @@ TaskHandle_t test_common_master_tcp_create(mb_communication_info_t *pconfig, uin
     TEST_ESP_OK(mbc_master_start(mbm_handle));
     ESP_LOGI(TAG, "%p, modbus master start...", mbm_handle) ;
 
-    if (priority) {
+    if (!priority) {
         priority = TEST_TASK_PRIO_MASTER;
     }
 

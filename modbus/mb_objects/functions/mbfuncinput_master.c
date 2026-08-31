@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -73,9 +73,16 @@ mb_err_enum_t mbm_rq_read_inp_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t re
     if (!inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
+
+    /* The broadcast read input request is not supported. */
+    if (!snd_addr) {
+        return MB_ENOREG;
+    }
+
     if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
+
     inst->get_send_buf(inst, &mb_frame_ptr);
     inst->set_dest_addr(inst, snd_addr);
 
@@ -101,9 +108,12 @@ mb_exception_t mbm_fn_read_inp_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16_t
     uint16_t reg_address;
     uint8_t *mb_frame_ptr;
 
-    /* If this request is broadcast, and it's read mode. This request don't need execute. */
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
     if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_NONE;
+        status = MB_EX_ILLEGAL_DATA_ADDRESS;
     } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
         inst->get_send_buf(inst, &mb_frame_ptr);
 
