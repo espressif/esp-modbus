@@ -7,7 +7,7 @@ Introductory example for the Esp-Modbus stack. Start here if you are new to Modb
 | Example | Description |
 | ------- | ----------- |
 | [basic_master](basic_master/) | Modbus master — initialize the controller, set up a data dictionary, and perform read/write requests |
-
+| [basic_slave](basic_slave/) | Modbus slave — configure register areas and respond to master read/write events |
 
 Both examples support **UART (RTU/ASCII)** and **TCP** communication.
 
