@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "basic_master.c"
+    SRCS "basic_slave.c"
     INCLUDE_DIRS "."
     REQUIRES  nvs_flash esp_netif mdns esp_event esp_wifi esp_eth
 )

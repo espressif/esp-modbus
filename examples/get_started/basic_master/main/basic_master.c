@@ -80,44 +80,44 @@ static esp_err_t init_services(mb_tcp_addr_type_t ip_addr_type)
         ESP_ERROR_CHECK(nvs_flash_erase());
         result = nvs_flash_init();
     }
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "nvs_flash_init fail, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "nvs_flash_init fail, returns(0x%x).",
+                        (int)result);
     result = esp_netif_init();
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "esp_netif_init fail, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "esp_netif_init fail, returns(0x%x).",
+                        (int)result);
     result = esp_event_loop_create_default();
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "esp_event_loop_create_default fail, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "esp_event_loop_create_default fail, returns(0x%x).",
+                        (int)result);
     // This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
     // Read "Establishing Wi-Fi or Ethernet Connection" section in
     // examples/protocols/README.md for more information about this function.
     result = example_connect();
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "example_connect fail, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "example_connect fail, returns(0x%x).",
+                        (int)result);
 #if CONFIG_EXAMPLE_CONNECT_WIFI
     result = esp_wifi_set_ps(WIFI_PS_NONE);
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "esp_wifi_set_ps fail, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "esp_wifi_set_ps fail, returns(0x%x).",
+                        (int)result);
 #endif
 
 #if CONFIG_MB_SLAVE_IP_FROM_STDIN
 #if CONFIG_MB_CONSOLE_HELPER_ENABLED
     mb_console_init();
     result = mb_console_register_configs(slave_ip_address_table);
-    MB_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
-                       TAG,
-                       "Could not init CONFIG mode, returns(0x%x).",
-                       (int)result);
+    ESP_RETURN_ON_FALSE((result == ESP_OK), ESP_ERR_INVALID_STATE,
+                        TAG,
+                        "Could not init CONFIG mode, returns(0x%x).",
+                        (int)result);
     ESP_LOGI(TAG, "System initialized in CONFIG mode.");
     ESP_LOGI(TAG, "Usage example: IP 0=192.168.1.5;1502 -> then: mb start instances");
     if (!mb_console_event_check(MB_CMD_CONFIG_END, MB_CMD_CONFIGURATION_TOUT_MS)) {
