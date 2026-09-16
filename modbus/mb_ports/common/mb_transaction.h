@@ -56,6 +56,7 @@ uint8_t *transaction_item_get_data(transaction_item_handle_t item,  size_t *len,
 esp_err_t transaction_delete(transaction_handle_t transaction, uint16_t msg_id);
 esp_err_t transaction_delete_item(transaction_handle_t transaction, transaction_item_handle_t item);
 int transaction_delete_by_node_id(transaction_handle_t transaction, int node_id);
+int transaction_delete_queued_by_node_id(transaction_handle_t transaction, int node_id);
 int transaction_delete_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout);
 
 /**
