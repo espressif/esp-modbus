@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -509,7 +509,7 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
             // If the request was not sent to the broadcast address, return a reply.
             if ((mbs_obj->rcv_addr != MB_ADDRESS_BROADCAST) || (mbs_obj->cur_mode == MB_TCP)) {
                 if (exception != MB_EX_NONE) {
-                    // An exception occurred. Build an error frame.
+                    // An exception occurred. Build an exception frame.
                     mbs_obj->length = 0;
                     mbs_obj->frame[mbs_obj->length++] = (uint8_t)(mbs_obj->func_code | MB_FUNC_ERROR);
                     mbs_obj->frame[mbs_obj->length++] = exception;
@@ -527,6 +527,10 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                 } else {
                     (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_FRAME_SENT));
                 }
+            } else {
+                ESP_LOGD(TAG, MB_OBJ_FMT": Broadcast frame received, exception: %d.", MB_OBJ_PARENT(inst), (int)exception);
+                mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
+                (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
             }
             break;
 
