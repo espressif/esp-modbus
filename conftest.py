@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import pexpect
 import pytest
+import re
 from _pytest.fixtures import FixtureRequest
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_embedded.plugin import multi_dut_argument, multi_dut_fixture
@@ -215,6 +216,7 @@ class ModbusTestDut(IdfDut):
     TEST_IP_PROMPT = r"Waiting IP\(([0-9]{1,2})\) from stdin:"
     TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z0-9]*)"
+    TEST_OBJECT_ID = re.compile(rb"^0x[0-9a-fA-F]{8,16}$")
 
     TEST_EXPECT_STR_TIMEOUT = 120
     TEST_PROMPT_TOUT = 10
@@ -316,24 +318,28 @@ class ModbusTestDut(IdfDut):
 
     def get_object_by_id(self, id: bytes) -> Optional[MbObject]:
         """The getter retrieves master or slave object by instance address"""
-        self.check_mb_objects_list()
         for obj in self.mb_objects:
             if id == obj.id:
                 return obj
-
-        self.logger.error(f"couldn't find registered object with id: {id!r}")
         return None
 
-    def update_wrong_object_id(self, id: bytes) -> Optional[MbObject]:
-        """Scan registered object list checking for a wrongly parsed object ID which is
-        not 10 characters long. Ex - 0x3ffbf7bc"""
-        self.check_mb_objects_list()
-        for obj in self.mb_objects:
-            if len(obj.id) != 10:
-                self.logger.info(f"Updating wrong object id: {obj.id!r} to: {id!r}")
-                obj.id = id
-                return obj
-        return None
+    def validate_object_id(self, id: Optional[bytes]) -> bool:
+        """Validate object (instance) ID by regex pattern. Ex ID being expected- 0x3ffbf7bc"""
+        return bool(id and self.TEST_OBJECT_ID.fullmatch(id))
+
+    def get_or_create_object(
+        self, obj_id: bytes, timestamp: bytes, tag: str = ""
+    ) -> Optional[MbObject]:
+        """Return existing object by id, or create it after validating the id."""
+        obj = self.get_object_by_id(obj_id)
+        if obj is not None:
+            return obj
+        if not self.validate_object_id(obj_id):
+            self.logger.warning("Ignore parameter for invalid object id: %r", obj_id)
+            return None
+        return self.add_object(
+            self.validate_object_creation_tag(tag), obj_id, timestamp
+        )
 
     def get_params_by_name(self, name: str) -> Optional[List[MbParameter]]:
         """The getter retrieves parameters by name"""
@@ -806,16 +812,13 @@ class ModbusTestDut(IdfDut):
             self.logger.info(
                 f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
             )
-            # Checking if MBobject exist in the object list
 
-            object_handle: Optional[MbObject] = self.get_object_by_id(
-                self.get_item(data, OBJ_ADDRESS)
+            object_handle: Optional[MbObject] = self.get_or_create_object(
+                self.get_item(data, OBJ_ADDRESS),
+                self.get_item(data, TRANSACTION_TIMESTAMP),
             )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(
-                    self.get_item(data, OBJ_ADDRESS)
-                )
-            assert object_handle is not None
+                return
 
             last_sucess_parameter: MbParameter = object_handle.add_parameter(
                 self.get_item(data, PARAM_NAME),
@@ -842,15 +845,12 @@ class ModbusTestDut(IdfDut):
             self.logger.info(
                 f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
             )
-            # Checking if MBobject exist in the object list
-            object_handle: Optional[MbObject] = self.get_object_by_id(
-                self.get_item(data, OBJ_ADDRESS)
+            object_handle: Optional[MbObject] = self.get_or_create_object(
+                self.get_item(data, OBJ_ADDRESS),
+                self.get_item(data, TRANSACTION_TIMESTAMP),
             )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(
-                    self.get_item(data, OBJ_ADDRESS)
-                )
-            assert object_handle is not None
+                return
 
             last_fail_parameter: MbParameter = object_handle.add_parameter(
                 self.get_item(data, PARAM_NAME),
@@ -868,17 +868,17 @@ class ModbusTestDut(IdfDut):
         def handle_obj_create(data: Optional[Any]) -> None:
             """Handle creation"""
             self.test_stage = Stages.STACK_OBJECT_CREATE
-            self.logger.info(
-                f"Object creation handled: {self.app_name}[{self.test_stage.name}]: {str(data)}",
-            )
-            obj_tag = self.validate_object_creation_tag(
-                self.get_item(data, OBJ_TAG).decode("ascii")
-            )
 
-            last_add_object: MbObject = self.add_object(
-                obj_tag,
+            last_add_object: Optional[MbObject] = self.get_or_create_object(
                 self.get_item(data, OBJ_ID),
                 self.get_item(data, TRANSACTION_TIMESTAMP),
+                self.get_item(data, OBJ_TAG).decode("ascii"),
+            )
+            if last_add_object is None:
+                return
+
+            self.logger.info(
+                f"Object creation handled: {self.app_name}[{self.test_stage.name}]: {str(data)}",
             )
             self.logger.info("New added object: %s", last_add_object)
 
