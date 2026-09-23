@@ -1,3 +1,0 @@
-(?i)Warning: Deprecated: Option '--flash_size' is deprecated. Use '--flash-size' instead.
-(?i)Warning: Deprecated: Option '--flash_mode' is deprecated. Use '--flash-mode' instead.
-(?i)Warning: Deprecated: Option '--flash_freq' is deprecated. Use '--flash-freq' instead.

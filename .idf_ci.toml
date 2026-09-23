@@ -77,7 +77,14 @@ check_idf_ver:
         expire_in: "1 week"
         when: "always"
     before_script:
-        - pip install -U 'idf-ci>=1.0,<2'
+        - CONSTRAINT_FILE="$(ls -1 ${IDF_TOOLS_PATH}/espidf.constraints.v*.txt 2>/dev/null | tail -1 || true)"
+        - test -n "$CONSTRAINT_FILE" && test -f "$CONSTRAINT_FILE"
+{% if settings.gitlab.build_pipeline.job_name_suffix == ":idf-latest" %}
+        - pip install -U 'idf-ci>=1.3.0,<2' -c "${CONSTRAINT_FILE}"
+{% else %}
+        - pip install -U 'idf-ci>=1.2.2,<2' -c "${CONSTRAINT_FILE}"
+{% endif %}
+
     script:
         - idf-ci build run
           --parallel-count ${CI_NODE_TOTAL:-1}
@@ -187,7 +194,6 @@ job_template_jinja = """
           job: "build_test_related_apps"
     before_script:
         - pip install -r ./tools/test_requirements.txt
-        - pip install -U 'idf-ci>=1.0,<2'
     script:
         - eval pytest $nodes
           --parallel-count ${CI_NODE_TOTAL:-1}
