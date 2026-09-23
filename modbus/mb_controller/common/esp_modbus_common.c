@@ -89,3 +89,18 @@ esp_err_t mbc_get_handler_count(void *ctx, uint16_t *count)
     }
     return  MB_ERR_TO_ESP_ERR(ret);
 }
+
+/**
+ * Get UID from the slave request currently being processed.
+ */
+esp_err_t mbc_slave_get_request_uid(void *ctx, uint8_t *uid)
+{
+    MB_RETURN_ON_FALSE((ctx && uid), ESP_ERR_INVALID_ARG, TAG,
+                       "Incorrect arguments for the function.");
+    mb_controller_common_t *mb_controller = (mb_controller_common_t *)(ctx);
+    mb_base_t *mb_obj = (mb_base_t *)mb_controller->mb_base;
+    MB_RETURN_ON_FALSE((mb_obj && !mb_obj->descr.is_master), ESP_ERR_INVALID_STATE, TAG,
+                       "Controller interface is not correctly initialized or is not a slave.");
+
+    return MB_ERR_TO_ESP_ERR(mbs_get_request_uid(mb_controller->mb_base, uid));
+}

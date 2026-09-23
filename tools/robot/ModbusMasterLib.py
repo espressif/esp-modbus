@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import socket
+import select
 import random
 import binascii
 import os
@@ -26,6 +27,7 @@ from ModbusSupport import (
     ModbusADU_Request,
     ModbusADU_Response,
     ModbusPDUXX_Custom_Request,  # noqa
+    ModbusPDUXX_Custom_Answer,  # noqa
     ModbusPDU11_Report_Slave_Id,  # noqa
     ModbusPDU03_Read_Holding_Registers,  # noqa
     ModbusPDU10_Write_Multiple_Registers,  # noqa
@@ -35,6 +37,7 @@ from ModbusSupport import (
     ModbusPDU05_Write_Single_Coil,  # noqa
     ModbusPDU02_Read_Discrete_Inputs,  # noqa
     ModbusPDU06_Write_Single_Register,  # noqa
+    CustomModbusCommand,  # noqa
 )
 
 # Disable debugging of dissector, and set default padding for scapy configuration class
@@ -206,11 +209,17 @@ class ModbusMasterLib:
             packet.transId = self.get_trans_id()
 
     @keyword("Create Request")  # fmt: skip
-    def create_request(self, packet_str: str) -> Packet:
+    def create_request(self, packet_str: str, validate: bool = True) -> Packet:
         """
         Create a Modbus packet based on the given string representation.
         Args:
             packet_str (str): A string representing the Modbus packet.
+            validate (bool): Allows to disable standard Modbus TCP
+                request checks (protoId == 0) and auto assign a transaction ID
+                when one is not provided. Set to False only for malformed frames
+                used by protocol violation (DoS) test cases (e.g. non zero Protocol ID)
+                that must bypass the check on purpose. The transaction ID is still
+                auto assigned in this case.
         Returns:
             ModbusADU_Request: The created Modbus packet.
         Raises:
@@ -218,7 +227,13 @@ class ModbusMasterLib:
         """
         try:
             packet: ModbusADU_Request = eval(packet_str)
-            self._validate_packet(packet)
+            if validate:
+                self._validate_packet(packet)
+            elif (
+                packet.haslayer(ModbusADU_Request)
+                and not packet[ModbusADU_Request].transId
+            ):
+                packet.transId = self.get_trans_id()
             print("Packet created: %s" % str(packet.summary()))
             return packet
 
@@ -284,6 +299,43 @@ class ModbusMasterLib:
                 raise Scapy_Exception(
                     f"Connection close fail, exception occurred: ({exception})"
                 )
+
+    @keyword("Wait For Disconnect")  # fmt: skip
+    def wait_for_disconnect(self, timeout: float = 2.0) -> bool:
+        """
+        Poll the currently active connection socket to check
+        whether the peer has closed (FIN) or reset (RST) it.
+        This is used by protocol violation (DoS) test cases
+        to verify the slave actually drops an offending connection
+        instead of leaving it open.
+        Args:
+            timeout: max time (seconds) to wait for the peer to close.
+        Returns:
+            bool: True if the connection was observed closed/reset, False if
+            the socket still looks alive (unread data present, or still open)
+            after the timeout.
+        """
+        if self.socket is None:
+            info("Socket already closed locally, treat as disconnected.")
+            return True
+        try:
+            ready, _, _ = select.select([self.socket], [], [], timeout)
+        except (OSError, ValueError) as exception:
+            info(f"Socket became invalid while waiting for disconnect: {exception}")
+            return True
+        if not ready:
+            info(f"Peer did not close the connection within {timeout}s.")
+            return False
+        try:
+            data = self.socket.recv(1, socket.MSG_PEEK)
+        except (ConnectionResetError, BrokenPipeError, OSError) as exception:
+            info(f"Peer reset the connection: {exception}")
+            return True
+        if data == b"":
+            info("Peer closed the connection (FIN).")
+            return True
+        info(f"Socket has active data, connection still active: {data!r}")
+        return False
 
     @keyword("Send Packet")  # fmt: skip
     def send_packet_and_get_response(
@@ -478,6 +530,36 @@ class ModbusMasterLib:
         self.exception_message = Exceptions(self.exception).name
         print(f"MB exception: {self.exception}, {self.exception_message}")
         return self.exception, self.exception_message
+
+    @keyword("Convert To Custom Command")  # fmt: skip
+    def convert_to_custom_command(
+        self, pkt: Packet
+    ) -> Tuple[Optional[Packet], Optional[bytes]]:
+        """
+        This keyword is a helper allows to parse custom response
+        with its MBAP and PDU (payload) on robot framework side.
+        Args:
+            pkt: the incoming response frame.
+        Returns:
+                CustomModbusCommand: dissected custom frame
+                bytes: dissected PDU bytes
+        """
+        custom_frame: Optional[Packet] = None
+        pdu_bytes: Optional[bytes] = None
+        # Check for the presence of the base Modbus TCP layer (MBAP)
+        if pkt.haslayer(ModbusADU_Response):
+            custom_frame = CustomModbusCommand(bytes(pkt))
+            pdu_bytes = bytes(pkt["ModbusADU_Response"].payload)
+
+            print("Custom Frame Structure:")
+            custom_frame.show()
+
+            print("Extracted PDU bytes:")
+            print(
+                f"Raw PDU Bytes (Hex): {binascii.hexlify(bytes(pdu_bytes)).decode('ascii')}"
+            )
+            print(f"Raw PDU Bytes (Type): {type(pdu_bytes)}")
+        return custom_frame, pdu_bytes
 
     @keyword("Check ADU")  # fmt: skip
     def check_adu(self, adu_out: Packet, adu_in: Packet) -> Optional[int]:

@@ -319,6 +319,8 @@ To resolve this, user must:
 
     * Reduce the request rate from the master nodes to give the slave more time to process each request.
 
+    * When the race condition persists, the slave's response still arrives after the master has already started its next request, enabling the cooldown feature (supported on RTU/ASCII serial modes only) via (``CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS``) period may help. When enabled, after a master request times out, the master waits for this additional period before starting the next transaction, then flushes its receive buffer just before sending the next request, discarding the previous slave's late response instead of letting it be mistaken for the response to the following transaction.
+    
 .. note:: Set the Master Timeout to a value greater than the worst-case Round-Trip Time (RTT) on your network. A reasonable starting point is at least 1000 ms, but you should perform network measurements under maximum load to determine an appropriate value.
 
 Keep-Alive Mechanism for TCP Slave

@@ -617,30 +617,22 @@ MB_EVENT_HANDLER(mbs_on_error)
         ESP_LOGW(TAG, "%p, " MB_NODE_FMT(", connection closed?, err= %d."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)event_info->opt_val);
-        mb_drv_lock(drv_obj);
-        // delete all queued transactions for the node to be closed.
-        (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
-        mb_set_linger(pnode->sock_id, 0); // send RST immediately
-        mb_drv_unlock(drv_obj);
-        mb_drv_close(drv_obj, event_info->opt_fd);
-        // Re-trigger any pending QUEUED transactions for surviving other clients
-        mbs_retrigger_pending_transactions(ctx, port_obj);
     } else {
-        // An error happened, disconnect and close node after timeout.
-        // The master need to reconnect again to send new transaction.
-        int curr_fd = event_info->opt_fd;
-        int ret = mb_drv_check_node_state(drv_obj, &curr_fd, MB_TCP_KEEP_ALIVE_TOUT_MS);
-        if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
-            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", communication fail, err=%d, drop connection."),
-                     port_obj, pnode->index, pnode->sock_id,
-                     pnode->addr_info.ip_addr_str, (int)ret);
-            mb_drv_lock(drv_obj);
-            (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
-            mb_drv_unlock(drv_obj);
-            mb_drv_close(drv_obj, curr_fd);
-            mbs_retrigger_pending_transactions(ctx, port_obj);
-        }
+        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", communication fail, err=%d, drop connection."),
+                 port_obj, pnode->index, pnode->sock_id,
+                 pnode->addr_info.ip_addr_str, (int)event_info->opt_val);
     }
+    // An error happened, disconnect and close node immediately.
+    // Protocol violation treated as a DoS and cause disconnection.
+    // The master need to reconnect again to send new transaction.
+    mb_drv_lock(drv_obj);
+    // delete all queued transactions for the node to be closed.
+    (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
+    mb_set_linger(pnode->sock_id, 0); // send RST immediately
+    mb_drv_unlock(drv_obj);
+    mb_drv_close(drv_obj, event_info->opt_fd);
+    // Re-trigger any pending QUEUED transactions for surviving other clients
+    mbs_retrigger_pending_transactions(ctx, port_obj);
     mb_drv_check_suspend_shutdown(ctx);
 }
 

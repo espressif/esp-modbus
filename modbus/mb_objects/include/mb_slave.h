@@ -28,6 +28,9 @@ mb_err_enum_t mbs_delete_handler(mb_base_t *inst, uint8_t func_code);
 // The helper function to get count of handlers for slave
 mb_err_enum_t mbs_get_handler_count(mb_base_t *inst, uint16_t *count);
 
+  // The helper function to get the current request address for slave
+mb_err_enum_t mbs_get_request_uid(mb_base_t *inst, uint8_t *uid);
+  
 mb_err_enum_t mbs_rtu_create_with_transport(mb_communication_info_t *comm_info,
         void **in_out_obj,
         mbc_slave_transport_factory_t factory,

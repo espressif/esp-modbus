@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import pexpect
 import pytest
+import re
 from _pytest.fixtures import FixtureRequest
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_embedded.plugin import multi_dut_argument, multi_dut_fixture
@@ -55,6 +56,7 @@ PARAM_FAIL = "fail"
 ## Getter tags for readability
 MASTER_TAG = "master"
 SLAVE_TAG = "slave"
+GATEWAY_TAG = "gateway"
 
 DEFAULT_SDKCONFIG = "default"
 ALLOWED_PERCENT_OF_FAILS = 10
@@ -213,7 +215,8 @@ class ModbusTestDut(IdfDut):
     TEST_START_PROMPT = r"I\s\(([0-9]+)\) mb_console: (Start modbus instances)"
     TEST_IP_PROMPT = r"Waiting IP\(([0-9]{1,2})\) from stdin:"
     TEST_IP_ADDRESS_REGEXP = r"I \([0-9]+\) [a-z_]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
-    TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z]*)"
+    TEST_APP_NAME = r"I \([0-9]+\) [a-z_]+: Project name:\s+([_a-z0-9]*)"
+    TEST_OBJECT_ID = re.compile(rb"^0x[0-9a-fA-F]{8,16}$")
 
     TEST_EXPECT_STR_TIMEOUT = 120
     TEST_PROMPT_TOUT = 10
@@ -246,32 +249,44 @@ class ModbusTestDut(IdfDut):
     def check_mb_objects_list(self) -> None:
         """Method to check if mb_objects list is not empty"""
         if not self.mb_objects:
-            self.logger.error("list of modbus objects in DUT couldn't be retrieved")
+            self.logger.error(
+                f"List of modbus objects in DUT({self.app_name}) couldn't be retrieved"
+            )
             raise RuntimeError from None
 
         for objects in self.mb_objects:
             if objects is None:
-                self.logger.error("list of modbus objects in DUT is wrongly populated")
+                self.logger.error(
+                    f"List of modbus objects in DUT({self.app_name}) is wrongly populated"
+                )
                 raise RuntimeError from None
 
         return None
 
     def validate_object_creation_tag(self, parsed_obj_tag: str) -> str:
         """Function checking and updating object creation tag master/slave if wrong"""
+        TEST_DUT_TAG_PATTERNS = (MASTER_TAG, SLAVE_TAG, GATEWAY_TAG, "mbs", "mbm")
+
         if self.app_name is None:
-            self.logger.error("app_name not initialized; cannot validate object tag")
+            self.logger.error("App_name not initialized; cannot validate object tag")
             raise RuntimeError from None
 
-        if MASTER_TAG in parsed_obj_tag or SLAVE_TAG in parsed_obj_tag:
+        print(f"Object tag: {parsed_obj_tag}")
+
+        if parsed_obj_tag and any(
+            tag in parsed_obj_tag.lower() for tag in TEST_DUT_TAG_PATTERNS
+        ):
             return parsed_obj_tag
 
-        # Workaround to get master/slave tag from DUT class
+        # Workaround to extract the expected tag from DUT class
         # Checking if app_name contains the  field. Ex: modbus_tcp_master
         obj_tag: str = ""
         if MASTER_TAG in self.app_name.lower():
             obj_tag = MASTER_TAG
         elif SLAVE_TAG in self.app_name.lower():
             obj_tag = SLAVE_TAG
+        elif GATEWAY_TAG in self.app_name.lower():
+            obj_tag = GATEWAY_TAG
         else:
             self.logger.error("Could not determine master/slave tag from app_name")
             raise RuntimeError from None
@@ -303,24 +318,28 @@ class ModbusTestDut(IdfDut):
 
     def get_object_by_id(self, id: bytes) -> Optional[MbObject]:
         """The getter retrieves master or slave object by instance address"""
-        self.check_mb_objects_list()
         for obj in self.mb_objects:
             if id == obj.id:
                 return obj
-
-        self.logger.error(f"couldn't find registered object with id: {id!r}")
         return None
 
-    def update_wrong_object_id(self, id: bytes) -> Optional[MbObject]:
-        """Scan registered object list checking for a wrongly parsed object ID which is
-        not 10 characters long. Ex - 0x3ffbf7bc"""
-        self.check_mb_objects_list()
-        for obj in self.mb_objects:
-            if len(obj.id) != 10:
-                self.logger.info(f"Updating wrong object id: {obj.id!r} to: {id!r}")
-                obj.id = id
-                return obj
-        return None
+    def validate_object_id(self, id: Optional[bytes]) -> bool:
+        """Validate object (instance) ID by regex pattern. Ex ID being expected- 0x3ffbf7bc"""
+        return bool(id and self.TEST_OBJECT_ID.fullmatch(id))
+
+    def get_or_create_object(
+        self, obj_id: bytes, timestamp: bytes, tag: str = ""
+    ) -> Optional[MbObject]:
+        """Return existing object by id, or create it after validating the id."""
+        obj = self.get_object_by_id(obj_id)
+        if obj is not None:
+            return obj
+        if not self.validate_object_id(obj_id):
+            self.logger.warning("Ignore parameter for invalid object id: %r", obj_id)
+            return None
+        return self.add_object(
+            self.validate_object_creation_tag(tag), obj_id, timestamp
+        )
 
     def get_params_by_name(self, name: str) -> Optional[List[MbParameter]]:
         """The getter retrieves parameters by name"""
@@ -554,7 +573,7 @@ class ModbusTestDut(IdfDut):
         if (
             all(all_success_params) is False or not all_success_params
         ):  # Checking only success parameters. Slaves dont have fail parameters, they return a zero list.
-            self.logger.error("success parameters couldn't be retrieved to plot graph")
+            self.logger.error("Success parameters couldn't be retrieved to plot graph")
             raise RuntimeError from None
         else:
             return ModbusDutStats(all_success_params, all_fail_params)
@@ -793,16 +812,13 @@ class ModbusTestDut(IdfDut):
             self.logger.info(
                 f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
             )
-            # Checking if MBobject exist in the object list
 
-            object_handle: Optional[MbObject] = self.get_object_by_id(
-                self.get_item(data, OBJ_ADDRESS)
+            object_handle: Optional[MbObject] = self.get_or_create_object(
+                self.get_item(data, OBJ_ADDRESS),
+                self.get_item(data, TRANSACTION_TIMESTAMP),
             )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(
-                    self.get_item(data, OBJ_ADDRESS)
-                )
-            assert object_handle is not None
+                return
 
             last_sucess_parameter: MbParameter = object_handle.add_parameter(
                 self.get_item(data, PARAM_NAME),
@@ -829,15 +845,12 @@ class ModbusTestDut(IdfDut):
             self.logger.info(
                 f"Handle: {self.app_name}[{self.test_stage.name}]: {str(data)}"
             )
-            # Checking if MBobject exist in the object list
-            object_handle: Optional[MbObject] = self.get_object_by_id(
-                self.get_item(data, OBJ_ADDRESS)
+            object_handle: Optional[MbObject] = self.get_or_create_object(
+                self.get_item(data, OBJ_ADDRESS),
+                self.get_item(data, TRANSACTION_TIMESTAMP),
             )
             if object_handle is None:
-                object_handle = self.update_wrong_object_id(
-                    self.get_item(data, OBJ_ADDRESS)
-                )
-            assert object_handle is not None
+                return
 
             last_fail_parameter: MbParameter = object_handle.add_parameter(
                 self.get_item(data, PARAM_NAME),
@@ -855,17 +868,17 @@ class ModbusTestDut(IdfDut):
         def handle_obj_create(data: Optional[Any]) -> None:
             """Handle creation"""
             self.test_stage = Stages.STACK_OBJECT_CREATE
-            self.logger.info(
-                f"Object creation handled: {self.app_name}[{self.test_stage.name}]: {str(data)}",
-            )
-            obj_tag = self.validate_object_creation_tag(
-                self.get_item(data, OBJ_TAG).decode("ascii")
-            )
 
-            last_add_object: MbObject = self.add_object(
-                obj_tag,
+            last_add_object: Optional[MbObject] = self.get_or_create_object(
                 self.get_item(data, OBJ_ID),
                 self.get_item(data, TRANSACTION_TIMESTAMP),
+                self.get_item(data, OBJ_TAG).decode("ascii"),
+            )
+            if last_add_object is None:
+                return
+
+            self.logger.info(
+                f"Object creation handled: {self.app_name}[{self.test_stage.name}]: {str(data)}",
             )
             self.logger.info("New added object: %s", last_add_object)
 

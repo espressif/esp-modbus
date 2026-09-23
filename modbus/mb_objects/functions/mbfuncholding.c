@@ -162,7 +162,7 @@ mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
         reg_addr++;
 
         reg_cnt = (uint16_t)(frame_ptr[MB_PDU_FUNC_READ_REGCNT_OFF] << 8);
-        reg_cnt = (uint16_t)(frame_ptr[MB_PDU_FUNC_READ_REGCNT_OFF + 1]);
+        reg_cnt |= (uint16_t)(frame_ptr[MB_PDU_FUNC_READ_REGCNT_OFF + 1]);
 
         /* Check if the number of registers to read is valid. If not
          * return Modbus illegal data value exception.

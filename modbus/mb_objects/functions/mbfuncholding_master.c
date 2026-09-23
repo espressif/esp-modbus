@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -86,7 +86,7 @@ mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 /**
  * This function will request write holding register.
  *
- * @param snd_addr salve address
+ * @param snd_addr slave address
  * @param reg_addr register start address
  * @param reg_data register data to be written
  * @param timeout timeout (-1 will waiting forever)
@@ -113,7 +113,7 @@ mb_err_enum_t mbm_rq_write_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16
     mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF] = reg_data >> 8;
     mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF + 1] = reg_data;
 
-    inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE);
+    inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_SIZE);
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -124,7 +124,14 @@ mb_exception_t mbm_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
     mb_exception_t status = MB_EX_NONE;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    if (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_SIZE)) {
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
+    /* For broadcast request do not check the buffer size. */
+    if (*len_buf == (MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_SIZE)
+            || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+
         uint16_t reg_address;
         reg_address = (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(frame_ptr[MB_PDU_FUNC_WRITE_ADDR_OFF + 1]);
@@ -152,7 +159,7 @@ mb_exception_t mbm_fn_write_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uin
 /**
  * This function will request write multiple holding register.
  *
- * @param snd_addr salve address
+ * @param snd_addr slave address
  * @param reg_addr register start address
  * @param reg_num register total number
  * @param data_ptr data to be written
@@ -207,8 +214,13 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
     uint16_t byte_count;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    /* If this request is broadcast, the *len_buf is not need check. */
-    if ((*len_buf == MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_MUL_SIZE) || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
+    if ((*len_buf == MB_PDU_SIZE_MIN + MB_PDU_FUNC_WRITE_MUL_SIZE)
+            || inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF + 1]);
@@ -245,7 +257,7 @@ mb_exception_t mbm_fn_write_multi_holding_reg(mb_base_t *inst, uint8_t *frame_pt
 /**
  * This function will request read holding register.
  *
- * @param snd_addr salve address
+ * @param snd_addr slave address
  * @param reg_addr register start address
  * @param reg_num register total number
  * @param timeout timeout (-1 will waiting forever)
@@ -259,6 +271,12 @@ mb_err_enum_t mbm_rq_read_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_
     if (!inst || (snd_addr > MB_ADDRESS_MAX)) {
         return MB_EINVAL;
     }
+
+    /* The broadcast read holding registers request is not supported. */
+    if (!snd_addr) {
+        return MB_ENOREG;
+    }
+
     if (!mb_port_event_res_take(inst->port_obj, tout)) {
         return MB_EBUSY;
     }
@@ -287,14 +305,9 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
     uint16_t reg_count;
     mb_err_enum_t reg_status = MB_EILLFUNC;
 
-    /* If this request is broadcast, and it's read mode. This request don't need execute. */
-    bool is_broadcast = false;
-
-    is_broadcast = inst->transp_obj->frm_is_bcast(inst->transp_obj);
-
-    if (is_broadcast == true) {
-        status = MB_EX_NONE;
-    } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN) {
+    if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
+        status = MB_EX_NEGATIVE_ACK;
+    } else if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READ_SIZE_MIN)) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] << 8);
         reg_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1]);
@@ -332,7 +345,7 @@ mb_exception_t mbm_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
 /**
  * This function will request read and write holding register.
  *
- * @param snd_addr salve address
+ * @param snd_addr slave address
  * @param rd_reg_addr read register start address
  * @param rd_reg_num read register total number
  * @param data_ptr data to be written
@@ -393,10 +406,12 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
     uint16_t reg_rd_address, reg_wr_address;
     uint8_t *mb_frame_ptr;
 
-    /* If this request is broadcast, and it's read mode. This request don't need execute. */
-    if (inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
-        status = MB_EX_NONE;
-    } else if (*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN) {
+    if (!len_buf || !frame_ptr || !inst) {
+        return MB_EINVAL;
+    }
+
+    /* If this request is broadcast, do not check the length */
+    if ((*len_buf >= MB_PDU_SIZE_MIN + MB_PDU_FUNC_READWRITE_SIZE_MIN)) {
         inst->get_send_buf(inst, &mb_frame_ptr);
         reg_rd_address = (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF] << 8);
         reg_rd_address |= (uint16_t)(mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF + 1]);
@@ -421,7 +436,7 @@ mb_exception_t mbm_fn_rw_multi_holding_regs(mb_base_t *inst, uint8_t *frame_ptr,
 
             if (reg_status == MB_ENOERR) {
                 /* Make the read callback. */
-                if (inst->rw_cbs.reg_holding_cb) {
+                if (inst->rw_cbs.reg_holding_cb && !inst->transp_obj->frm_is_bcast(inst->transp_obj)) {
                     reg_status = inst->rw_cbs.reg_holding_cb(inst, &frame_ptr[MB_PDU_FUNC_READWRITE_READ_VALUES_OFF],
                                  reg_rd_address, reg_rd_cnt, MB_REG_READ);
                 }

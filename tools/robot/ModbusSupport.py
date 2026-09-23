@@ -13,6 +13,8 @@ from scapy.fields import (
     ByteField,
     XByteField,
     FieldListField,
+    StrLenField,
+    FieldLenField,
     ByteEnumField,
     BitFieldLenField,
     ConditionalField,
@@ -102,6 +104,19 @@ class ModbusMBAP(Packet):
         self.time = time.time()
         # print(f"Set time stamp of TID#{self.transId:#x}: {self.time}")
         return self.time
+
+
+class CustomModbusCommand(Packet):
+    name = "Custom Modbus Command"
+    fields_desc = [
+        ShortField("transId", 0),
+        ShortField("protoId", 0),
+        FieldLenField(
+            "len", None, length_of="customBytes", adjust=lambda pkt, x: x + 1
+        ),
+        ByteField("unitId", 1),
+        StrLenField("customBytes", "", length_from=lambda pkt: pkt.len - 1),
+    ]
 
 
 # Can be used to replace all Modbus read

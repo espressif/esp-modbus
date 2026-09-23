@@ -14,6 +14,8 @@
 #include "rtu_transport.h"
 #include "tcp_transport.h"
 
+#include "esp_timer.h"
+
 static const char *TAG = "mb_object.master";
 
 #if (MB_MASTER_ASCII_ENABLED || MB_MASTER_RTU_ENABLED)
@@ -39,6 +41,8 @@ typedef struct {
     uint8_t master_dst_addr;
     uint64_t curr_trans_id;
     handler_descriptor_t handler_descriptor;
+    uint64_t cooldown_until_us;
+    bool last_request_timed_out;
 } mbm_object_t;
 
 mb_err_enum_t mbm_tcp_create(mb_tcp_opts_t *tcp_opts, void **in_out_obj);
@@ -105,6 +109,12 @@ static mb_exception_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_cod
         return MB_EX_ILLEGAL_FUNCTION;
     }
     if (func_code & MB_FUNC_ERROR) {
+        if (!len || (*len <= MB_PDU_DATA_OFF)) {
+            ESP_LOGE(TAG,
+                     "Invalid truncated exception PDU, length=%u",
+                     len ? (unsigned)*len : 0U);
+            return MB_EX_ILLEGAL_DATA_VALUE;
+        }
         exception = (mb_exception_t)buf[MB_PDU_DATA_OFF];
         return exception;
     }
@@ -511,7 +521,11 @@ static void mbm_set_dest_addr(mb_base_t *inst, uint8_t dest_addr)
 static uint8_t mbm_get_dest_addr(mb_base_t *inst)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);
-    return mbm_obj->master_dst_addr;
+    uint8_t dest_addr = 0;
+    CRITICAL_SECTION(inst->lock) {
+        dest_addr = mbm_obj->master_dst_addr;
+    }
+    return dest_addr;
 }
 
 void mbm_error_cb_respond_timeout(mb_base_t *inst, uint8_t dest_addr, const uint8_t *pdu_data, uint16_t pdu_length)
@@ -538,11 +552,28 @@ void mbm_error_cb_request_success(mb_base_t *inst, uint8_t dest_address, const u
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
+static void mbm_apply_timeout_cooldown(mb_base_t *inst, mbm_object_t *mbm_obj)
+{
+#if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
+    if (!mbm_obj->last_request_timed_out ||
+            !((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
+        return;
+    }
+    const uint64_t now_us = esp_timer_get_time();
+    if (mbm_obj->cooldown_until_us > now_us) {
+        const uint64_t delay_us = mbm_obj->cooldown_until_us - now_us;
+        ESP_LOGD(TAG, "Master apply cooldown time...");
+        vTaskDelay(pdMS_TO_TICKS((uint32_t)((delay_us + 999) / 1000)));
+    }
+    // Cooldown is applied, reset buffer will be performed in port send.
+    mbm_obj->last_request_timed_out = false;
+#endif
+}
+
 mb_err_enum_t mbm_poll(mb_base_t *inst)
 {
     mbm_object_t *mbm_obj = MB_GET_OBJ_CTX(inst, mbm_object_t, base);;
 
-    uint16_t length;
     mb_exception_t exception;
     mb_err_enum_t status = MB_ENOERR;
     mb_event_t event;
@@ -564,6 +595,9 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
 
         case EV_FRAME_TRANSMIT:
             mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
+
+            mbm_apply_timeout_cooldown(inst, mbm_obj);
+
             MB_PRT_BUF(inst->descr.parent_name, ":MB_TRANSMIT",
                        mbm_obj->snd_frame, mbm_obj->pdu_snd_len, ESP_LOG_DEBUG);
             status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbm_obj->master_dst_addr,
@@ -592,8 +626,9 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
             if (event.trans_id == mbm_obj->curr_trans_id) {
                 mb_port_timer_disable(MB_OBJ(inst->port_obj));
                 // Check if the frame is for us. If not ,send an error process event.
-                if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr)
-                                              || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS))) {
+                const bool tcp_uid_wildcard = (mbm_obj->cur_mode == MB_TCP) &&
+                                              ((mbm_obj->rcv_addr == MB_ADDRESS_BROADCAST) || (mbm_obj->rcv_addr == MB_TCP_PSEUDO_ADDRESS));
+                if ((status == MB_ENOERR) && ((mbm_obj->rcv_addr == mbm_obj->master_dst_addr) || tcp_uid_wildcard)) {
                     if ((mbm_obj->rcv_frame[MB_PDU_FUNC_OFF] & ~MB_FUNC_ERROR) == (mbm_obj->snd_frame[MB_PDU_FUNC_OFF])) {
                         ESP_LOGD(TAG, MB_OBJ_FMT", frame data received successfully, (%d).", MB_OBJ_PARENT(inst), (int)status);
                         MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",
@@ -624,25 +659,16 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                 if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)
                         && ((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
                     mbm_obj->rcv_frame = mbm_obj->snd_frame;
+                    mbm_obj->pdu_rcv_len = mbm_obj->pdu_snd_len;
+                    mbm_obj->rcv_addr = mbm_obj->master_dst_addr;
                 }
                 MB_RETURN_ON_FALSE(mbm_obj->rcv_frame, MB_EILLSTATE, TAG,
                                    MB_OBJ_FMT", receive buffer initialization fail.", MB_OBJ_PARENT(inst));
                 ESP_LOGD(TAG, MB_OBJ_FMT":EV_EXECUTE", MB_OBJ_PARENT(inst));
                 mbm_obj->func_code = mbm_obj->rcv_frame[MB_PDU_FUNC_OFF];
                 exception = MB_EX_ILLEGAL_FUNCTION;
-                /* If master request is broadcast,
-                 * the master needs to execute function for all slaves.
-                 */
-                if (MB_OBJ(inst->transp_obj)->frm_is_bcast(inst->transp_obj)) {
-                    length = mbm_obj->pdu_snd_len;
-                    for (int j = 1; j <= MB_MASTER_TOTAL_SLAVE_NUM; j++) {
-                        mbm_set_dest_addr(inst, j);
-                        exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &length);
-                    }
-                } else {
-                    ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code);
-                    exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
-                }
+                ESP_LOGD(TAG, MB_OBJ_FMT": function (0x%x), addr=%u, invoke handler.", MB_OBJ_PARENT(inst), (int)mbm_obj->func_code, (unsigned)mbm_obj->rcv_addr);
+                exception = mbm_check_invoke_handler(inst, mbm_obj->func_code, mbm_obj->rcv_frame, &mbm_obj->pdu_rcv_len);
                 /* If master has exception, will send error process event. Otherwise the master is idle.*/
                 if (exception != MB_EX_NONE) {
                     mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_EXECUTE_FUNCTION);
@@ -670,6 +696,12 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
             mbm_get_pdu_send_buf(inst, &mbm_obj->snd_frame);
             switch (error_type) {
             case EV_ERROR_RESPOND_TIMEOUT:
+                mbm_obj->last_request_timed_out = true;
+                if (((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII)) &&
+                        CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS > 0) {
+                    mbm_obj->cooldown_until_us =
+                        esp_timer_get_time() + ((uint64_t)CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS * 1000);
+                }
                 mbm_error_cb_respond_timeout(inst, mbm_obj->master_dst_addr,
                                              mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;
@@ -682,6 +714,8 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                                               mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;
             case EV_ERROR_OK:
+                mbm_obj->last_request_timed_out = false;
+                mbm_obj->cooldown_until_us = 0;
                 mbm_error_cb_request_success(inst, mbm_obj->master_dst_addr,
                                              mbm_obj->snd_frame, mbm_obj->pdu_snd_len);
                 break;
