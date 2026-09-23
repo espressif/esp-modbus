@@ -646,19 +646,17 @@ MB_EVENT_HANDLER(mbs_on_close)
     // if close all sockets event is received
     if (event_info->opt_fd < 0) {
         (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
-        for (int fd = 0; fd < MB_MAX_FDS; fd++) {
-            mb_node_info_t *pnode = mb_drv_get_node(drv_obj, fd);
-            if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)
-                    && FD_ISSET(pnode->index, &drv_obj->open_set)) {
-                mb_drv_close(drv_obj, fd);
-            }
-        }
+        mb_drv_lock(drv_obj);
+        transaction_delete_all_items(port_obj->transaction);
+        mb_drv_unlock(drv_obj);
+        int closed = mb_drv_close_all(drv_obj);
+        ESP_LOGD(TAG, "%p, closed %d Modbus TCP client(s).", port_obj, closed);
         (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
         mb_drv_check_suspend_shutdown(ctx);
     } else if (MB_CHECK_FD_RANGE(event_info->opt_fd)) {
         pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
         if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)) {
-            if ((pnode->sock_id < 0) && FD_ISSET(pnode->sock_id, &drv_obj->open_set)) {
+            if ((pnode->sock_id < 0) && FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 mb_drv_lock(drv_obj);
                 (void)transaction_delete_by_node_id(port_obj->transaction, event_info->opt_fd);
                 mb_drv_unlock(drv_obj);
@@ -676,23 +674,28 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     static int curr_fd = 0;
-    mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
     mb_drv_check_suspend_shutdown(ctx);
-    int ret = mb_drv_check_node_state(drv_obj, &curr_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
+
+    // mb_drv_check_node_state() can advance over empty slots. Always use the
+    // descriptor it actually checked, and walk the full fd array rather than
+    // node_conn_count (which is not an array bound when slots contain holes).
+    int checked_fd = curr_fd;
+    int ret = mb_drv_check_node_state(drv_obj, &checked_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
+    curr_fd = (checked_fd + 1) % MB_MAX_FDS;
     if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
+        mb_node_info_t *pnode = mb_drv_get_node(drv_obj, checked_fd);
+        if (!pnode) {
+            vTaskDelay(1);
+            return;
+        }
         ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
                  port_obj, pnode->index, pnode->sock_id,
                  pnode->addr_info.ip_addr_str, (int)ret);
         mb_drv_lock(drv_obj);
-        (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
+        (void)transaction_delete_by_node_id(port_obj->transaction, checked_fd);
         mb_drv_unlock(drv_obj);
-        mb_drv_close(drv_obj, curr_fd);
-    }
-    if ((curr_fd + 1) >= (drv_obj->node_conn_count)) {
-        curr_fd = 0;
-    } else {
-        curr_fd++;
+        mb_drv_close(drv_obj, checked_fd);
     }
     vTaskDelay(1);
 }
