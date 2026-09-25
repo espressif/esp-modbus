@@ -34,6 +34,7 @@ typedef struct {
 static const char *TAG = "mb_port.tcp.slave";
 
 static uint64_t mbs_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event);
+static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj);
 
 static esp_err_t mbs_port_tcp_register_handlers(void *ctx)
 {
@@ -250,6 +251,7 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
     uint16_t tid = MB_TCP_MBAP_GET_FIELD(frame, MB_TCP_TID);
     port_driver_t *drv_obj = port_obj->drv_obj;
     transaction_item_handle_t item;
+    bool retrigger_pending = false;
 
     mb_drv_lock(drv_obj);
     item = transaction_get_first(port_obj->transaction);
@@ -261,34 +263,40 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
         pnode = mb_drv_get_node(drv_obj, node_id);
         if (pnode && buf && (tid == msg_id)) {
             int write_length = mb_drv_write(drv_obj, node_id, frame, length);
-            if (pnode && write_length) {
+            if (pnode && write_length > 0) {
                 frame_sent = true;
                 ESP_LOGD(TAG, "%p, node: #%d, socket(#%d)[%s], send packet TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p, len: %d, ",
                          drv_obj, pnode->index, pnode->sock_id,
                          pnode->addr_info.node_name_str, (unsigned)tid, (unsigned)msg_id, frame, length);
+                (void)transaction_item_set_state(item, REPLIED);
             } else {
                 ESP_LOGE(TAG, "%p, node: #%d, socket(#%d)[%s], modbus write fail, TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p, len: %d, ",
                          drv_obj, pnode->index, pnode->sock_id,
                          pnode->addr_info.node_name_str, (unsigned)tid, (unsigned)msg_id, frame, length);
-            }
-            if (ESP_OK != transaction_item_set_state(item, REPLIED)) {
-                ESP_LOGE(TAG, "transaction queue set reply state fail.");
+                (void)transaction_delete_item(port_obj->transaction, item);
+                retrigger_pending = true;
             }
         } else {
-            ESP_LOGE(TAG, "%p, node: #%d, socket(#%d)[%s], could not write transaction, TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p, len: %d, ",
-                     drv_obj, pnode->index, pnode->sock_id, pnode->addr_info.node_name_str,
-                     (unsigned)tid, (unsigned)msg_id, frame, length);
-            if (item && transaction_delete_item(port_obj->transaction, item) != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
+            if (pnode) {
+                ESP_LOGE(TAG, "%p, node: #%d, socket(#%d)[%s], could not write transaction, TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p, len: %d, ",
+                         drv_obj, pnode->index, pnode->sock_id, pnode->addr_info.node_name_str,
+                         (unsigned)tid, (unsigned)msg_id, frame, length);
             } else {
-                ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
+                ESP_LOGE(TAG, "%p, node #%d is closed, drop transaction TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", len: %d",
+                         drv_obj, node_id, (unsigned)tid, (unsigned)msg_id, length);
             }
-            (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
+            (void)transaction_delete_item(port_obj->transaction, item);
+            retrigger_pending = true;
         }
+        (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
     } else {
         ESP_LOGE(TAG, "can not find the confirmed transaction TID: 0x%04" PRIx16 ", drop the frame", tid);
+        retrigger_pending = true;
     }
     mb_drv_unlock(drv_obj);
+    if (retrigger_pending) {
+        mbs_retrigger_pending_transactions(port_obj->drv_obj, port_obj);
+    }
 
     return frame_sent;
 }
@@ -489,6 +497,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     esp_err_t err = ESP_ERR_INVALID_STATE;
     frame_entry_t frame_entry = {0};
     int ret = 0;
+    bool retrigger_pending = false;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (pnode && !queue_is_empty(pnode->tx_queue)) {
@@ -524,6 +533,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                         } else {
                             ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
                         }
+                        retrigger_pending = true;
                     } else {
                         DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode->index);
                     }
@@ -560,6 +570,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                         } else {
                             ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
                         }
+                        retrigger_pending = true;
                     } else {
                         DRIVER_SEND_EVENT(ctx, MB_EVENT_ERROR, pnode->index);
                     }
@@ -582,6 +593,9 @@ MB_EVENT_HANDLER(mbs_on_send_data)
         }
         free(frame_entry.buf);
     }
+    if (retrigger_pending) {
+        mbs_retrigger_pending_transactions(ctx, port_obj);
+    }
     mb_drv_check_suspend_shutdown(ctx);
 }
 
@@ -596,7 +610,7 @@ static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_o
         if (pending_node) {
             ESP_LOGD(TAG, "Re-trigger pending transaction TID:0x%04x for node #%d.",
                      pending_msg_id, pending_node_id);
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, pending_node_id);
+            DRIVER_SEND_EVENT(MB_GET_DRV_PTR(ctx), MB_EVENT_RECV_DATA, pending_node_id);
         }
     }
 }
