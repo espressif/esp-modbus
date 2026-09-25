@@ -230,10 +230,9 @@ bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *len
                 }
             }
         } else {
-            // Delete expired frames
             int frame_cnt = transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
             if (frame_cnt) {
-                ESP_LOGE(TAG, "Deleted %d expired frames.", frame_cnt);
+                ESP_LOGD(TAG, "Deleted %d expired frames.", frame_cnt);
             }
         }
         mb_drv_unlock(drv_obj);
@@ -336,6 +335,43 @@ static uint64_t mbs_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event)
     return mb_port_get_trans_id(inst);
 }
 
+static bool mbs_try_start_head_transaction(void *ctx, mbs_tcp_port_t *port_obj, uint32_t timeout_ticks)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    mb_drv_lock(drv_obj);
+    transaction_item_handle_t item = transaction_get_first(port_obj->transaction);
+    mb_drv_unlock(drv_obj);
+    if (!item || (transaction_item_get_state(item) != QUEUED)) {
+        return false;
+    }
+    // Wait until the poll thread releases the semaphore. Do not give it here.
+    if (!mb_port_event_res_take(&port_obj->base, timeout_ticks)) {
+        return false;
+    }
+    mb_drv_lock(drv_obj);
+    item = transaction_get_first(port_obj->transaction);
+    if (item && (transaction_item_get_state(item) == QUEUED)) {
+        (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
+        if (ESP_OK == transaction_item_set_state(item, ACKNOWLEDGED)) {
+            uint16_t msg_id = 0;
+            int node_id = 0;
+            (void)transaction_item_get_data(item, NULL, &msg_id, &node_id);
+            mb_node_info_t *pnode = mb_drv_get_node(drv_obj, node_id);
+            ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", Acknowledged packet TID: 0x%04" PRIx16 "."),
+                     drv_obj, pnode->index, pnode->sock_id,
+                     pnode->addr_info.ip_addr_str, (unsigned)msg_id);
+        }
+    }
+    mb_drv_unlock(drv_obj);
+    drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_OK);
+    return true;
+}
+
+static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj)
+{
+    (void)mbs_try_start_head_transaction(ctx, port_obj, TRANSACTION_TICKS);
+}
+
 MB_EVENT_HANDLER(mbs_on_ready)
 {
     // The driver is registered
@@ -413,7 +449,6 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
     mbs_tcp_port_t *port_obj = (mbs_tcp_port_t *)drv_obj->parent;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
-    transaction_item_handle_t item = NULL;
     if (pnode) {
         if (!queue_is_empty(pnode->rx_queue)) {
             ESP_LOGD(TAG, "%p, node #%d, socket(#%d) [%s], receive data ready.", ctx, (int)event_info->opt_fd,
@@ -432,57 +467,20 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                 msg.msg_id = frame_entry.tid;
                 msg.node_id = pnode->index;
                 msg.pnode = pnode;
-                // Enqueue the transaction, keep time of receiving.
-                item = transaction_enqueue(port_obj->transaction, &msg, port_get_timestamp());
+                // One outstanding waiter per connection: a new TID from the same
+                // master supersedes a still-QUEUED retry (avoids stale TID replies).
+                int superseded = transaction_delete_queued_by_node_id(port_obj->transaction, pnode->index);
+                if (superseded) {
+                    ESP_LOGD(TAG, "%p, node #%d, superseded %d queued request(s) with TID: 0x%04" PRIx16,
+                             ctx, pnode->index, superseded, (unsigned)tid_counter);
+                }
+                (void)transaction_enqueue(port_obj->transaction, &msg, port_get_timestamp());
                 pnode->tid_counter = tid_counter; // assign the TID from frame to use it on send
                 mb_drv_unlock(drv_obj);
             }
         }
-        item = transaction_get_first(port_obj->transaction);
-        if (item) {
-            if (transaction_item_get_state(item) == QUEUED) {
-                // Check if the main FSM is not busy
-                if (mb_port_event_res_take(&port_obj->base, TRANSACTION_TICKS)) {
-                    (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
-                } else {
-                    if (port_get_timestamp() - transaction_item_get_tick(item) > MB_DROP_TRANSACTION_TIME_US) {
-                        ESP_LOGD(TAG, "Transaction TID:0x%04" PRIx16 " is expired.", transaction_item_get_id(item));
-                    } else {
-                        // postpone the packet processing to next cycle
-                        DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, pnode->index);
-                    }
-                    mb_drv_lock(drv_obj);
-                    transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
-                    mb_drv_unlock(drv_obj);
-                    mb_drv_check_suspend_shutdown(ctx);
-                    return;
-                }
-                mb_drv_lock(drv_obj);
-                uint16_t msg_id = 0;
-                int node_id = 0;
-                (void)transaction_item_get_data(item, NULL, &msg_id, &node_id);
-                pnode = mb_drv_get_node(drv_obj, node_id);
-                ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknowledged packet TID: 0x%04" PRIx16 ", start transaction."),
-                         drv_obj, pnode->index, pnode->sock_id,
-                         pnode->addr_info.ip_addr_str, (unsigned)msg_id);
-                if (ESP_OK == transaction_item_set_state(item, ACKNOWLEDGED)) {
-                    ESP_LOGD(TAG, "%p, " MB_NODE_FMT(", acknowledged packet TID: 0x%04" PRIx16 "."),
-                             drv_obj, pnode->index, pnode->sock_id,
-                             pnode->addr_info.ip_addr_str, (unsigned)msg_id);
-                }
-                mb_drv_unlock(drv_obj);
-                // send receive event to modbus object to get the new data
-                drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_OK);
-            } else {
-                if (transaction_item_get_state(item) != TRANSMITTED) {
-                    // Transaction processing is ongoing, just delete expired transactions
-                    mb_drv_lock(drv_obj);
-                    transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
-                    mb_drv_unlock(drv_obj);
-                }
-            }
-        } else {
-            ESP_LOGD(TAG, "%p, no queued items found", ctx);
+        if (!mbs_try_start_head_transaction(ctx, port_obj, 0)) {
+            ESP_LOGD(TAG, "%p, no QUEUED head or FSM busy", ctx);
         }
     }
     mb_drv_check_suspend_shutdown(ctx);
@@ -530,8 +528,6 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                     if (ret >= 0) {
                         if (transaction_delete(port_obj->transaction, tid) != ESP_OK) {
                             ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
-                        } else {
-                            ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
                         }
                         retrigger_pending = true;
                     } else {
@@ -567,8 +563,6 @@ MB_EVENT_HANDLER(mbs_on_send_data)
                         }
                         if (transaction_delete_item(port_obj->transaction, item) != ESP_OK) {
                             ESP_LOGE(TAG, "Failed to remove queued TID:0x%04" PRIx16, tid);
-                        } else {
-                            ESP_LOGD(TAG, "Remove the message TID:0x%04" PRIx16, tid);
                         }
                         retrigger_pending = true;
                     } else {
@@ -597,22 +591,6 @@ MB_EVENT_HANDLER(mbs_on_send_data)
         mbs_retrigger_pending_transactions(ctx, port_obj);
     }
     mb_drv_check_suspend_shutdown(ctx);
-}
-
-static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj)
-{
-    transaction_item_handle_t pending = transaction_get_first(port_obj->transaction);
-    if (pending && (transaction_item_get_state(pending) == QUEUED)) {
-        int pending_node_id = 0;
-        uint16_t pending_msg_id = 0;
-        (void)transaction_item_get_data(pending, NULL, &pending_msg_id, &pending_node_id);
-        mb_node_info_t *pending_node = mb_drv_get_node(MB_GET_DRV_PTR(ctx), pending_node_id);
-        if (pending_node) {
-            ESP_LOGD(TAG, "Re-trigger pending transaction TID:0x%04x for node #%d.",
-                     pending_msg_id, pending_node_id);
-            DRIVER_SEND_EVENT(MB_GET_DRV_PTR(ctx), MB_EVENT_RECV_DATA, pending_node_id);
-        }
-    }
 }
 
 MB_EVENT_HANDLER(mbs_on_error)
@@ -646,7 +624,7 @@ MB_EVENT_HANDLER(mbs_on_error)
     mb_drv_unlock(drv_obj);
     mb_drv_close(drv_obj, event_info->opt_fd);
     // Re-trigger any pending QUEUED transactions for surviving other clients
-    mbs_retrigger_pending_transactions(ctx, port_obj);
+    (void)mbs_retrigger_pending_transactions(ctx, port_obj);
     mb_drv_check_suspend_shutdown(ctx);
 }
 
@@ -702,11 +680,21 @@ MB_EVENT_HANDLER(mbs_on_timeout)
         (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
         mb_drv_unlock(drv_obj);
         mb_drv_close(drv_obj, curr_fd);
+        (void)mbs_retrigger_pending_transactions(ctx, port_obj);
     }
     if ((curr_fd + 1) >= (drv_obj->node_conn_count)) {
         curr_fd = 0;
     } else {
         curr_fd++;
+    }
+    // Backup start when the completion handoff did not get the semaphore within TRANSACTION_TICKS.
+    (void)mbs_try_start_head_transaction(ctx, port_obj, 0);
+    mb_drv_lock(drv_obj);
+    int expired = transaction_delete_expired(port_obj->transaction, port_get_timestamp(),
+                  MB_DROP_TRANSACTION_TIME_US);
+    mb_drv_unlock(drv_obj);
+    if (expired) {
+        ESP_LOGD(TAG, "%p, dropped %d queued frame(s) older than keep-alive window.", port_obj, expired);
     }
     vTaskDelay(1);
 }

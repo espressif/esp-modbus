@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -224,12 +224,22 @@ esp_err_t transaction_set_tick(transaction_handle_t transaction, uint16_t msg_id
     return ESP_FAIL;
 }
 
+static inline bool transaction_item_is_in_progress(pending_state_t state)
+{
+    return (state == ACKNOWLEDGED) || (state == CONFIRMED)
+           || (state == REPLIED) || (state == TRANSMITTED);
+}
+
 uint16_t transaction_delete_single_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout)
 {
     uint16_t msg_id = 0xFFFF;
     transaction_item_handle_t item;
     CRITICAL_SECTION_LOCK(transaction->lock);
     STAILQ_FOREACH(item, transaction->list, next) {
+        pending_state_t state = atomic_load(&(item->state));
+        if (transaction_item_is_in_progress(state)) {
+            continue;
+        }
         if (current_tick - item->tick > timeout) {
             STAILQ_REMOVE(transaction->list, item, transaction_item, next);
             free(item->buffer);
@@ -262,18 +272,42 @@ int transaction_delete_by_node_id(transaction_handle_t transaction, int node_id)
     return deleted_items;
 }
 
+int transaction_delete_queued_by_node_id(transaction_handle_t transaction, int node_id)
+{
+    int deleted_items = 0;
+    transaction_item_handle_t item, tmp;
+    CRITICAL_SECTION_LOCK(transaction->lock);
+    STAILQ_FOREACH_SAFE(item, transaction->list, next, tmp) {
+        if ((item->node_id == node_id) && (atomic_load(&(item->state)) == QUEUED)) {
+            STAILQ_REMOVE(transaction->list, item, transaction_item, next);
+            free(item->buffer);
+            transaction->size -= item->len;
+            free(item);
+            deleted_items++;
+        }
+    }
+    CRITICAL_SECTION_UNLOCK(transaction->lock);
+    return deleted_items;
+}
+
 int transaction_delete_expired(transaction_handle_t transaction, transaction_tick_t current_tick, transaction_tick_t timeout)
 {
     int deleted_items = 0;
     transaction_item_handle_t item, tmp;
     CRITICAL_SECTION_LOCK(transaction->lock);
     STAILQ_FOREACH_SAFE(item, transaction->list, next, tmp) {
-        if ((current_tick - item->tick > timeout) || atomic_load(&(item->state)) == EXPIRED) {
+        pending_state_t state = atomic_load(&(item->state));
+        // In-progress items belong to the FSM / send path.
+        // Dropping of them races recv/send and produces stale TID replies.
+        if (transaction_item_is_in_progress(state)) {
+            continue;
+        }
+        if ((current_tick - item->tick > timeout) || (state == EXPIRED)) {
             STAILQ_REMOVE(transaction->list, item, transaction_item, next);
             free(item->buffer);
             transaction->size -= item->len;
             free(item);
-            deleted_items ++;
+            deleted_items++;
         }
     }
     CRITICAL_SECTION_UNLOCK(transaction->lock);
