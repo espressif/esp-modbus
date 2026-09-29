@@ -206,7 +206,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
 
     // Receive data from connected client
     if (info_ptr) {
-        MB_RETURN_ON_FALSE((info_ptr->sock_id > 0), -1, TAG, "try to read incorrect socket = #%d", info_ptr->sock_id);
+        MB_RETURN_ON_FALSE(MB_FD_IS_VALID(info_ptr->sock_id), -1, TAG, "try to read incorrect socket = #%d", info_ptr->sock_id);
         // Read packet header
         ret = port_get_buf(info_ptr, ptemp_buf, MB_TCP_UID, MB_READ_TICK);
         if (ret == 0) {
