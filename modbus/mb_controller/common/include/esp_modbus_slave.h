@@ -113,6 +113,9 @@ void mbc_slave_init_iface(void *ctx);
 /**
  * @brief Deletes Modbus controller and stack engine
  *
+ * The stack does not have to be stopped first: a started stack is stopped here.
+ * For a TCP slave, the listener and all the client connections are closed.
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
@@ -144,22 +147,36 @@ esp_err_t mbc_slave_unlock(void *ctx);
 /**
  * @brief Start of Modbus communication stack
  *
+ * For a TCP slave, the function blocks until the listening socket accepts connections.
+ * If the port is still in use (for example by a listener that is being closed), it keeps
+ * trying for up to 5 seconds. When it fails, the stack stays stopped and the start can be retried.
+ * It must not be called from the Modbus tasks (e.g. from a register access callback).
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
- *     - ESP_OK   Success
- *     - ESP_ERR_INVALID_ARG Modbus stack start error
+ *     - ESP_OK   Success, the slave is listening (TCP)
+ *     - ESP_ERR_INVALID_STATE  The stack is already started, or the call is made from a Modbus task
+ *     - ESP_ERR_TIMEOUT        TCP: the port stayed in use during the start time
+ *     - ESP_ERR_NO_MEM         TCP: not enough sockets or memory to create the listener
+ *     - ESP_ERR_INVALID_ARG    TCP: the configured address or address family can not be used
+ *     - ESP_FAIL               TCP: other socket error, see the log for the details
  */
 esp_err_t mbc_slave_start(void *ctx);
 
 /**
  * @brief Stop of Modbus communication stack
  *
+ * For a TCP slave, the function returns after the listening socket and all the client
+ * connections are closed, so the same port can be started again right away.
+ * It must not be called from the Modbus tasks (e.g. from a register access callback).
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
  *     - ESP_OK   Success
- *     - ESP_ERR_INVALID_ARG Modbus stack stop error
+ *     - ESP_ERR_INVALID_STATE  The stack is not started, or the call is made from a Modbus task
+ *     - ESP_ERR_TIMEOUT        TCP: the driver task did not complete the stop in time
  */
 esp_err_t mbc_slave_stop(void *ctx);
 

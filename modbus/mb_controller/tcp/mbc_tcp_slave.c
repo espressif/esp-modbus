@@ -43,42 +43,58 @@ static void modbus_tcp_slave_task(void *param)
 }
 
 // Start Modbus controller start function
+// Blocks until the listener accepts connections or the start fails.
 static esp_err_t mbc_tcp_slave_start(void *ctx)
 {
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     mbs_controller_iface_t *mbs_iface = MB_SLAVE_GET_IFACE(ctx);
     mb_err_enum_t status = MB_EIO;
 
+    MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
+                       "mb stack can not be started from the modbus task.");
+    MB_RETURN_ON_FALSE(!(xEventGroupGetBits(mbs_opts->event_group_handle) & MB_EVENT_STACK_STARTED),
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack is already started.");
     status = mbs_iface->mb_base->enable(mbs_iface->mb_base);
     MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack enable fail, returned (0x%x).", (uint16_t)status);
-    // Set the mbcontroller start flag
-    EventBits_t flag = xEventGroupSetBits(mbs_opts->event_group_handle,
-                                          (EventBits_t)MB_EVENT_STACK_STARTED);
-    MB_RETURN_ON_FALSE((flag & MB_EVENT_STACK_STARTED),
-                       ESP_ERR_INVALID_STATE, TAG, "mb stack start event set error.");
+    // The port is enabled, wait until it is listening (without the object locks held)
+    esp_err_t err = mbs_port_tcp_wait_started(mbs_iface->mb_base->port_obj);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "mb stack start failed, err = 0x%x (%s).", (int)err, esp_err_to_name(err));
+        (void)mbs_iface->mb_base->disable(mbs_iface->mb_base);
+        mbs_iface->mb_base->descr.parent = NULL;
+        mbs_iface->is_active = false;
+        return err;
+    }
     mbs_iface->mb_base->descr.parent = ctx;
     mbs_iface->is_active = true;
+    // Set the mbcontroller start flag
+    (void)xEventGroupSetBits(mbs_opts->event_group_handle, (EventBits_t)MB_EVENT_STACK_STARTED);
     return ESP_OK;
 }
 
 // Start Modbus controller stop function
+// When it returns ESP_OK, the listener and all the client connections are closed.
 static esp_err_t mbc_tcp_slave_stop(void *ctx)
 {
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     mbs_controller_iface_t *mbs_iface = MB_SLAVE_GET_IFACE(ctx);
     mb_err_enum_t status = MB_EIO;
 
-    status = mbs_iface->mb_base->disable(mbs_iface->mb_base);
-    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
-                       "mb stack disable fail, returned (0x%x).", (uint16_t)status);
-    // Clear the mbcontroller start flag
+    MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
+                       "mb stack can not be stopped from the modbus task.");
+    // Clear the mbcontroller start flag, so the modbus task stops polling
     EventBits_t flag = xEventGroupClearBits(mbs_opts->event_group_handle,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
     MB_RETURN_ON_FALSE((flag & MB_EVENT_STACK_STARTED),
-                       ESP_ERR_INVALID_STATE, TAG, "mb stack start event set error.");
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack is not started.");
+    status = mbs_iface->mb_base->disable(mbs_iface->mb_base);
     mbs_iface->mb_base->descr.parent = NULL;
     mbs_iface->is_active = false;
+    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
+                       "mb stack disable fail, returned (0x%x).", (uint16_t)status);
+    esp_err_t err = mbs_port_tcp_get_stop_status(mbs_iface->mb_base->port_obj);
+    MB_RETURN_ON_FALSE((err == ESP_OK), err, TAG, "mb stack stop failed, err = 0x%x.", (int)err);
     return ESP_OK;
 }
 
@@ -116,15 +132,14 @@ static esp_err_t mbc_tcp_slave_delete(void *ctx)
     mb_err_enum_t mb_error = MB_ENOERR;
 
     // Check the stack started bit
-    BaseType_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
-                                            (BaseType_t)(MB_EVENT_STACK_STARTED),
-                                            pdFALSE,
-                                            pdFALSE,
-                                            MB_CONTROLLER_NOTIFY_TIMEOUT);
+    EventBits_t status = xEventGroupGetBits(mbs_opts->event_group_handle);
     if (mbs_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
         ESP_LOGV(TAG, "mb stack is active, try to disable.");
-        MB_RETURN_ON_FALSE((mbc_tcp_slave_stop(ctx) == ESP_OK),
-                           ESP_ERR_INVALID_STATE, TAG, "mb stack stop failure.");
+        esp_err_t err = mbc_tcp_slave_stop(ctx);
+        if (err != ESP_OK) {
+            // Continue, the port is closed on the deletion anyway
+            ESP_LOGW(TAG, "mb stack stop failure, err = 0x%x.", (int)err);
+        }
     }
 
     mbs_iface->is_active = false;

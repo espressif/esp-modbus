@@ -165,6 +165,17 @@ void __wrap_mbs_port_tcp_disable(mb_port_base_t *inst)
     ESP_LOGD(TAG, "adapter slave tcp disable port.");
 }
 
+esp_err_t __wrap_mbs_port_tcp_wait_started(mb_port_base_t *inst)
+{
+    // The adapter does not use a listener, it is ready right after the enable
+    return ESP_OK;
+}
+
+esp_err_t __wrap_mbs_port_tcp_get_stop_status(mb_port_base_t *inst)
+{
+    return ESP_OK;
+}
+
 #endif
 
 #endif // CONFIG_MB_PORT_ADAPTER_EN

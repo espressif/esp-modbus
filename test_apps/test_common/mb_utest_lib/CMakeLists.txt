@@ -52,6 +52,8 @@ if(CONFIG_MB_PORT_ADAPTER_EN)
         mbs_port_tcp_create
         mbs_port_tcp_enable
         mbs_port_tcp_disable
+        mbs_port_tcp_wait_started
+        mbs_port_tcp_get_stop_status
         mbs_port_tcp_send_data
         mbs_port_tcp_recv_data
         mbs_port_tcp_delete

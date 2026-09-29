@@ -360,6 +360,10 @@ mb_err_enum_t mbs_delete(mb_base_t *inst)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);
     mb_err_enum_t status = MB_ENOERR;
+    if (mbs_obj->cur_state == STATE_ENABLED) {
+        // The transport must be stopped before its destruction
+        (void)mbs_disable(inst);
+    }
     if (mbs_obj->cur_state == STATE_DISABLED) {
         if (MB_OBJ(mbs_obj->base.transp_obj)->frm_delete) {
             // call destructor of the transport object

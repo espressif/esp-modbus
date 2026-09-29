@@ -188,7 +188,7 @@ esp_err_t mbc_slave_start(void *ctx)
     MB_RETURN_ON_FALSE((error == ESP_OK), ESP_ERR_INVALID_STATE, TAG, "mb stack set slave ID failure.");
 #endif
     error = mbs_controller->start(ctx);
-    MB_RETURN_ON_FALSE((error == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+    MB_RETURN_ON_FALSE((error == ESP_OK), error, TAG,
                        "Slave start failure error=(0x%x).", (uint16_t)error);
     mbs_controller->is_active = true;
     return error;
@@ -207,7 +207,7 @@ esp_err_t mbc_slave_stop(void *ctx)
                        ESP_ERR_INVALID_STATE, TAG,
                        "Slave interface is not correctly configured.");
     error = mbs_controller->stop(ctx);
-    MB_RETURN_ON_FALSE((error == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+    MB_RETURN_ON_FALSE((error == ESP_OK), error, TAG,
                        "Slave stop failure error=(0x%x).", (uint16_t)error);
     mbs_controller->is_active = false;
     return error;

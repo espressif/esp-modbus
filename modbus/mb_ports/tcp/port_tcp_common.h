@@ -45,6 +45,11 @@ mb_err_enum_t mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
 void mbs_port_tcp_delete(mb_port_base_t *inst);
 void mbs_port_tcp_enable(mb_port_base_t *inst);
 void mbs_port_tcp_disable(mb_port_base_t *inst);
+/* Waits until the listener started by mbs_port_tcp_enable() is created (or failed).
+ * Must be called without the object locks held and not in the driver task. */
+esp_err_t mbs_port_tcp_wait_started(mb_port_base_t *inst);
+/* Result of the last mbs_port_tcp_disable() */
+esp_err_t mbs_port_tcp_get_stop_status(mb_port_base_t *inst);
 bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t length);
 bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length);
 

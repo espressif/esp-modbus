@@ -566,6 +566,7 @@ esp_err_t mb_drv_start_task(void *ctx)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     (void)mb_drv_clear_status_flag(ctx, MB_FLAG_SUSPEND);
     ESP_LOGD(TAG, "%p, resume tcp driver task.", ctx);
+    drv_obj->task_started = true;
     vTaskResume(drv_obj->mb_tcp_task_handle);
     return ESP_OK;
 }
@@ -623,6 +624,66 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
     return err;
 }
 
+esp_err_t mb_drv_lc_init(void *ctx, const mb_drv_lc_ops_t *ops, size_t depth)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    MB_RETURN_ON_FALSE((ops && ops->on_cmd && depth), ESP_ERR_INVALID_ARG, TAG, "incorrect lifecycle options.");
+    MB_RETURN_ON_FALSE(!drv_obj->lc_cmd_queue, ESP_ERR_INVALID_STATE, TAG, "lifecycle is already initialized.");
+    drv_obj->lc_cmd_queue = xQueueCreate(depth, sizeof(mb_drv_cmd_t));
+    MB_RETURN_ON_FALSE(drv_obj->lc_cmd_queue, ESP_ERR_NO_MEM, TAG, "lifecycle queue creation fail.");
+    drv_obj->lc_ops = *ops;
+    drv_obj->lc_timer_us = 0;
+    return ESP_OK;
+}
+
+esp_err_t mb_drv_lc_post(void *ctx, const mb_drv_cmd_t *cmd, TickType_t ticks)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    MB_RETURN_ON_FALSE((drv_obj->lc_cmd_queue && cmd), ESP_ERR_INVALID_STATE, TAG, "lifecycle is not initialized.");
+    if (xQueueSend(drv_obj->lc_cmd_queue, cmd, ticks) != pdTRUE) {
+        ESP_LOGE(TAG, "%p, lifecycle command %" PRIu32 " queue is full.", ctx, cmd->id);
+        return ESP_ERR_TIMEOUT;
+    }
+    // The command is in the queue, so even a failed wake up is only a delay (the select has a timeout).
+    (void)mb_drv_wakeup(ctx);
+    return ESP_OK;
+}
+
+void mb_drv_lc_set_timer(void *ctx, int64_t at_us)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    drv_obj->lc_timer_us = at_us;
+}
+
+bool mb_drv_is_task_context(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    return (drv_obj->mb_tcp_task_handle && (xTaskGetCurrentTaskHandle() == drv_obj->mb_tcp_task_handle));
+}
+
+// Executes the pending lifecycle commands and the timer. Returns true if anything was executed.
+static bool mb_drv_lc_process(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    bool done = false;
+    if (!drv_obj->lc_cmd_queue) {
+        return false;
+    }
+    mb_drv_cmd_t cmd;
+    while (xQueueReceive(drv_obj->lc_cmd_queue, &cmd, 0) == pdTRUE) {
+        drv_obj->lc_ops.on_cmd(drv_obj->lc_ops.arg, &cmd);
+        done = true;
+    }
+    if (drv_obj->lc_timer_us && (esp_timer_get_time() >= drv_obj->lc_timer_us)) {
+        drv_obj->lc_timer_us = 0;
+        if (drv_obj->lc_ops.on_timer) {
+            drv_obj->lc_ops.on_timer(drv_obj->lc_ops.arg);
+        }
+        done = true;
+    }
+    return done;
+}
+
 void mb_drv_tcp_task(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
@@ -631,11 +692,29 @@ void mb_drv_tcp_task(void *ctx)
         fd_set readset, errorset;
         FD_ZERO(&readset);
         FD_ZERO(&errorset);
+        // The select wait is shortened when a lifecycle timer is due earlier
+        int wait_ms = MB_SELECT_WAIT_MS;
+        bool lc_timer_wait = false;
+        if (drv_obj->lc_timer_us) {
+            int64_t left_ms = (drv_obj->lc_timer_us - esp_timer_get_time() + 999) / 1000;
+            if (left_ms < wait_ms) {
+                wait_ms = (left_ms > 0) ? (int)left_ms : 0;
+                lc_timer_wait = true;
+            }
+        }
         // check all active socket and fd events
-        int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, MB_SELECT_WAIT_MS);
+        int ret = mb_drv_wait_fd_events(ctx, &readset, &errorset, wait_ms);
+        if (mb_drv_lc_process(ctx)) {
+            // The listener and the nodes might be changed by the command, so the
+            // result of this select is outdated. Wait again for the actual set.
+            mb_drv_check_suspend_shutdown(ctx);
+            continue;
+        }
         if (ret == ERR_TIMEOUT) {
             // timeout occurred waiting for the vfds
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
+            if (!lc_timer_wait) {
+                DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, UNDEF_FD);
+            }
             mb_drv_check_suspend_shutdown(ctx);
         } else if (ret == -1) {
             // error occurred during waiting for vfds activation
@@ -814,15 +893,26 @@ esp_err_t mb_drv_unregister(void *ctx)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     ESP_LOGD(TAG, "%p, driver unregister.", drv_obj);
     (void)mb_drv_set_status_flag(ctx, MB_FLAG_SHUTDOWN);
-    drv_obj->close_done_sema = xSemaphoreCreateBinary();
 
-    // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
-    if (!drv_obj->close_done_sema
-            || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SHUTDOWN, 0) & MB_FLAG_SHUTDOWN)
-            || (xSemaphoreTake(drv_obj->close_done_sema, pdMS_TO_TICKS(MB_WAIT_DONE_MS)) != pdTRUE)
-       ) {
-        ESP_LOGD(TAG, "%p, driver tasks couldn't exit within timeout -> abruptly deleting the task.", drv_obj);
+    if (!drv_obj->task_started) {
+        // The task was suspended at registration and has never been resumed, so it can not exit by itself
         vTaskDelete(drv_obj->mb_tcp_task_handle);
+    } else {
+        drv_obj->close_done_sema = xSemaphoreCreateBinary();
+        // if no semaphore (alloc issues) or couldn't acquire it, just delete the task
+        if (!drv_obj->close_done_sema
+                || !(mb_drv_wait_status_flag(ctx, MB_FLAG_SHUTDOWN, 0) & MB_FLAG_SHUTDOWN)
+                || (xSemaphoreTake(drv_obj->close_done_sema, pdMS_TO_TICKS(MB_WAIT_DONE_MS)) != pdTRUE)
+           ) {
+            ESP_LOGD(TAG, "%p, driver tasks couldn't exit within timeout -> abruptly deleting the task.", drv_obj);
+            vTaskDelete(drv_obj->mb_tcp_task_handle);
+        }
+    }
+    drv_obj->mb_tcp_task_handle = NULL;
+
+    if (drv_obj->lc_cmd_queue) {
+        vQueueDelete(drv_obj->lc_cmd_queue);
+        drv_obj->lc_cmd_queue = NULL;
     }
 
     mb_drv_event_loop_deinit(ctx);
