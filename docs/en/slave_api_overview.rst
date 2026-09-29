@@ -54,8 +54,8 @@ The function initializes Modbus communication descriptors for each type of Modbu
     static void *slave_handle = NULL;                   // Pointer to interface structure allocated by constructor
     ....
     mb_register_area_descriptor_t reg_area;             // Modbus register area descriptor structure
-    unit16_t holding_reg_area[MB_REG_HOLD_CNT] = {0};   // storage area for holding registers 
-    unit16_t input_reg_area[MB_REG_INPUT_CNT] = {0};    // storage area for input registers 
+    uint16_t holding_reg_area[MB_REG_HOLD_CNT] = {0};   // storage area for holding registers 
+    uint16_t input_reg_area[MB_REG_INPUT_CNT] = {0};    // storage area for input registers 
 
     reg_area.type = MB_PARAM_HOLDING;                   // Set type of register area
     reg_area.start_offset = MB_REG_HOLDING_START_AREA0; // Offset of register area in Modbus protocol
