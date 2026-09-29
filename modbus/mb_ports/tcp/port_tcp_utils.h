@@ -110,7 +110,7 @@ void port_check_shutdown(void *ctx);
 int64_t port_get_resp_time_left(mb_node_info_t *info_ptr);
 int port_enqueue_packet(QueueHandle_t queue, uint8_t *buf, uint16_t len);
 int port_dequeue_packet(QueueHandle_t queue, frame_entry_t *frame_info);
-int port_read_packet(mb_node_info_t *info_ptr);
+int port_read_packet(mb_node_info_t *info_ptr, bool check_uid);
 err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking);
 int port_keep_alive_enable(int sock, int timeout_sec);
 err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms);

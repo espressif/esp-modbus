@@ -198,7 +198,7 @@ static int port_get_buf(mb_node_info_t *info_ptr, uint8_t *pdst_buf, uint16_t le
     return ret;
 }
 
-int port_read_packet(mb_node_info_t *info_ptr)
+int port_read_packet(mb_node_info_t *info_ptr, bool check_uid)
 {
     uint16_t temp = 0;
     int ret = 0;
@@ -262,7 +262,11 @@ int port_read_packet(mb_node_info_t *info_ptr)
             return ERR_VAL;
         }
 
-        if (ptemp_buf[MB_TCP_UID] > MB_ADDRESS_MAX) {
+        // A slave must accept any unit ID: 0xFF is the value the TCP implementation guide
+        // recommends for a directly connected server, and unit IDs the slave does not
+        // serve are answered by mbs_poll(). The master keeps rejecting unit IDs above
+        // MB_ADDRESS_MAX, because it treats 0xFF in a response as a wildcard.
+        if (check_uid && (ptemp_buf[MB_TCP_UID] > MB_ADDRESS_MAX)) {
             ESP_LOGE(TAG, "Incorrect packet UID: %x", (int)ptemp_buf[MB_TCP_UID]);
             ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_FUNC, ESP_LOG_DEBUG);
             info_ptr->recv_err = ERR_BUF;

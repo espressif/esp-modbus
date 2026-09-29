@@ -662,7 +662,7 @@ void mb_drv_tcp_task(void *ctx)
                 if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
                     // The data is ready in the socket, read frame and queue
                     FD_CLR(node_ptr->sock_id, &readset);
-                    int ret = port_read_packet(node_ptr);
+                    int ret = port_read_packet(node_ptr, drv_obj->is_master);
                     if (ret > 0) {
                         ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame received."), ctx, (int)node_ptr->fd,
                                  (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
