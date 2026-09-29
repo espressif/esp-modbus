@@ -357,6 +357,22 @@ static void test_stop_during_request(void)
     TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_delete(handle));
 }
 
+// Waits for the notifications of the helper tasks, the tasks can complete in any order and
+// before the wait starts, so a single take can return more than one notification
+static bool wait_for_tasks(uint32_t count, TickType_t timeout)
+{
+    uint32_t done = 0;
+    TickType_t start = xTaskGetTickCount();
+    while (done < count) {
+        TickType_t elapsed = xTaskGetTickCount() - start;
+        if (elapsed >= timeout) {
+            return false;
+        }
+        done += ulTaskNotifyTake(pdTRUE, timeout - elapsed);
+    }
+    return done == count;
+}
+
 typedef struct {
     void *handle;
     int ok_count;
@@ -391,8 +407,7 @@ static void test_concurrent_start_stop(void)
     race_ctx_t b = a;
     TEST_ASSERT_EQUAL(pdPASS, xTaskCreate(race_task, "race_a", 4096, &a, 5, NULL));
     TEST_ASSERT_EQUAL(pdPASS, xTaskCreate(race_task, "race_b", 4096, &b, 5, NULL));
-    TEST_ASSERT_EQUAL(1, ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(60000)));
-    TEST_ASSERT_EQUAL(1, ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(60000)));
+    TEST_ASSERT_TRUE(wait_for_tasks(2, pdMS_TO_TICKS(60000)));
     ESP_LOGI(TAG, "a: ok=%d state=%d other=%d, b: ok=%d state=%d other=%d",
              a.ok_count, a.state_err_count, a.other_err_count,
              b.ok_count, b.state_err_count, b.other_err_count);
@@ -402,6 +417,87 @@ static void test_concurrent_start_stop(void)
     TEST_ASSERT_TRUE(port_refuses(TEST_PORT));
     TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_start(handle));
     TEST_ASSERT_TRUE(port_accepts(TEST_PORT));
+    TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_delete(handle));
+}
+
+// A frame with a wrong protocol ID, the slave drops this connection with an error event
+static void client_send_garbage(int fd)
+{
+    uint8_t req[12] = {0, 1, 0x55, 0x55, 0, 6, TEST_UID, 0x03, 0, 0, 0, 1};
+    (void)send(fd, req, sizeof(req), 0);
+}
+
+// Restarts with the traffic and error events of the old clients still pending.
+// The clients of the next session reuse the same node indexes and must be served normally.
+static void test_stale_events_after_restart(void)
+{
+    enum { OLD_CLIENTS = 3, NEW_CLIENTS = 3, REQUESTS = 5 };
+    void *handle = slave_create(TEST_PORT, NULL);
+    TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_start(handle));
+    for (int i = 0; i < 15; i++) {
+        int old_fd[OLD_CLIENTS];
+        for (int c = 0; c < OLD_CLIENTS; c++) {
+            old_fd[c] = client_connect(TEST_PORT);
+            TEST_ASSERT_GREATER_OR_EQUAL(0, old_fd[c]);
+        }
+        client_send_garbage(old_fd[0]);
+        for (int c = 1; c < OLD_CLIENTS; c++) {
+            for (int r = 0; r < 3; r++) {
+                (void)client_send_read_request(old_fd[c], (uint16_t)(r + 1));
+            }
+        }
+        // Restart while the events of the old clients are still pending
+        TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_stop(handle));
+        TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_start(handle));
+        for (int c = 0; c < OLD_CLIENTS; c++) {
+            client_close(old_fd[c]);
+        }
+        int new_fd[NEW_CLIENTS];
+        for (int c = 0; c < NEW_CLIENTS; c++) {
+            new_fd[c] = client_connect(TEST_PORT);
+            TEST_ASSERT_GREATER_OR_EQUAL(0, new_fd[c]);
+        }
+        for (int r = 0; r < REQUESTS; r++) {
+            for (int c = 0; c < NEW_CLIENTS; c++) {
+                TEST_ASSERT_TRUE_MESSAGE(client_read(new_fd[c], (uint16_t)(100 + r)),
+                                         "client of the new session is not served");
+            }
+        }
+        for (int c = 0; c < NEW_CLIENTS; c++) {
+            client_close(new_fd[c]);
+        }
+    }
+    TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_delete(handle));
+}
+
+typedef struct {
+    void *handle;
+    esp_err_t err;
+    TaskHandle_t notify;
+} start_ctx_t;
+
+static void start_task(void *arg)
+{
+    start_ctx_t *ctx = (start_ctx_t *)arg;
+    ctx->err = mbc_slave_start(ctx->handle);
+    xTaskNotifyGive(ctx->notify);
+    vTaskDelete(NULL);
+}
+
+// A stop called while a start is in progress in another task waits for the start to complete
+static void test_stop_waits_for_start(void)
+{
+    void *handle = slave_create(TEST_PORT, NULL);
+    int blocker = blocker_open(TEST_PORT);
+    start_ctx_t ctx = {.handle = handle, .err = ESP_FAIL, .notify = xTaskGetCurrentTaskHandle()};
+    TEST_ASSERT_EQUAL(pdPASS, xTaskCreate(start_task, "start", 4096, &ctx, 5, NULL));
+    vTaskDelay(pdMS_TO_TICKS(200));
+    // Release the port, so the pending start succeeds, then stop the slave
+    close(blocker);
+    TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_stop(handle));
+    TEST_ASSERT_TRUE(wait_for_tasks(1, pdMS_TO_TICKS(10000)));
+    TEST_ASSERT_EQUAL(ESP_OK, ctx.err);
+    TEST_ASSERT_TRUE(port_refuses(TEST_PORT));
     TEST_ASSERT_EQUAL(ESP_OK, mbc_slave_delete(handle));
 }
 
@@ -421,5 +517,7 @@ void app_main(void)
     RUN_TEST(test_two_instances);
     RUN_TEST(test_stop_during_request);
     RUN_TEST(test_concurrent_start_stop);
+    RUN_TEST(test_stale_events_after_restart);
+    RUN_TEST(test_stop_waits_for_start);
     UNITY_END();
 }
