@@ -862,8 +862,40 @@ int port_resolve_mdns_host(const char *host_name, char **addr_str)
 
 #endif // #ifdef MB_MDNS_IS_INCLUDED
 
-// Create a listening socket on pbind_ip, with ip address_type, protocol type and port
-int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port)
+const char *port_bind_stage_str(mb_bind_stage_t stage)
+{
+    switch (stage) {
+    case MB_BIND_STAGE_NONE:
+        return "none";
+    case MB_BIND_STAGE_RESOLVE:
+        return "resolve";
+    case MB_BIND_STAGE_SOCKET:
+        return "socket";
+    case MB_BIND_STAGE_SETSOCKOPT:
+        return "setsockopt";
+    case MB_BIND_STAGE_BIND:
+        return "bind";
+    case MB_BIND_STAGE_LISTEN:
+        return "listen";
+    default:
+        return "unknown";
+    }
+}
+
+static void port_bind_fail(mb_bind_diag_t *diag, mb_bind_stage_t stage, int err, int family, uint16_t port)
+{
+    ESP_LOGD(TAG, "Listener on port %u, %s failed, family=%d, err=%d.", (unsigned)port,
+             port_bind_stage_str(stage), family, err);
+    if (diag) {
+        diag->stage = stage;
+        diag->err = err;
+        diag->family = family;
+    }
+}
+
+// Create a listening socket on pbind_ip, with ip address_type, protocol type and port.
+// On failure returns -1 and, if diag is set, the stage and error of the last failed attempt.
+int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port, mb_bind_diag_t *diag)
 {
     int temp_par, ret;
     int listen_sock_fd = -1;
@@ -873,6 +905,10 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
     char *string_ptr = NULL;
 
     memset(&hint, 0, sizeof(hint));
+    if (diag) {
+        memset(diag, 0, sizeof(mb_bind_diag_t));
+        diag->family = AF_UNSPEC;
+    }
 
     // Bind to IPv6 and/or IPv4, but only in the desired protocol
     // Todo: Find a reason why AF_UNSPEC does not work for IPv6
@@ -891,6 +927,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
     free(string_ptr);
 
     if ((ret != 0) ) {
+        port_bind_fail(diag, MB_BIND_STAGE_RESOLVE, ret, AF_UNSPEC, port);
         return -1;
     }
 
@@ -899,6 +936,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
         listen_sock_fd = socket(cur_addr->ai_family, cur_addr->ai_socktype,
                                 cur_addr->ai_protocol);
         if (listen_sock_fd < 0) {
+            port_bind_fail(diag, MB_BIND_STAGE_SOCKET, errno, cur_addr->ai_family, port);
             continue;
         }
 
@@ -906,6 +944,8 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
         // Allow multi client connections
         if (setsockopt(listen_sock_fd, SOL_SOCKET, SO_REUSEADDR,
                        (const char *)&temp_par, sizeof(temp_par)) != 0) {
+            // keep errno before close() can change it
+            port_bind_fail(diag, MB_BIND_STAGE_SETSOCKOPT, errno, cur_addr->ai_family, port);
             close(listen_sock_fd);
             listen_sock_fd = UNDEF_FD;
             continue;
@@ -913,6 +953,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
 
         if (bind(listen_sock_fd, cur_addr->ai_addr,
                  (socklen_t)cur_addr->ai_addrlen) != 0 ) {
+            port_bind_fail(diag, MB_BIND_STAGE_BIND, errno, cur_addr->ai_family, port);
             close(listen_sock_fd);
             listen_sock_fd = UNDEF_FD;
             continue;
@@ -921,7 +962,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
         // Listen only makes sense for TCP
         if (proto == MB_TCP) {
             if (listen(listen_sock_fd, MB_TCP_NET_LISTEN_BACKLOG) != 0) {
-                ESP_LOGE(TAG, "Error occurred during listen: errno=%u", (unsigned)errno);
+                port_bind_fail(diag, MB_BIND_STAGE_LISTEN, errno, cur_addr->ai_family, port);
                 shutdown(listen_sock_fd, SHUT_RDWR);
                 close(listen_sock_fd);
                 listen_sock_fd = UNDEF_FD;
@@ -930,8 +971,12 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
         }
         // Bind was successful
         string_ptr = (cur_addr->ai_canonname == NULL) ? (char *)"\0" : cur_addr->ai_canonname;
-        ESP_LOGI(TAG, "Socket (#%d), listener %s on port: %u, errno=%u",
-                 (int)listen_sock_fd, string_ptr, (unsigned)port, (unsigned)errno);
+        ESP_LOGI(TAG, "Socket (#%d), listener %s on port: %u",
+                 (int)listen_sock_fd, string_ptr, (unsigned)port);
+        if (diag) {
+            memset(diag, 0, sizeof(mb_bind_diag_t));
+            diag->family = cur_addr->ai_family;
+        }
         break;
     }
 

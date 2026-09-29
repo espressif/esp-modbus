@@ -349,13 +349,17 @@ MB_EVENT_HANDLER(mbs_on_ready)
              (int)port_obj->tcp_opts.mode,
              (int)port_obj->tcp_opts.port);
 
+    mb_bind_diag_t diag;
     int listen_sock = port_bind_addr(port_obj->tcp_opts.ip_addr_table,
                                      port_obj->tcp_opts.addr_type,
                                      port_obj->tcp_opts.mode,
-                                     port_obj->tcp_opts.port);
+                                     port_obj->tcp_opts.port,
+                                     &diag);
     if (listen_sock < 0) {
         mb_drv_check_suspend_shutdown(ctx);
-        ESP_LOGE(TAG, "%s, sock: %d, bind error", (char *)base, listen_sock);
+        ESP_LOGE(TAG, "%s, bind to port %u failed: stage=%s, err=%d, family=%d",
+                 (char *)base, (unsigned)port_obj->tcp_opts.port, port_bind_stage_str(diag.stage),
+                 diag.err, diag.family);
         mb_drv_lock(drv_obj);
         if (drv_obj->retry_cnt) {
             drv_obj->retry_cnt--;

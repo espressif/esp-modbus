@@ -140,7 +140,27 @@ int port_resolve_mdns_host(const char *host_name, char **addr_str);
 
 // Modbus slave utility functions
 
-int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port);
+typedef enum {
+    MB_BIND_STAGE_NONE = 0,             /*!< no failure */
+    MB_BIND_STAGE_RESOLVE,              /*!< getaddrinfo() failed, err is the EAI_* code */
+    MB_BIND_STAGE_SOCKET,               /*!< socket() failed, err is errno */
+    MB_BIND_STAGE_SETSOCKOPT,           /*!< setsockopt() failed, err is errno */
+    MB_BIND_STAGE_BIND,                 /*!< bind() failed, err is errno */
+    MB_BIND_STAGE_LISTEN                /*!< listen() failed, err is errno */
+} mb_bind_stage_t;
+
+/**
+ * @brief Result of a failed port_bind_addr() call, captured at the point of failure.
+ */
+typedef struct {
+    mb_bind_stage_t stage;              /*!< stage of the last failed attempt */
+    int err;                            /*!< errno (or EAI_* code for MB_BIND_STAGE_RESOLVE) */
+    int family;                         /*!< address family of the failed candidate (AF_UNSPEC if none) */
+} mb_bind_diag_t;
+
+const char *port_bind_stage_str(mb_bind_stage_t stage);
+
+int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_t proto, uint16_t port, mb_bind_diag_t *diag);
 int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr);
 
 #endif
