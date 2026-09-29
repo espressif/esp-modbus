@@ -67,8 +67,8 @@ static esp_err_t init_event_fd(void *ctx)
         }
     }
     drv_obj->event_fd = eventfd(0, 0);
-    MB_RETURN_ON_FALSE((drv_obj->event_fd > 0), ESP_ERR_INVALID_STATE, TAG, "eventfd init error.");
-    return (drv_obj->event_fd > 0) ? ESP_OK : ESP_ERR_INVALID_STATE;
+    MB_RETURN_ON_FALSE(MB_FD_IS_VALID(drv_obj->event_fd), ESP_ERR_INVALID_STATE, TAG, "eventfd init error.");
+    return ESP_OK;
 }
 
 static esp_err_t close_event_fd(void *ctx)
@@ -423,7 +423,7 @@ int mb_drv_close(void *ctx, int fd)
     // stop socket
     if (MB_GET_NODE_STATE(node_ptr) != MB_SOCK_STATE_CLOSED) {
         // Do we need to close connection, if the close event is not run
-        if ((node_ptr->sock_id > 0) && (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
+        if (MB_FD_IS_VALID(node_ptr->sock_id) && (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
             FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
             if (drv_obj->node_conn_count) {
                 drv_obj->node_conn_count--;
@@ -459,7 +459,7 @@ mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fd
     mb_node_info_t *node_ptr = NULL;
     for (int fd = *fd_ptr; fd < MB_MAX_FDS; fd++) {
         node_ptr = drv_obj->mb_nodes[fd];
-        if (node_ptr && (node_ptr->sock_id > 0)
+        if (node_ptr && MB_FD_IS_VALID(node_ptr->sock_id)
                 && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)
                 && (FD_ISSET(node_ptr->index, fdset) || (FD_ISSET(node_ptr->sock_id, fdset)))) {
             *fd_ptr = fd;
@@ -493,14 +493,16 @@ static int mb_drv_register_fds(void *ctx, fd_set *fdset)
     // Add to the set all connected slaves
     for (int i = 0; i < MB_MAX_FDS; i++) {
         node_ptr = drv_obj->mb_nodes[i];
-        if (node_ptr && node_ptr->sock_id && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
+        if (node_ptr && MB_FD_IS_VALID(node_ptr->sock_id) && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
             MB_ADD_FD(node_ptr->sock_id, max_fd, fdset);
         }
     }
     // Add event fd events to the set to handle them in one select
     MB_ADD_FD(drv_obj->event_fd, max_fd, fdset);
     // Add listen socket to handle incoming connections (for slave only)
-    MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, fdset);
+    if (esp_timer_get_time() >= drv_obj->accept_hold_until_us) {
+        MB_ADD_FD(drv_obj->listen_sock_fd, max_fd, fdset);
+    }
     return max_fd;
 }
 
@@ -618,7 +620,7 @@ void mb_drv_tcp_task(void *ctx)
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
         } else {
             // Is the fd event triggered, process the event
-            if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
+            if (MB_FD_IS_VALID(drv_obj->event_fd) && FD_ISSET(drv_obj->event_fd, &readset)) {
                 FD_CLR(drv_obj->event_fd, &readset);
                 mb_event_info_t mb_event = {0};
                 int32_t event_id = read_event(ctx, &mb_event);
@@ -631,25 +633,34 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if (MB_FD_IS_VALID(drv_obj->listen_sock_fd) && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
-                mb_uid_info_t node_info;
+                mb_uid_info_t node_info = {0};
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
-                if (sock_id) {
+                if (!MB_FD_IS_VALID(sock_id)) {
+                    // Typically out of sockets (ENFILE) or an aborted connection. The pending connection
+                    // stays in the backlog, so stop polling the listener for a while instead of spinning.
+                    drv_obj->accept_hold_until_us = esp_timer_get_time() + (MB_ACCEPT_HOLD_MS * 1000LL);
+                } else {
+                    int fd = UNDEF_FD;
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
-                        mb_set_linger(sock_id, 0);
-                        close(sock_id);
                     } else {
                         // Create new node info and open it
-                        int fd = mb_drv_open(drv_obj, node_info, 0);
+                        fd = mb_drv_open(drv_obj, node_info, 0);
                         if (fd < 0) {
                             ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
-                        } else {
-                            DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
                         }
+                    }
+                    if (MB_FD_IS_VALID(fd)) {
+                        DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
+                    } else {
+                        // The node was not created, so the accepted socket and its address are still owned here
+                        mb_set_linger(sock_id, 0);
+                        close(sock_id);
+                        free((void *)node_info.ip_addr_str);
                     }
                 }
             }
@@ -764,7 +775,7 @@ error:
             free(pctx->loop_name);
             pctx->loop_name = NULL;
         }
-        if (pctx->event_fd) {
+        if (MB_FD_IS_VALID(pctx->event_fd)) {
             close(pctx->event_fd);
             (void)esp_vfs_eventfd_unregister();
         }
@@ -805,7 +816,7 @@ esp_err_t mb_drv_unregister(void *ctx)
         ESP_LOGE(TAG, "could not close the eventfd handle, err = %d. Already closed?", err);
     }
 
-    if (drv_obj->listen_sock_fd) {
+    if (MB_FD_IS_VALID(drv_obj->listen_sock_fd)) {
         shutdown(drv_obj->listen_sock_fd, SHUT_RDWR);
         close(drv_obj->listen_sock_fd);
         drv_obj->listen_sock_fd = UNDEF_FD;

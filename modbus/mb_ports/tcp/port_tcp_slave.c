@@ -28,6 +28,7 @@ typedef struct {
     port_driver_t *drv_obj;
     transaction_handle_t transaction;
     uint16_t trans_count;
+    int tout_curr_fd;                   // cursor of the connection check in mbs_on_timeout
 } mbs_tcp_port_t;
 
 /* ----------------------- Static variables & functions ----------------------*/
@@ -689,15 +690,18 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     //mb_event_info_t *event_info = (mb_event_info_t *)data;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
-    static int curr_fd = 0;
-    mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
+    int curr_fd = port_obj->tout_curr_fd;
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
     mb_drv_check_suspend_shutdown(ctx);
     int ret = mb_drv_check_node_state(drv_obj, &curr_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
     if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
-        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
-                 port_obj, pnode->index, pnode->sock_id,
-                 pnode->addr_info.ip_addr_str, (int)ret);
+        // the cursor may have moved to the next connected node, so resolve the node after the check
+        mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
+        if (pnode) {
+            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
+                     port_obj, pnode->index, pnode->sock_id,
+                     pnode->addr_info.ip_addr_str, (int)ret);
+        }
         mb_drv_lock(drv_obj);
         (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
         mb_drv_unlock(drv_obj);
@@ -708,6 +712,7 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     } else {
         curr_fd++;
     }
+    port_obj->tout_curr_fd = curr_fd;
     vTaskDelay(1);
 }
 

@@ -942,7 +942,7 @@ int port_bind_addr(const char *pbind_ip, mb_addr_type_t addr_type, mb_comm_mode_
 int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
 {
     MB_RETURN_ON_FALSE((info_ptr), -1, TAG, "Wrong parameter pointer.");
-    MB_RETURN_ON_FALSE((listen_sock_id > 0), -1, TAG, "Incorrect listen socket ID.");
+    MB_RETURN_ON_FALSE((listen_sock_id >= 0), -1, TAG, "Incorrect listen socket ID.");
 
     // Address structure large enough for both IPv4 or IPv6 address
     struct sockaddr_storage src_addr;
@@ -956,7 +956,6 @@ int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
     sock_id = accept(listen_sock_id, (struct sockaddr *)&src_addr, &addr_size);
     if (sock_id < 0) {
         ESP_LOGE(TAG, "Unable to accept connection: errno=%u", (unsigned)errno);
-        close(sock_id);
     } else {
         // Get the sender's ip address as string
         if (src_addr.ss_family == PF_INET) {
@@ -977,13 +976,17 @@ int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
         }
         ESP_LOGI(TAG, "Socket (#%d), accept client connection from address[port]: %s[%u]", (int)sock_id, addr_str, info_ptr->port);
         paddr = strdup(addr_str);
-        if (paddr) {
-            info_ptr->fd = sock_id;
-            info_ptr->ip_addr_str = paddr;
-            info_ptr->node_name_str = paddr;
-            info_ptr->proto = MB_TCP;
-            info_ptr->uid = 0;
+        if (!paddr) {
+            ESP_LOGE(TAG, "Socket (#%d), no memory for the client address, drop connection.", (int)sock_id);
+            mb_set_linger(sock_id, 0);
+            close(sock_id);
+            return UNDEF_FD;
         }
+        info_ptr->fd = sock_id;
+        info_ptr->ip_addr_str = paddr;
+        info_ptr->node_name_str = paddr;
+        info_ptr->proto = MB_TCP;
+        info_ptr->uid = 0;
     }
     return sock_id;
 }

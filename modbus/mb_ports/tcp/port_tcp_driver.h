@@ -51,6 +51,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
 
 #define MB_WAIT_DONE_MS             (5000)
+#define MB_ACCEPT_HOLD_MS           (100)
 #define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_EVENT_WAIT_MS)
 #define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
 #define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
@@ -96,8 +97,10 @@ typedef struct _port_driver port_driver_t;
 }                                                                                   \
 ))
 
+#define MB_FD_IS_VALID(fd) ((fd) >= 0)
+
 #define MB_ADD_FD(fd, max_fd, fdset) do {       \
-    if (fd) {                                   \
+    if (MB_FD_IS_VALID(fd)) {                   \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
         FD_SET(fd, fdset);                      \
     }                                           \
@@ -251,6 +254,7 @@ typedef struct _port_driver {
     _lock_t lock;                               /*!< semaphore mutex */
     bool is_registered;                         /*!< driver is active flag */
     int listen_sock_fd;                         /*!< listen socket fd */
+    int64_t accept_hold_until_us;               /*!< do not poll the listen socket until this time (after accept failure) */
     int retry_cnt;                              /*!< retry counter for events */
     mb_comm_mode_t mb_proto;                    /*!< current node protocol type */
     uint16_t port;                              /*!< current node port number */
