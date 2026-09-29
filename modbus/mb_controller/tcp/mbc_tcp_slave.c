@@ -49,40 +49,41 @@ static esp_err_t mbc_tcp_slave_start(void *ctx)
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     mbs_controller_iface_t *mbs_iface = MB_SLAVE_GET_IFACE(ctx);
     mb_err_enum_t status = MB_EIO;
+    esp_err_t ret = ESP_OK;
 
     MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack can not be started from the modbus task.");
-    MB_RETURN_ON_FALSE(!(xEventGroupGetBits(mbs_opts->event_group_handle) & MB_EVENT_STACK_STARTED),
-                       ESP_ERR_INVALID_STATE, TAG, "mb stack is already started.");
+    (void)xSemaphoreTake(mbs_opts->lifecycle_lock, portMAX_DELAY);
+    MB_GOTO_ON_FALSE(!(xEventGroupGetBits(mbs_opts->event_group_handle) & MB_EVENT_STACK_STARTED),
+                     ESP_ERR_INVALID_STATE, exit, TAG, "mb stack is already started.");
     status = mbs_iface->mb_base->enable(mbs_iface->mb_base);
-    MB_RETURN_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
-                       "mb stack enable fail, returned (0x%x).", (uint16_t)status);
+    MB_GOTO_ON_FALSE((status == MB_ENOERR), ESP_ERR_INVALID_STATE, exit, TAG,
+                     "mb stack enable fail, returned (0x%x).", (uint16_t)status);
     // The port is enabled, wait until it is listening (without the object locks held)
-    esp_err_t err = mbs_port_tcp_wait_started(mbs_iface->mb_base->port_obj);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "mb stack start failed, err = 0x%x (%s).", (int)err, esp_err_to_name(err));
+    ret = mbs_port_tcp_wait_started(mbs_iface->mb_base->port_obj);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "mb stack start failed, err = 0x%x (%s).", (int)ret, esp_err_to_name(ret));
         (void)mbs_iface->mb_base->disable(mbs_iface->mb_base);
         mbs_iface->mb_base->descr.parent = NULL;
         mbs_iface->is_active = false;
-        return err;
+        goto exit;
     }
     mbs_iface->mb_base->descr.parent = ctx;
     mbs_iface->is_active = true;
     // Set the mbcontroller start flag
     (void)xEventGroupSetBits(mbs_opts->event_group_handle, (EventBits_t)MB_EVENT_STACK_STARTED);
-    return ESP_OK;
+exit:
+    (void)xSemaphoreGive(mbs_opts->lifecycle_lock);
+    return ret;
 }
 
-// Start Modbus controller stop function
-// When it returns ESP_OK, the listener and all the client connections are closed.
-static esp_err_t mbc_tcp_slave_stop(void *ctx)
+// Stops the stack, the caller holds the lifecycle lock
+static esp_err_t mbc_tcp_slave_stop_locked(void *ctx)
 {
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     mbs_controller_iface_t *mbs_iface = MB_SLAVE_GET_IFACE(ctx);
     mb_err_enum_t status = MB_EIO;
 
-    MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
-                       "mb stack can not be stopped from the modbus task.");
     // Clear the mbcontroller start flag, so the modbus task stops polling
     EventBits_t flag = xEventGroupClearBits(mbs_opts->event_group_handle,
                                             (EventBits_t)MB_EVENT_STACK_STARTED);
@@ -96,6 +97,19 @@ static esp_err_t mbc_tcp_slave_stop(void *ctx)
     esp_err_t err = mbs_port_tcp_get_stop_status(mbs_iface->mb_base->port_obj);
     MB_RETURN_ON_FALSE((err == ESP_OK), err, TAG, "mb stack stop failed, err = 0x%x.", (int)err);
     return ESP_OK;
+}
+
+// Start Modbus controller stop function
+// When it returns ESP_OK, the listener and all the client connections are closed.
+static esp_err_t mbc_tcp_slave_stop(void *ctx)
+{
+    mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
+    MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
+                       "mb stack can not be stopped from the modbus task.");
+    (void)xSemaphoreTake(mbs_opts->lifecycle_lock, portMAX_DELAY);
+    esp_err_t err = mbc_tcp_slave_stop_locked(ctx);
+    (void)xSemaphoreGive(mbs_opts->lifecycle_lock);
+    return err;
 }
 
 // Blocking function to get event on parameter group change for application task
@@ -131,11 +145,15 @@ static esp_err_t mbc_tcp_slave_delete(void *ctx)
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     mb_err_enum_t mb_error = MB_ENOERR;
 
+    MB_RETURN_ON_FALSE((xTaskGetCurrentTaskHandle() != mbs_opts->task_handle), ESP_ERR_INVALID_STATE, TAG,
+                       "mb stack can not be deleted from the modbus task.");
+    // Wait for a start or stop in progress in another task
+    (void)xSemaphoreTake(mbs_opts->lifecycle_lock, portMAX_DELAY);
     // Check the stack started bit
     EventBits_t status = xEventGroupGetBits(mbs_opts->event_group_handle);
     if (mbs_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
         ESP_LOGV(TAG, "mb stack is active, try to disable.");
-        esp_err_t err = mbc_tcp_slave_stop(ctx);
+        esp_err_t err = mbc_tcp_slave_stop_locked(ctx);
         if (err != ESP_OK) {
             // Continue, the port is closed on the deletion anyway
             ESP_LOGW(TAG, "mb stack stop failure, err = 0x%x.", (int)err);
@@ -147,6 +165,9 @@ static esp_err_t mbc_tcp_slave_delete(void *ctx)
     vEventGroupDelete(mbs_opts->event_group_handle);
     vQueueDelete(mbs_opts->notification_queue_handle);
     mb_error = mbs_iface->mb_base->delete (mbs_iface->mb_base);
+    (void)xSemaphoreGive(mbs_opts->lifecycle_lock);
+    vSemaphoreDelete(mbs_opts->lifecycle_lock);
+    mbs_opts->lifecycle_lock = NULL;
     MB_RETURN_ON_FALSE((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
                        "mb stack close failure returned (0x%x).", (int)mb_error);
     // free the controller will be performed in common object
@@ -169,6 +190,10 @@ esp_err_t mbc_tcp_slave_controller_create(void **ctx)
     mb_slave_options_t *mbs_opts = &mbs_controller_iface->opts;
     mbs_opts->port_type = MB_PORT_TCP_SLAVE; // set interface port type
     mbs_opts->task_handle = NULL;
+    mbs_opts->event_group_handle = NULL;
+    mbs_opts->lifecycle_lock = xSemaphoreCreateMutex();
+    MB_GOTO_ON_FALSE((mbs_opts->lifecycle_lock), ESP_ERR_NO_MEM, error,
+                     TAG, "mb lifecycle lock creation error.");
 
     // Initialization of active context of the Modbus controller
     BaseType_t status = 0;
@@ -215,6 +240,10 @@ error:
         if (mbs_controller_iface->opts.event_group_handle) {
             vEventGroupDelete(mbs_controller_iface->opts.event_group_handle);
             mbs_controller_iface->opts.event_group_handle = NULL;
+        }
+        if (mbs_controller_iface->opts.lifecycle_lock) {
+            vSemaphoreDelete(mbs_controller_iface->opts.lifecycle_lock);
+            mbs_controller_iface->opts.lifecycle_lock = NULL;
         }
     }
     free(mbs_controller_iface); // free the memory allocated
