@@ -113,6 +113,7 @@ int32_t write_event(void *ctx, mb_event_info_t *event)
 {
     MB_RETURN_ON_FALSE((event && ctx), -1, TAG, "wrong arguments.");
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    event->session = atomic_load(&drv_obj->event_session);
     esp_err_t err = esp_event_post_to(drv_obj->event_loop_hdl,
                                       MB_EVENT_BASE(ctx), event->event_id, event,
                                       sizeof(mb_event_info_t), MB_EVENT_TOUT);

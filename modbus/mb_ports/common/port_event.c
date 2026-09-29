@@ -139,6 +139,15 @@ bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
     return event_happened;
 }
 
+// Drops the pending stack events and the error state, so nothing of a stopped session is processed after a restart
+void mb_port_event_flush(mb_port_base_t *inst)
+{
+    MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->event_hdl), ;, TAG,
+                       "incorrect object handle.");
+    (void)xQueueReset(inst->event_obj->event_hdl);
+    atomic_store(&(inst->event_obj->curr_err_type), EV_ERROR_INIT);
+}
+
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout)
 {
     MB_RETURN_ON_FALSE((inst && inst->event_obj && inst->event_obj->resource_hdl), false, TAG,

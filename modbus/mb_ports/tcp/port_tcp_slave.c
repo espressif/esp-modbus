@@ -84,6 +84,7 @@ static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_o
 static void mbs_lc_on_cmd(void *arg, const mb_drv_cmd_t *cmd);
 static void mbs_lc_on_timer(void *arg);
 static bool mbs_lc_is_running(mbs_tcp_port_t *port_obj);
+static bool mbs_lc_event_is_current(mbs_tcp_port_t *port_obj, const mb_event_info_t *event_info);
 
 static esp_err_t mbs_port_tcp_register_handlers(void *ctx)
 {
@@ -314,6 +315,9 @@ void mbs_port_tcp_enable(mb_port_base_t *inst)
 {
     mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
     (void)mb_drv_start_task(port_obj->drv_obj);
+    // A request received before the last stop can still be queued in the stack,
+    // it must not be executed in the new session (its connection is already closed).
+    mb_port_event_flush(inst);
     // Only post the start here: this is called under the object locks. The result is
     // received by mbs_port_tcp_wait_started() without the locks held.
     (void)xSemaphoreTake(port_obj->lc_api_mutex, portMAX_DELAY);
@@ -396,6 +400,23 @@ static bool mbs_lc_is_running(mbs_tcp_port_t *port_obj)
     return (port_obj->lc_state == MBS_LC_RUNNING);
 }
 
+// An event is handled only if the port is running and the event was posted in the current session.
+// The events of a closed session can still be queued in the loop (or be posted while it closes),
+// they must not touch the nodes of the next session which reuse the same indexes.
+// The event loop run is limited in time, so the events of a stopped session can stay queued
+// while the next session accepts clients with the same node indexes. Such events are dropped here.
+static bool mbs_lc_event_is_current(mbs_tcp_port_t *port_obj, const mb_event_info_t *event_info)
+{
+    return mbs_lc_is_running(port_obj)
+           && (event_info->session == atomic_load(&port_obj->drv_obj->event_session));
+}
+
+// Starts a new event session, all the events posted before are dropped by the handlers
+static void mbs_lc_new_session(mbs_tcp_port_t *port_obj)
+{
+    (void)atomic_fetch_add(&port_obj->drv_obj->event_session, 1);
+}
+
 static bool mbs_bind_is_retryable(const mb_bind_diag_t *diag)
 {
     switch (diag->stage) {
@@ -465,6 +486,7 @@ static void mbs_lc_teardown(mbs_tcp_port_t *port_obj)
     mb_drv_lock(drv_obj);
     // From now on the data path does not post new events
     port_obj->lc_state = MBS_LC_STOPPED;
+    mbs_lc_new_session(port_obj);
     int listen_fd = drv_obj->listen_sock_fd;
     drv_obj->listen_sock_fd = UNDEF_FD;
     transaction_delete_all_items(port_obj->transaction);
@@ -487,8 +509,6 @@ static void mbs_lc_teardown(mbs_tcp_port_t *port_obj)
     drv_obj->node_conn_count = 0;
     mb_drv_unlock(drv_obj);
     mb_drv_lc_set_timer(drv_obj, 0);
-    // Drain the events of the closed session, the handlers ignore them in the STOPPED state
-    (void)esp_event_loop_run(drv_obj->event_loop_hdl, 0);
     (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY | MB_FLAG_CONNECTED);
     (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
 }
@@ -553,6 +573,7 @@ static void mbs_lc_on_cmd(void *arg, const mb_drv_cmd_t *cmd)
         port_obj->lc_backoff_ms = MBS_LC_RETRY_FIRST_MS;
         port_obj->lc_start_deadline_us = esp_timer_get_time() + (MBS_LC_START_BUDGET_MS * 1000LL);
         mb_drv_lock(port_obj->drv_obj);
+        mbs_lc_new_session(port_obj);
         port_obj->lc_state = MBS_LC_STARTING;
         mb_drv_unlock(port_obj->drv_obj);
         mbs_lc_try_bind(port_obj);
@@ -742,7 +763,7 @@ MB_EVENT_HANDLER(mbs_on_connect)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    if (!mbs_lc_is_running((mbs_tcp_port_t *)drv_obj->parent)) {
+    if (!mbs_lc_event_is_current((mbs_tcp_port_t *)drv_obj->parent, event_info)) {
         return;
     }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
@@ -766,7 +787,7 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     mbs_tcp_port_t *port_obj = (mbs_tcp_port_t *)drv_obj->parent;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    if (!mbs_lc_is_running(port_obj)) {
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
         return;
     }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
@@ -856,7 +877,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     int ret = 0;
     bool retrigger_pending = false;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    if (!mbs_lc_is_running(port_obj)) {
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
         return;
     }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
@@ -981,7 +1002,7 @@ MB_EVENT_HANDLER(mbs_on_error)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    if (!mbs_lc_is_running(port_obj)) {
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
         return;
     }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
@@ -1020,6 +1041,9 @@ MB_EVENT_HANDLER(mbs_on_close)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     mb_node_info_t *pnode = NULL;
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     // if close all sockets event is received
     if (event_info->opt_fd < 0) {
         (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
@@ -1049,12 +1073,12 @@ MB_EVENT_HANDLER(mbs_on_close)
 MB_EVENT_HANDLER(mbs_on_timeout)
 {
     // Slave timeout triggered
-    //mb_event_info_t *event_info = (mb_event_info_t *)data;
+    mb_event_info_t *event_info = (mb_event_info_t *)data;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     int curr_fd = port_obj->tout_curr_fd;
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
-    if (!mbs_lc_is_running(port_obj)) {
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
         return;
     }
     mb_drv_check_suspend_shutdown(ctx);

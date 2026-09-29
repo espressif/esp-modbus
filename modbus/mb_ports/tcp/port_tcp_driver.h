@@ -195,6 +195,7 @@ typedef union {
         int32_t event_id;               /*!< an event */
         int16_t opt_fd;                 /*!< fd option for an event */
         int16_t opt_val;                /*!< value option for an event */
+        uint32_t session;               /*!< driver session the event belongs to (set by write_event) */
     };
     uint64_t val;
 } mb_event_info_t;
@@ -295,6 +296,7 @@ typedef struct _port_driver {
     QueueHandle_t lc_cmd_queue;                 /*!< lifecycle command queue (NULL if not used) */
     mb_drv_lc_ops_t lc_ops;                     /*!< lifecycle callbacks */
     int64_t lc_timer_us;                        /*!< lifecycle timer deadline, 0 if not set (driver task only) */
+    _Atomic uint32_t event_session;             /*!< session number stamped into the posted events */
     //LIST_HEAD(mb_uid_info_, mb_uid_entry_s) node_list; /*!< node address information list */
     //uint16_t node_list_count;
 } port_driver_t;
