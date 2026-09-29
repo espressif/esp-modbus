@@ -122,8 +122,8 @@ typedef struct _port_driver port_driver_t;
 }                                                       \
 ))
 
-// Post event to event loop and unblocks the select through the eventfd to handle the event loop run,
-// So, the eventfd value keeps last event and its fd.
+// Post event to the event loop of the instance and wake up the driver task through the eventfd
+// to run the event loop. The eventfd is only a wake up counter, the event itself is kept by the loop.
 #define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
@@ -345,6 +345,15 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 int mb_drv_close(void *ctx, int fd);
 
 int32_t write_event(void *ctx, mb_event_info_t *event);
+
+/**
+ * @brief Wake up the driver task (unblocks its select) without posting an event
+ *
+ * @param ctx - pointer to driver interface structure
+ * @return esp_err_t
+ *          - ESP_OK on success
+ */
+esp_err_t mb_drv_wakeup(void *ctx);
 
 const char *driver_event_to_name_r(mb_driver_event_t event);
 

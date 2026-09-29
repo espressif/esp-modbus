@@ -26,8 +26,11 @@
 
 static const char *TAG = "mb_driver";
 
-static esp_event_loop_handle_t mb_drv_loop_handle = NULL;
-static int mb_drv_loop_inst_counter = 0;
+// The eventfd VFS is global, so it is registered by the first driver instance and
+// unregistered by the last one (only if this module registered it).
+static _lock_t s_eventfd_vfs_lock;
+static int s_eventfd_users = 0;
+static bool s_eventfd_vfs_owned = false;
 static char msg_buffer[100]; // The buffer for event debugging (used for all instances)
 
 static const event_msg_t event_msg_table[] = {
@@ -56,72 +59,100 @@ const char *driver_event_to_name_r(mb_driver_event_t event)
     return msg_buffer;
 }
 
+static esp_err_t close_event_fd(void *ctx);
+
 static esp_err_t init_event_fd(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    if (!mb_drv_loop_inst_counter) {
+    _lock_acquire(&s_eventfd_vfs_lock);
+    if (!s_eventfd_users) {
         esp_vfs_eventfd_config_t config = MB_EVENTFD_CONFIG();
         esp_err_t err = esp_vfs_eventfd_register(&config);
-        if ((err != ESP_OK) && (err != ESP_ERR_INVALID_STATE)) {
+        if (err == ESP_OK) {
+            s_eventfd_vfs_owned = true;
+        } else if (err != ESP_ERR_INVALID_STATE) {
+            // ESP_ERR_INVALID_STATE means that it is already registered by the application
             ESP_LOGE(TAG, "eventfd registration fail.");
         }
     }
+    s_eventfd_users++;
+    _lock_release(&s_eventfd_vfs_lock);
     drv_obj->event_fd = eventfd(0, 0);
-    MB_RETURN_ON_FALSE(MB_FD_IS_VALID(drv_obj->event_fd), ESP_ERR_INVALID_STATE, TAG, "eventfd init error.");
+    if (!MB_FD_IS_VALID(drv_obj->event_fd)) {
+        ESP_LOGE(TAG, "eventfd init error.");
+        (void)close_event_fd(ctx);
+        return ESP_ERR_INVALID_STATE;
+    }
     return ESP_OK;
 }
 
 static esp_err_t close_event_fd(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    if (mb_drv_loop_inst_counter) {
-        close(drv_obj->event_fd);
-    } else {
+    esp_err_t err = ESP_OK;
+    if (MB_FD_IS_VALID(drv_obj->event_fd)) {
         ESP_LOGD(TAG, "close eventfd (%d).", (int)drv_obj->event_fd);
-        return esp_vfs_eventfd_unregister();
+        close(drv_obj->event_fd);
+        drv_obj->event_fd = UNDEF_FD;
     }
-    return ESP_OK;
+    _lock_acquire(&s_eventfd_vfs_lock);
+    if (s_eventfd_users) {
+        s_eventfd_users--;
+        if (!s_eventfd_users && s_eventfd_vfs_owned) {
+            err = esp_vfs_eventfd_unregister();
+            s_eventfd_vfs_owned = false;
+        }
+    }
+    _lock_release(&s_eventfd_vfs_lock);
+    return err;
 }
 
+// Posts the event to the instance event loop and wakes up the driver task.
+// The eventfd is a counter, so it is used only as a wake up signal: the event data travels in the loop.
 int32_t write_event(void *ctx, mb_event_info_t *event)
 {
     MB_RETURN_ON_FALSE((event && ctx), -1, TAG, "wrong arguments.");
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    esp_err_t err = esp_event_post_to(mb_drv_loop_handle,
+    esp_err_t err = esp_event_post_to(drv_obj->event_loop_hdl,
                                       MB_EVENT_BASE(ctx), event->event_id, event,
                                       sizeof(mb_event_info_t), MB_EVENT_TOUT);
     if ((err != ESP_OK)) {
         ESP_LOGE(TAG, "%p, event loop send fail, err = %d.", ctx, (int)err);
         return -1;
     }
-    // send eventfd to just trigger select
-    int32_t ret = write(drv_obj->event_fd, (char *)&event->val, sizeof(mb_event_info_t));
-    return (ret == sizeof(mb_event_info_t)) ? event->event_id : -1;
+    return (mb_drv_wakeup(ctx) == ESP_OK) ? event->event_id : -1;
 }
 
-static int32_t read_event(void *ctx, mb_event_info_t *event)
+esp_err_t mb_drv_wakeup(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    MB_RETURN_ON_FALSE(event, ESP_ERR_INVALID_STATE, TAG, "cannot get event.");
-    int ret = read(drv_obj->event_fd, (char *)&event->val, sizeof(mb_event_info_t));
-    return (ret == sizeof(mb_event_info_t)) ? event->event_id : -1;
+    uint64_t signal = 1;
+    int ret = write(drv_obj->event_fd, &signal, sizeof(signal));
+    return (ret == sizeof(signal)) ? ESP_OK : ESP_FAIL;
+}
+
+// Reads (and clears) the number of wake up signals
+static uint64_t read_wakeups(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    uint64_t count = 0;
+    int ret = read(drv_obj->event_fd, &count, sizeof(count));
+    return (ret == sizeof(count)) ? count : 0;
 }
 
 static esp_err_t mb_drv_event_loop_init(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     esp_err_t err = ESP_OK;
-    /* Create Event loop without task (will be created separately)*/
+    // Each driver has its own loop (without a task), so the event handlers of an instance
+    // are executed only by the task of this instance.
     esp_event_loop_args_t loop_args = {
         .queue_size = MB_EVENT_QUEUE_SZ,
         .task_name = NULL
     };
-    if (!mb_drv_loop_handle && !mb_drv_loop_inst_counter) {
-        err = esp_event_loop_create(&loop_args, &mb_drv_loop_handle);
-        MB_RETURN_ON_FALSE(((err == ESP_OK) && mb_drv_loop_handle), ESP_ERR_INVALID_STATE,
-                           TAG, "create event loop failed, err=%d.", (int)err);
-    }
-    drv_obj->event_loop_hdl = mb_drv_loop_handle;
+    err = esp_event_loop_create(&loop_args, &drv_obj->event_loop_hdl);
+    MB_RETURN_ON_FALSE(((err == ESP_OK) && drv_obj->event_loop_hdl), ESP_ERR_INVALID_STATE,
+                       TAG, "create event loop failed, err=%d.", (int)err);
     if (asprintf(&drv_obj->loop_name, "loop:%p", ctx) == -1) {
         abort();
     }
@@ -132,22 +163,15 @@ static esp_err_t mb_drv_event_loop_deinit(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     esp_err_t err = ESP_OK;
-    // delete event loop
-    MB_RETURN_ON_FALSE((mb_drv_loop_handle), ESP_ERR_INVALID_STATE,
-                       TAG, "delete event loop failed.");
-    if (mb_drv_loop_inst_counter) {
-        ESP_LOGD(TAG, "delete loop inst: %s.", drv_obj->loop_name);
-        free(drv_obj->loop_name);
-        drv_obj->loop_name = NULL;
-        mb_drv_loop_inst_counter--;
+    if (drv_obj->event_loop_hdl) {
+        err = esp_event_loop_delete(drv_obj->event_loop_hdl);
+        ESP_LOGD(TAG, "delete event loop: %p.", drv_obj->event_loop_hdl);
+        drv_obj->event_loop_hdl = NULL;
     }
-    if (!mb_drv_loop_inst_counter) {
-        err = esp_event_loop_delete(mb_drv_loop_handle);
-        ESP_LOGD(TAG, "delete event loop: %p.", mb_drv_loop_handle);
-        mb_drv_loop_handle = NULL;
-        MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
-                           TAG, "delete event loop failed, error=%d.", (int)err);
-    }
+    free(drv_obj->loop_name);
+    drv_obj->loop_name = NULL;
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE,
+                       TAG, "delete event loop failed, error=%d.", (int)err);
     return err;
 }
 
@@ -161,7 +185,7 @@ esp_err_t mb_drv_register_handler(void *ctx, mb_driver_event_num_t event_num, mb
     MB_RETURN_ON_FALSE((drv_obj->event_handler[event_num] == NULL), ESP_ERR_INVALID_ARG,
                        TAG, "%p, event handler %p, for event %x, is not empty.", drv_obj, drv_obj->event_handler[event_num], (int)event);
 
-    ret = esp_event_handler_instance_register_with(mb_drv_loop_handle, MB_EVENT_BASE(ctx), event,
+    ret = esp_event_handler_instance_register_with(drv_obj->event_loop_hdl, MB_EVENT_BASE(ctx), event,
             fp, ctx, &drv_obj->event_handler[event_num]);
     ESP_LOGD(TAG, "%p, registered event handler %p, event 0x%x", drv_obj, drv_obj->event_handler[event_num], (int)event);
     MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE,
@@ -180,7 +204,7 @@ esp_err_t mb_drv_unregister_handler(void *ctx, mb_driver_event_num_t event_num)
     MB_RETURN_ON_FALSE((drv_obj->event_handler[event_num]), ESP_ERR_INVALID_ARG,
                        TAG, "%p, event handler %p, for event %x, is incorrect.", drv_obj, drv_obj->event_handler[event_num], (int)event);
 
-    ret = esp_event_handler_instance_unregister_with(mb_drv_loop_handle,
+    ret = esp_event_handler_instance_unregister_with(drv_obj->event_loop_hdl,
             MB_EVENT_BASE(ctx), (int32_t)event, drv_obj->event_handler[event_num]);
     drv_obj->event_handler[event_num] = NULL;
     MB_RETURN_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE,
@@ -622,13 +646,11 @@ void mb_drv_tcp_task(void *ctx)
             // Is the fd event triggered, process the event
             if (MB_FD_IS_VALID(drv_obj->event_fd) && FD_ISSET(drv_obj->event_fd, &readset)) {
                 FD_CLR(drv_obj->event_fd, &readset);
-                mb_event_info_t mb_event = {0};
-                int32_t event_id = read_event(ctx, &mb_event);
-                ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
-                         ctx, (int)event_id, (int)mb_event.opt_fd, driver_event_to_name_r(event_id));
+                uint64_t wakeups = read_wakeups(ctx);
+                ESP_LOGD(TAG, "%p, fd event get, wakeups: %" PRIu64, ctx, wakeups);
                 mb_drv_check_suspend_shutdown(ctx);
                 // Drive the event loop
-                esp_err_t err = esp_event_loop_run(mb_drv_loop_handle, pdMS_TO_TICKS(MB_TCP_EVENT_LOOP_TICK_MS));
+                esp_err_t err = esp_event_loop_run(drv_obj->event_loop_hdl, pdMS_TO_TICKS(MB_TCP_EVENT_LOOP_TICK_MS));
                 if (err != ESP_OK) {
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
@@ -713,6 +735,7 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
     port_driver_t driver_config = MB_DRIVER_CONFIG_DEFAULT;
     esp_err_t ret = ESP_ERR_INVALID_STATE;
     int i = 0;
+    bool event_fd_ready = false;
 
     port_driver_t *pctx = (port_driver_t *)calloc(1, sizeof(port_driver_t));
     MB_GOTO_ON_FALSE((pctx), ESP_ERR_NO_MEM, error, TAG, "%p, driver allocation fail.", pctx);
@@ -735,6 +758,7 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
     ret = init_event_fd((void *)pctx);
     MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE, error,
                      TAG, "%p, vfs eventfd init error.", pctx);
+    event_fd_ready = true;
 
     ret = mb_drv_event_loop_init((void *)pctx);
     MB_GOTO_ON_FALSE((ret == ESP_OK), ESP_ERR_INVALID_STATE, error,
@@ -743,8 +767,6 @@ esp_err_t mb_drv_register(port_driver_t **ctx)
     pctx->status_flags_hdl = xEventGroupCreate();
     MB_GOTO_ON_FALSE((pctx->status_flags_hdl), ESP_ERR_INVALID_STATE, error,
                      TAG, "%p, mb event group error.", pctx);
-
-    mb_drv_loop_inst_counter++;
 
     // Create task for packet processing
     BaseType_t state = xTaskCreatePinnedToCore(mb_drv_tcp_task,
@@ -769,21 +791,19 @@ error:
         if (pctx->mb_tcp_task_handle) {
             vTaskDelete(pctx->mb_tcp_task_handle);
         }
-        if (mb_drv_loop_handle) {
-            (void)esp_event_loop_delete(mb_drv_loop_handle);
-            mb_drv_loop_handle = NULL;
-            free(pctx->loop_name);
-            pctx->loop_name = NULL;
+        (void)mb_drv_event_loop_deinit(pctx);
+        if (event_fd_ready) {
+            (void)close_event_fd(pctx);
         }
-        if (MB_FD_IS_VALID(pctx->event_fd)) {
-            close(pctx->event_fd);
-            (void)esp_vfs_eventfd_unregister();
+        if (pctx->status_flags_hdl) {
+            vEventGroupDelete(pctx->status_flags_hdl);
         }
         if (pctx->close_done_sema) {
             vSemaphoreDelete(pctx->close_done_sema);
             pctx->close_done_sema = NULL;
         }
         free(pctx->mb_nodes);
+        CRITICAL_SECTION_CLOSE(pctx->lock);
     }
     free(pctx);
     return ret;
