@@ -168,6 +168,19 @@ uint16_t mb_port_adapter_wait_flag(mb_port_base_t *inst, uint16_t mask, uint32_t
     return (uint16_t)bits;
 }
 
+// A TCP master has its own connection to each slave, so a request reaches only the slave with
+// the unit ID of the request (the broadcast and pseudo addresses reach all the slaves).
+static bool mb_port_adapter_is_addressed(const mb_port_adapter_t *src, const mb_port_adapter_t *dst,
+                                         const uint8_t *frame, int length)
+{
+    if ((src->addr_info.proto == MB_TCP) && src->base.descr.is_master
+            && !dst->base.descr.is_master && dst->addr_info.uid && (length > MB_TCP_UID)) {
+        uint8_t uid = frame[MB_TCP_UID];
+        return (uid == dst->addr_info.uid) || (uid == MB_ADDRESS_BROADCAST) || (uid == MB_TCP_PSEUDO_ADDRESS);
+    }
+    return true;
+}
+
 // Timer task to send notification on timeout expiration
 IRAM_ATTR
 static void mb_port_adapter_timer_cb(void *param)
@@ -183,7 +196,8 @@ static void mb_port_adapter_timer_cb(void *param)
             if (it && (it != port_obj) &&
                     (port_obj->addr_info.port == it->addr_info.port) && (sz != -1)
                     && (port_obj->addr_info.proto == it->addr_info.proto)
-                    && (!port_obj->addr_info.uid || !it->addr_info.uid)) {
+                    && (!port_obj->addr_info.uid || !it->addr_info.uid)
+                    && mb_port_adapter_is_addressed(port_obj, it, temp_buffer, sz)) {
                 // Send the data to all ports with the same communication port setting except itself
                 queue_push(it->rx_queue, (void *)&temp_buffer[0], sz, NULL);
                 mb_port_adapter_set_flag(&port_obj->base, MB_QUEUE_FLAG_SENT);
