@@ -16,7 +16,7 @@ from conftest import (
 
 pattern_dict_slave = {
     Stages.STACK_IPV4: (
-        r"I \([0-9]+\) example_[a-z]+: - IPv4 address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
+        r"I \([0-9]+\) example_[a-z]+: [A-Za-z\-]* IPv4 [A-Za-z\"_:\s]*address: ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})"
     ),
     Stages.STACK_IPV6: (
         r"I \([0-9]+\) example_[a-z]+: - IPv6 address: (([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})"
@@ -206,5 +206,31 @@ def test_simple_example_modbus_tcp_communication(
     dut_master = dut[1]
 
     logger.info("TCP test Master-Slave basic examples test")
+
+    dut_slave_name = dut_slave.dut_get_name()
+    dut_master_name = dut_master.dut_get_name()
+
+    dut_slave_port = dut_slave.app.sdkconfig.get("FMB_TCP_PORT_DEFAULT")
+    dut_master_port = dut_master.app.sdkconfig.get("FMB_TCP_PORT_DEFAULT")
+    dut_stdin_en = dut_master.app.sdkconfig.get("MB_SLAVE_IP_FROM_STDIN")
+
+    assert dut_slave_port == dut_master_port, (
+        "Master and Slave IP ports dont match under CI"
+    )
+
+    dut_slave_ip_address = dut_slave.dut_get_ip()
+    dut_master_ip_address = dut_master.dut_get_ip()
+    logger.info(
+        f"DUT Slave: {dut_slave_name}, ip address[:port]: {dut_slave_ip_address}:{dut_slave_port}."
+    )
+    logger.info(
+        f"DUT Master: {dut_master_name}, ip address[:port]: {dut_master_ip_address}:{dut_master_port}."
+    )
+
+    dut_master_ip_address = dut_master.dut_get_ip()
+    logger.info(f"DUT: {dut_master_name}, ip address: {dut_master_ip_address}.")
+
+    if dut_stdin_en:
+        dut_master.dut_send_ip(slave_ip=dut_slave_ip_address, port=dut_slave_port)
 
     basic_master_slave_test(dut_slave, dut_master)
