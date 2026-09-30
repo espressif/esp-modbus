@@ -950,13 +950,16 @@ int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
     int sock_id = UNDEF_FD;
     char *paddr = NULL;
     socklen_t addr_size = sizeof(struct sockaddr_storage);
+    memset(info_ptr, 0, sizeof(*info_ptr));
     bzero(&src_addr, sizeof(struct sockaddr_storage));
 
     // Accept new socket connection if not active
     sock_id = accept(listen_sock_id, (struct sockaddr *)&src_addr, &addr_size);
     if (sock_id < 0) {
-        ESP_LOGE(TAG, "Unable to accept connection: errno=%u", (unsigned)errno);
-        close(sock_id);
+        int accept_errno = errno;
+        ESP_LOGE(TAG, "Unable to accept connection: errno=%u", (unsigned)accept_errno);
+        errno = accept_errno;
+        return UNDEF_FD;
     } else {
         // Get the sender's ip address as string
         if (src_addr.ss_family == PF_INET) {
@@ -972,18 +975,25 @@ int port_accept_connection(int listen_sock_id, mb_uid_info_t *info_ptr)
         }
 #endif
         else {
-            // Make sure ss_family is valid
-            abort();
+            ESP_LOGE(TAG, "Unable to accept connection: unsupported address family=%d",
+                     (int)src_addr.ss_family);
+            close(sock_id);
+            errno = EAFNOSUPPORT;
+            return UNDEF_FD;
         }
         ESP_LOGI(TAG, "Socket (#%d), accept client connection from address[port]: %s[%u]", (int)sock_id, addr_str, info_ptr->port);
         paddr = strdup(addr_str);
-        if (paddr) {
-            info_ptr->fd = sock_id;
-            info_ptr->ip_addr_str = paddr;
-            info_ptr->node_name_str = paddr;
-            info_ptr->proto = MB_TCP;
-            info_ptr->uid = 0;
+        if (!paddr) {
+            ESP_LOGE(TAG, "Unable to allocate accepted client address.");
+            close(sock_id);
+            errno = ENOMEM;
+            return UNDEF_FD;
         }
+        info_ptr->fd = sock_id;
+        info_ptr->ip_addr_str = paddr;
+        info_ptr->node_name_str = paddr;
+        info_ptr->proto = MB_TCP;
+        info_ptr->uid = 0;
     }
     return sock_id;
 }
