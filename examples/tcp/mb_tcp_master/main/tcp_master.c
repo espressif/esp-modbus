@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -158,13 +158,13 @@ const mb_parameter_descriptor_t device_parameters[] = {
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_INPUT,
+        CID_INP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_INPUT,
         TEST_INPUT_REG_START(input_data1), TEST_INPUT_REG_SIZE(input_data1),
         INPUT_OFFSET(input_data1), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_TEMP_MIN, TEST_TEMP_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
-        CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
+        CID_HOLD_DATA_1, STR("Humidity_2"), STR("%rH"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING,
         TEST_HOLD_REG_START(holding_data1), TEST_HOLD_REG_SIZE(holding_data1),
         HOLD_OFFSET(holding_data1), PARAM_TYPE_FLOAT, 4,
         OPTS( TEST_HUMI_MIN, TEST_HUMI_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
@@ -196,12 +196,12 @@ const mb_parameter_descriptor_t device_parameters[] = {
     {
         CID_RELAY_P1, STR("RelayP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 2, 6,
         COIL_OFFSET(coils_port0), PARAM_TYPE_U8, 1,
-        OPTS( 0xAA, 0x2A, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+        OPTS( 0xAA, 0x2A, 0x2A ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
         CID_RELAY_P2, STR("RelayP2"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_COIL, 10, 6,
         COIL_OFFSET(coils_port1), PARAM_TYPE_U8, 1,
-        OPTS( 0x55, 0x15, 0 ), PAR_PERMS_READ_WRITE_TRIGGER
+        OPTS( 0x55, 0x15, 0x15 ), PAR_PERMS_READ_WRITE_TRIGGER
     },
     {
         CID_DISCR_P1, STR("DiscreteInpP1"), STR("on/off"), MB_DEVICE_ADDR1, MB_PARAM_DISCRETE, 2, 7,
@@ -324,8 +324,8 @@ char *slave_ip_address_table[MB_DEVICE_COUNT + 1] = {
     NULL              // End of table condition (must be included)
 #elif CONFIG_MB_MDNS_IP_RESOLVER
     // This is workaround for the test to use the same slave for all CIDs and ignore UID setting in the slave
-    "01;mb_slave_tcp_01;1502",
-    "02;mb_slave_tcp_01;502",
+    "01;192.168.99.252;1502",
+    "02;192.168.99.251;1502",
     NULL              // End of table condition (must be included)
 #endif
 };
@@ -783,7 +783,7 @@ void app_main(void)
         .tcp_opts.addr_type = ip_addr_type,
         .tcp_opts.ip_addr_table = (void *)slave_ip_address_table,
         .tcp_opts.uid = 0,
-        .tcp_opts.start_disconnected = false,
+        .tcp_opts.start_disconnected = true,
         .tcp_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
         .tcp_opts.ip_netif_ptr = (void *)get_example_netif()
     };

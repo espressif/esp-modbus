@@ -187,8 +187,10 @@ static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address,
 
     if (mbm_port_tcp_send_data(inst->port_obj, address, frame_ptr, tcp_len) == false) {
         status = MB_EIO;
+    } else {
+        mb_port_timer_respond_timeout_enable(inst->port_obj);
     }
-    mb_port_timer_respond_timeout_enable(inst->port_obj);
+
     return status;
 }
 

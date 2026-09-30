@@ -123,12 +123,11 @@ typedef struct _port_driver port_driver_t;
 // So, the eventfd value keeps last event and its fd.
 #define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
     (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
     (event_info##__FUNCTION__##__LINE__).opt_fd = fd;                                   \
     (event_info##__FUNCTION__##__LINE__).opt_val = value;                               \
-    ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)          \
+    ((write_event((void *)(ctx), &(event_info##__FUNCTION__##__LINE__)) > 0)            \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \
 ))

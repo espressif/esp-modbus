@@ -120,6 +120,7 @@ mb_err_enum_t mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
     MB_GOTO_ON_FALSE(((err == ESP_OK) && ptcp->drv_obj), MB_EILLSTATE, error,
                      TAG, "mb tcp port driver event handlers registration failed, err = (%x).", (int)err);
 
+    ptcp->tcp_opts = *tcp_opts;
     ptcp->drv_obj->network_iface_ptr = tcp_opts->ip_netif_ptr;
     ptcp->drv_obj->mb_proto = tcp_opts->mode;
     ptcp->drv_obj->port = tcp_opts->port;
@@ -216,6 +217,22 @@ void mbm_port_tcp_disable(mb_port_base_t *inst)
     (void)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_DISCONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
 }
 
+static void mbm_request_node_reconnect(port_driver_t *drv_obj, mb_node_info_t *node_ptr)
+{
+    if (!drv_obj || !node_ptr || (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
+        return;
+    }
+    if (node_ptr->sock_id >= 0) {
+        if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+            FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
+        }
+        (void)port_close_connection(node_ptr);
+    }
+    if (FD_ISSET(node_ptr->index, &drv_obj->open_set)) {
+        DRIVER_SEND_EVENT(drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
+    }
+}
+
 bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
 {
     mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
@@ -260,23 +277,28 @@ bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *fram
     // get slave descriptor from its address
     mb_node_info_t *info_ptr = mb_drv_get_node_info_from_addr(port_obj->drv_obj, address);
 
-    bool all_nodes_connected = mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_CONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
+    bool connections_ready = port_obj->tcp_opts.start_disconnected ||
+                             (bool)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_CONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
+    ESP_LOGW(TAG, "start_disconnected = %s", port_obj->tcp_opts.start_disconnected ? "true" : "false");
 
-    MB_RETURN_ON_FALSE((all_nodes_connected && info_ptr && (MB_GET_NODE_STATE(info_ptr) >= MB_SOCK_STATE_CONNECTED)),
-                       false, TAG, "The node UID #%d, is not connected.", address);
-
-    if (info_ptr && frame) {
-        // Apply TID field to the frame before send
-        MB_TCP_MBAP_SET_FIELD(frame, MB_TCP_TID, info_ptr->tid_counter);
-        frame[MB_TCP_UID] = (uint8_t)(info_ptr->addr_info.uid);
+    if (!connections_ready || !info_ptr || (MB_GET_NODE_STATE(info_ptr) < MB_SOCK_STATE_CONNECTED)) {
+        if (info_ptr) {
+            mbm_request_node_reconnect(port_obj->drv_obj, info_ptr);
+        }
+        ESP_LOGD(TAG, "The node UID #%d, is not connected.", address);
+        return false;
     }
+
+    // Apply TID field to the frame before send
+    MB_TCP_MBAP_SET_FIELD(frame, MB_TCP_TID, info_ptr->tid_counter);
+    frame[MB_TCP_UID] = (uint8_t)(info_ptr->addr_info.uid);
 
     ESP_LOGD(TAG, "%p,  send fd: %d, sock_id: %d[%s], %p, len: %d",
              port_obj->drv_obj, info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, frame, length);
 
     // Write data to the modbus driver send queue of the slave
     int write_length = mb_drv_write(port_obj->drv_obj, info_ptr->fd, frame, length);
-    if (write_length) {
+    if (write_length > 0) {
         frame_sent = true;
     } else {
         ESP_LOGE(TAG, "mbm_write fail, returns %d.", write_length);
@@ -333,10 +355,7 @@ mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb
             addr_info = &node_ptr->addr_info;
         } else {
             ESP_LOGW(TAG, "Node #%d (uid=%u) is unreachable — attempting to re-establish the connection.", node_ptr->index, node_ptr->addr_info.uid);
-            if ((node_ptr->sock_id < 0) && FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
-                // Try to restore node connection as soon as possible
-                DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
-            }
+            mbm_request_node_reconnect(port_obj->drv_obj, node_ptr);
         }
     }
 
@@ -498,7 +517,7 @@ MB_EVENT_HANDLER(mbm_on_connect)
                     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CONNECTING);
                     DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
                     // Follow reconnecion cycle
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, event_info->opt_fd);
+                    //DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, event_info->opt_fd);
                 }
                 break;
             case ERR_CONN:
@@ -507,7 +526,7 @@ MB_EVENT_HANDLER(mbm_on_connect)
                 port_close_connection(node_ptr);
                 DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
                 // On connection error, try to reconnect node as soon as possible
-                DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, node_ptr->index);
+                // DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, node_ptr->index);
                 break;
             default:
                 ESP_LOGE(TAG, "Invalid error state, slave: %d (%s), error = %d.",
