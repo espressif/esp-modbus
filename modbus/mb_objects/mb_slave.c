@@ -454,6 +454,20 @@ void mbs_error_cb_request_success(mb_base_t *inst, uint8_t dest_address, const u
     ESP_LOG_BUFFER_HEX_LEVEL(__func__, (void *)pdu_data, pdu_length, ESP_LOG_DEBUG);
 }
 
+static void mbs_send_response(mb_base_t *inst, mbs_object_t *mbs_obj)
+{
+    MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,
+               (uint16_t)mbs_obj->length, ESP_LOG_DEBUG);
+    mb_err_enum_t status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbs_obj->rcv_addr, mbs_obj->frame, mbs_obj->length);
+    if (status != MB_ENOERR) {
+        ESP_LOGE(TAG, MB_OBJ_FMT": frame send error: %d.", MB_OBJ_PARENT(inst), (int)status);
+        mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
+        (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
+    } else {
+        (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_FRAME_SENT));
+    }
+}
+
 mb_err_enum_t mbs_poll(mb_base_t *inst)
 {
     mbs_object_t *mbs_obj = MB_GET_OBJ_CTX(inst, mbs_object_t, base);;
@@ -491,6 +505,19 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                     (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_EXECUTE | EV_TRANS_START));
                     MB_PRT_BUF(inst->descr.parent_name, ":MB_RECV",
                                &mbs_obj->frame[MB_PDU_FUNC_OFF], mbs_obj->length, ESP_LOG_DEBUG);
+                } else if (mbs_obj->cur_mode == MB_TCP) {
+                    // The TCP port holds the transaction resource and a confirmed transaction for
+                    // this frame, and only sending a reply releases them. Silently ignoring a
+                    // request for another unit ID would leave the slave unable to process any
+                    // further requests, so answer it with a gateway exception instead.
+                    ESP_LOGD(TAG, MB_OBJ_FMT": request for unit ID %u, own ID %u.", MB_OBJ_PARENT(inst),
+                             (unsigned)mbs_obj->rcv_addr, (unsigned)mbs_obj->mb_address);
+                    mbs_obj->curr_trans_id = event.get_ts;
+                    mbs_obj->func_code = mbs_obj->frame[MB_PDU_FUNC_OFF];
+                    mbs_obj->length = 0;
+                    mbs_obj->frame[mbs_obj->length++] = (uint8_t)(mbs_obj->func_code | MB_FUNC_ERROR);
+                    mbs_obj->frame[mbs_obj->length++] = MB_EX_GATEWAY_TGT_FAILED;
+                    mbs_send_response(inst, mbs_obj);
                 }
             } else {
                 ESP_LOGE(TAG, MB_OBJ_FMT":frame receive error. %d", MB_OBJ_PARENT(inst), (int)status);
@@ -517,16 +544,7 @@ mb_err_enum_t mbs_poll(mb_base_t *inst)
                 if ((mbs_obj->cur_mode == MB_ASCII) && MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS) {
                     mb_port_timer_delay(MB_OBJ(inst->port_obj), MB_ASCII_TIMEOUT_WAIT_BEFORE_SEND_MS);
                 }
-                MB_PRT_BUF(inst->descr.parent_name, ":MB_SEND", (void *)mbs_obj->frame,
-                           (uint16_t)mbs_obj->length, ESP_LOG_DEBUG);
-                status = MB_OBJ(inst->transp_obj)->frm_send(inst->transp_obj, mbs_obj->rcv_addr, mbs_obj->frame, mbs_obj->length);
-                if (status != MB_ENOERR) {
-                    ESP_LOGE(TAG, MB_OBJ_FMT": frame send error: %d.", MB_OBJ_PARENT(inst), (int)status);
-                    mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
-                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_ERROR_PROCESS));
-                } else {
-                    (void)mb_port_event_post(MB_OBJ(inst->port_obj), EVENT(EV_FRAME_SENT));
-                }
+                mbs_send_response(inst, mbs_obj);
             } else {
                 ESP_LOGD(TAG, MB_OBJ_FMT": Broadcast frame received, exception: %d.", MB_OBJ_PARENT(inst), (int)exception);
                 mb_port_event_set_err_type(MB_OBJ(inst->port_obj), EV_ERROR_RESPOND_TIMEOUT);
