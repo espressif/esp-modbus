@@ -51,7 +51,8 @@ mb_err_enum_t mbs_tcp_transp_create(mb_tcp_opts_t *tcp_opts, void **in_out_inst)
     // Copy parent object descriptor
     transp->base.descr = ((mb_port_base_t *)*in_out_inst)->descr;
     transp->base.descr.obj_name = (char *)TAG;
-    mb_port_base_t *port_obj = (mb_port_base_t *)*in_out_inst;
+    mb_port_base_t *parent_port = (mb_port_base_t *)*in_out_inst;
+    mb_port_base_t *port_obj = parent_port;
     ret = mbs_port_tcp_create(tcp_opts, &port_obj);
     MB_GOTO_ON_FALSE((ret == MB_ENOERR), MB_EPORTERR, error, TAG, "tcp port creation, err: %d", ret);
     ret = mb_port_timer_create(port_obj, MB_TCP_TIMEOUT_MS * MB_TIMER_TICS_PER_MS);
@@ -74,11 +75,14 @@ mb_err_enum_t mbs_tcp_transp_create(mb_tcp_opts_t *tcp_opts, void **in_out_inst)
     CRITICAL_SECTION_UNLOCK(transp->base.lock);
     return MB_ENOERR;
 error:
-    if (port_obj) {
-        free(port_obj->event_obj);
-        free(port_obj->timer_obj);
+    // The port object is replaced only when the port is created, the parent object is not owned here
+    if (port_obj && (port_obj != parent_port)) {
+        mb_port_timer_delete(port_obj);
+        if (port_obj->event_obj) {
+            mb_port_event_delete(port_obj);
+        }
+        mbs_port_tcp_delete(port_obj);
     }
-    free(port_obj);
     CRITICAL_SECTION_UNLOCK(transp->base.lock);
     CRITICAL_SECTION_CLOSE(transp->base.lock);
     free(transp);
@@ -90,6 +94,8 @@ bool mbs_tcp_transp_delete(mb_trans_base_t *inst)
     mbs_tcp_transp_t *transp = __containerof(inst, mbs_tcp_transp_t, base);
     // destroy method of port tcp slave is here
     CRITICAL_SECTION(inst->lock) {
+        // Close the listener and the clients first, so the driver can not use the timer and the events below
+        mbs_port_tcp_disable(inst->port_obj);
         mb_port_timer_delete(inst->port_obj);
         mb_port_event_delete(inst->port_obj);
         mbs_port_tcp_delete(inst->port_obj);

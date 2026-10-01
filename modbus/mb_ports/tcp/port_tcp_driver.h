@@ -43,7 +43,6 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_PORT_TASK_AFFINITY       (CONFIG_FMB_PORT_TASK_AFFINITY)
 
 #define MB_MAX_FDS                  (MB_TCP_PORT_MAX_CONN)
-#define MB_RETRY_CNT                (2)
 #define MB_RX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_TX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_EVENT_QUEUE_SZ           (CONFIG_FMB_QUEUE_LENGTH * MB_TCP_PORT_MAX_CONN)
@@ -51,6 +50,7 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DROP_TRANSACTION_TIME_US    (1000UL * (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 2000UL)) // drop after twice keep alive timeout is reasonable
 
 #define MB_WAIT_DONE_MS             (5000)
+#define MB_ACCEPT_HOLD_MS           (100)
 #define MB_SELECT_WAIT_MS           (CONFIG_FMB_TCP_EVENT_WAIT_MS)
 #define MB_TCP_SEND_TIMEOUT_MS      (CONFIG_FMB_TCP_SEND_TIMEOUT_MS)
 #define MB_TCP_EVENT_LOOP_TICK_MS   (CONFIG_FMB_TCP_EVENT_LOOP_TICK_MS)
@@ -58,7 +58,6 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_DRIVER_CONFIG_DEFAULT {              \
     .spin_lock = portMUX_INITIALIZER_UNLOCKED,  \
     .listen_sock_fd = UNDEF_FD,                 \
-    .retry_cnt = MB_RETRY_CNT,                  \
     .mb_tcp_task_handle = NULL,                 \
     .mb_node_open_count = 0,                    \
     .curr_node_index = 0,                       \
@@ -96,8 +95,10 @@ typedef struct _port_driver port_driver_t;
 }                                                                                   \
 ))
 
+#define MB_FD_IS_VALID(fd) ((fd) >= 0)
+
 #define MB_ADD_FD(fd, max_fd, fdset) do {       \
-    if (fd) {                                   \
+    if (MB_FD_IS_VALID(fd)) {                   \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
         FD_SET(fd, fdset);                      \
     }                                           \
@@ -119,8 +120,8 @@ typedef struct _port_driver port_driver_t;
 }                                                       \
 ))
 
-// Post event to event loop and unblocks the select through the eventfd to handle the event loop run,
-// So, the eventfd value keeps last event and its fd.
+// Post event to the event loop of the instance and wake up the driver task through the eventfd
+// to run the event loop. The eventfd is only a wake up counter, the event itself is kept by the loop.
 #define DRIVER_SEND_EVENT_MACRO(ctx, event, fd, value) (__extension__(                  \
 {                                                                                       \
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
@@ -194,6 +195,7 @@ typedef union {
         int32_t event_id;               /*!< an event */
         int16_t opt_fd;                 /*!< fd option for an event */
         int16_t opt_val;                /*!< value option for an event */
+        uint32_t session;               /*!< driver session the event belongs to (set by write_event) */
     };
     uint64_t val;
 } mb_event_info_t;
@@ -241,6 +243,24 @@ typedef struct _driver_event_cbs {
 } mb_driver_event_cb_t;
 
 /**
+ * @brief Lifecycle command executed by the driver task (see mb_drv_lc_post())
+ */
+typedef struct {
+    uint32_t id;                                /*!< command identifier, defined by the owner of the driver */
+    uint32_t seq;                               /*!< sequence number used to match the acknowledge */
+} mb_drv_cmd_t;
+
+/**
+ * @brief Lifecycle callbacks. Both callbacks are executed only by the driver task,
+ * outside of the event loop handlers.
+ */
+typedef struct {
+    void (*on_cmd)(void *arg, const mb_drv_cmd_t *cmd);  /*!< a command posted by mb_drv_lc_post() */
+    void (*on_timer)(void *arg);                        /*!< the time set by mb_drv_lc_set_timer() is reached */
+    void *arg;                                          /*!< argument for the callbacks */
+} mb_drv_lc_ops_t;
+
+/**
  * @brief Modbus driver context parameters
  *
  */
@@ -250,8 +270,9 @@ typedef struct _port_driver {
     portMUX_TYPE spin_lock;                     /*!< spin lock */
     _lock_t lock;                               /*!< semaphore mutex */
     bool is_registered;                         /*!< driver is active flag */
+    bool task_started;                          /*!< the driver task has been resumed at least once */
     int listen_sock_fd;                         /*!< listen socket fd */
-    int retry_cnt;                              /*!< retry counter for events */
+    int64_t accept_hold_until_us;               /*!< do not poll the listen socket until this time (after accept failure) */
     mb_comm_mode_t mb_proto;                    /*!< current node protocol type */
     uint16_t port;                              /*!< current node port number */
     uint8_t uid;                                /*!< unit identifier of the node */
@@ -272,6 +293,10 @@ typedef struct _port_driver {
     esp_event_handler_instance_t event_handler[MB_EVENT_COUNT]; /*!< event handler instance */
     char *loop_name;                            /*!< name for event loop used as base */
     mb_driver_event_cb_t event_cbs;
+    QueueHandle_t lc_cmd_queue;                 /*!< lifecycle command queue (NULL if not used) */
+    mb_drv_lc_ops_t lc_ops;                     /*!< lifecycle callbacks */
+    int64_t lc_timer_us;                        /*!< lifecycle timer deadline, 0 if not set (driver task only) */
+    _Atomic uint32_t event_session;             /*!< session number stamped into the posted events */
     //LIST_HEAD(mb_uid_info_, mb_uid_entry_s) node_list; /*!< node address information list */
     //uint16_t node_list_count;
 } port_driver_t;
@@ -342,6 +367,15 @@ int mb_drv_close(void *ctx, int fd);
 
 int32_t write_event(void *ctx, mb_event_info_t *event);
 
+/**
+ * @brief Wake up the driver task (unblocks its select) without posting an event
+ *
+ * @param ctx - pointer to driver interface structure
+ * @return esp_err_t
+ *          - ESP_OK on success
+ */
+esp_err_t mb_drv_wakeup(void *ctx);
+
 const char *driver_event_to_name_r(mb_driver_event_t event);
 
 void mb_drv_set_cb(void *ctx, void *conn_cb, void *arg);
@@ -365,6 +399,47 @@ mb_status_flags_t mb_drv_set_status_flag(void *ctx, mb_status_flags_t mask);
 mb_status_flags_t mb_drv_clear_status_flag(void *ctx, mb_status_flags_t mask);
 
 err_t mb_drv_check_node_state(void *ctx, int *fd, uint32_t timeout_ms);
+
+/**
+ * @brief Enable lifecycle commands for the driver. Must be called before the driver task is started.
+ *
+ * @param ctx - pointer to driver interface structure
+ * @param ops - callbacks executed by the driver task
+ * @param depth - depth of the command queue
+ * @return esp_err_t
+ *          - ESP_OK on success
+ *          - ESP_ERR_NO_MEM if the queue can not be created
+ */
+esp_err_t mb_drv_lc_init(void *ctx, const mb_drv_lc_ops_t *ops, size_t depth);
+
+/**
+ * @brief Post a lifecycle command to the driver task and wake it up
+ *
+ * @param ctx - pointer to driver interface structure
+ * @param cmd - command to post (copied)
+ * @param ticks - time to wait for space in the queue
+ * @return esp_err_t
+ *          - ESP_OK on success
+ *          - ESP_ERR_TIMEOUT if the queue is full
+ *          - ESP_ERR_INVALID_STATE if lifecycle commands are not enabled
+ */
+esp_err_t mb_drv_lc_post(void *ctx, const mb_drv_cmd_t *cmd, TickType_t ticks);
+
+/**
+ * @brief Set (or clear with 0) the time when the on_timer callback is called. Driver task only.
+ *
+ * @param ctx - pointer to driver interface structure
+ * @param at_us - absolute time in esp_timer_get_time() units, 0 to clear
+ */
+void mb_drv_lc_set_timer(void *ctx, int64_t at_us);
+
+/**
+ * @brief Check if the caller is the driver task of this instance
+ *
+ * @param ctx - pointer to driver interface structure
+ * @return true if called from the driver task
+ */
+bool mb_drv_is_task_context(void *ctx);
 
 #endif
 

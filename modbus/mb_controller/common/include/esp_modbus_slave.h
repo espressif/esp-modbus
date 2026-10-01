@@ -113,6 +113,11 @@ void mbc_slave_init_iface(void *ctx);
 /**
  * @brief Deletes Modbus controller and stack engine
  *
+ * The stack does not have to be stopped first: a started stack is stopped here.
+ * For a TCP slave, the listener and all the client connections are closed.
+ * It must not be called while another task uses the handle (for example, is blocked in
+ * mbc_slave_start()), and the handle must not be used after this call.
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
@@ -144,22 +149,46 @@ esp_err_t mbc_slave_unlock(void *ctx);
 /**
  * @brief Start of Modbus communication stack
  *
+ * For a TCP slave, the function blocks until the listening socket accepts connections.
+ * If the port is still in use (for example by a listener that is being closed), it keeps
+ * trying for up to 5 seconds. When it fails, the stack stays stopped and the start can be retried.
+ * The call normally takes a few milliseconds; the worst case (the listener can not be created
+ * and the driver task is slow to respond) is about 12 seconds.
+ * The start and stop calls of one slave are serialized: a call made while another one
+ * is in progress in a different task waits for it to complete.
+ * It must not be called from the Modbus tasks (e.g. from a register access callback).
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
- *     - ESP_OK   Success
- *     - ESP_ERR_INVALID_ARG Modbus stack start error
+ *     - ESP_OK   Success, the slave is listening (TCP)
+ *     - ESP_ERR_INVALID_STATE  The stack is already started, or the call is made from a Modbus task
+ *     - ESP_ERR_TIMEOUT        TCP: the port stayed in use during the start time,
+ *                              or the driver task did not respond
+ *     - ESP_ERR_NO_MEM         TCP: not enough sockets or memory to create the listener
+ *     - ESP_ERR_INVALID_ARG    TCP: the configured address or address family can not be used
+ *     - ESP_FAIL               TCP: other socket error, see the log for the details
  */
 esp_err_t mbc_slave_start(void *ctx);
 
 /**
  * @brief Stop of Modbus communication stack
  *
+ * For a TCP slave, the function returns after the listening socket and all the client
+ * connections are closed, so the same port can be started again right away.
+ * The client connections are reset: a response that is not sent yet is dropped, the
+ * clients have to reconnect and repeat the request after the next start.
+ * If it returns an error other than ESP_ERR_INVALID_STATE, the stack is considered stopped
+ * but the port may still be closing; the only valid call after that is mbc_slave_delete().
+ * It must not be called from the Modbus tasks (e.g. from a register access callback).
+ * A stop called while a start is in progress in another task waits for the start to complete.
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
  *     - ESP_OK   Success
- *     - ESP_ERR_INVALID_ARG Modbus stack stop error
+ *     - ESP_ERR_INVALID_STATE  The stack is not started, or the call is made from a Modbus task
+ *     - ESP_ERR_TIMEOUT        TCP: the driver task did not complete the stop within 5 seconds
  */
 esp_err_t mbc_slave_stop(void *ctx);
 

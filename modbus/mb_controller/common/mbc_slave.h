@@ -47,6 +47,7 @@ typedef struct {
     TaskHandle_t task_handle;                           /*!< task handle */
     EventGroupHandle_t event_group_handle;              /*!< controller event group */
     QueueHandle_t notification_queue_handle;            /*!< controller notification queue */
+    SemaphoreHandle_t lifecycle_lock;                   /*!< serializes start, stop and delete (TCP slave) */
     LIST_HEAD(mbs_area_descriptors_, mb_descr_entry_s) area_descriptors[MB_PARAM_COUNT]; /*!< register area descriptors */
 } mb_slave_options_t;
 

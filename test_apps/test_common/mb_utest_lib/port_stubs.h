@@ -61,6 +61,8 @@ bool __wrap_mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_
 bool __wrap_mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length);
 void __wrap_mbs_port_tcp_enable(mb_port_base_t *inst);
 void __wrap_mbs_port_tcp_disable(mb_port_base_t *inst);
+esp_err_t __wrap_mbs_port_tcp_wait_started(mb_port_base_t *inst);
+esp_err_t __wrap_mbs_port_tcp_get_stop_status(mb_port_base_t *inst);
 
 mb_err_enum_t __real_mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **in_out_obj);
 extern void __real_mbs_port_tcp_delete(mb_port_base_t *inst);

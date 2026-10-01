@@ -243,6 +243,14 @@ The function below is used to start Modbus controller interface and allows commu
     ....
     ESP_ERROR_CHECK(mbc_slave_start(slave_handle)); // The handle must be initialized prior to start call.
 
+For the TCP slave, :cpp:func:`mbc_slave_start` returns only after the listening socket accepts connections. If the port is still in use, for example by a listener that is being closed, the slave keeps trying for up to 5 seconds. If it can not listen, the function returns an error (``ESP_ERR_TIMEOUT`` when the port stays in use, ``ESP_ERR_NO_MEM`` when no socket is available, ``ESP_ERR_INVALID_ARG`` when the configured address can not be used), the slave stays stopped and the start can be called again later. The start normally takes a few milliseconds; in the worst case (the listener can not be created and the driver task is slow to respond) it takes about 12 seconds.
+
+:cpp:func:`mbc_slave_stop` closes the listening socket and all the client connections before it returns, so the TCP slave can be started again on the same port right away. The client connections are reset, so a response that is not sent yet is dropped and the clients have to reconnect after the next start. A stopped slave keeps its register areas. If the stop returns an error other than ``ESP_ERR_INVALID_STATE``, the port may still be closing and the only valid call after that is :cpp:func:`mbc_slave_delete`.
+
+The start and stop calls of one slave are serialized, so they can be called from different tasks. :cpp:func:`mbc_slave_delete` must not be called while another task uses the handle, for example while it is blocked in :cpp:func:`mbc_slave_start`.
+
+.. note:: The start and stop functions must not be called from the Modbus tasks, for example from a register access callback. In this case they return ``ESP_ERR_INVALID_STATE``.
+
 :cpp:func:`mbc_slave_check_event`
 
 The blocking call to function waits for a event specified (represented as an event mask parameter). Once the master accesses the parameter and the event mask matches the parameter type, the application task will be unblocked and function will return the corresponding event :cpp:type:`mb_event_group_t` which describes the type of register access being done.
@@ -339,7 +347,7 @@ The access to registered area shared between several slave objects from user app
 Modbus Slave Teardown
 ~~~~~~~~~~~~~~~~~~~~~
 
-This function stops the Modbus communication stack, destroys the controller interface, and frees all used active objects allocated for the slave.  
+This function stops the Modbus communication stack, destroys the controller interface, and frees all used active objects allocated for the slave. The slave does not have to be stopped before this call.
 
 :cpp:func:`mbc_slave_delete`
 

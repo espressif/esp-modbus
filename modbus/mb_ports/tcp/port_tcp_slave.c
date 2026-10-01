@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <sys/param.h>
 
 #include "port_tcp_common.h"
 #include "port_tcp_slave.h"
@@ -18,6 +19,33 @@
 
 #if (CONFIG_FMB_COMM_MODE_TCP_EN)
 
+// Lifecycle of the listener, changed only by the driver task
+typedef enum {
+    MBS_LC_STOPPED = 0,                 // no listener, no clients
+    MBS_LC_STARTING,                    // trying to create the listener (with retries)
+    MBS_LC_RUNNING                      // the listener accepts connections
+} mbs_lc_state_t;
+
+typedef enum {
+    MBS_LC_CMD_START = 1,
+    MBS_LC_CMD_STOP = 2
+} mbs_lc_cmd_t;
+
+typedef struct {
+    uint32_t seq;                       // sequence number of the acknowledged command
+    esp_err_t err;                      // result of the command
+} mbs_lc_ack_t;
+
+// The time given to create the listener before the start fails
+#define MBS_LC_START_BUDGET_MS          (5000)
+// Additional time the caller waits for the driver task (only matters if the task is blocked)
+#define MBS_LC_ACK_MARGIN_MS            (2000)
+#define MBS_LC_STOP_TIMEOUT_MS          (MB_WAIT_DONE_MS)
+#define MBS_LC_RETRY_FIRST_MS           (20)
+#define MBS_LC_RETRY_MAX_MS             (500)
+#define MBS_LC_QUEUE_DEPTH              (4)
+#define MBS_LC_POST_TICKS               (pdMS_TO_TICKS(100))
+
 typedef struct {
     mb_port_base_t base;
     // TCP communication properties
@@ -28,6 +56,24 @@ typedef struct {
     port_driver_t *drv_obj;
     transaction_handle_t transaction;
     uint16_t trans_count;
+    int tout_curr_fd;                   // cursor of the connection check in mbs_on_timeout
+    // Lifecycle, caller side (protected by lc_api_mutex)
+    SemaphoreHandle_t lc_api_mutex;     // serializes the lifecycle requests of this instance
+    SemaphoreHandle_t lc_ack_sema;      // given by the driver task after an acknowledge is written
+    portMUX_TYPE lc_ack_spin;           // protects the acknowledge slots
+    mbs_lc_ack_t lc_start_ack;
+    mbs_lc_ack_t lc_stop_ack;
+    uint32_t lc_next_seq;
+    uint32_t lc_start_seq;              // sequence of the START posted by enable
+    esp_err_t lc_start_post_err;        // result of posting the START in enable
+    esp_err_t lc_stop_err;              // result of the last disable
+    bool lc_enabled;                    // enable has been called and disable has not completed yet
+    // Lifecycle, driver task side (lc_state is also read under the driver lock)
+    mbs_lc_state_t lc_state;
+    uint32_t lc_pending_start_seq;
+    int64_t lc_start_deadline_us;
+    uint32_t lc_backoff_ms;
+    uint16_t lc_attempts;
 } mbs_tcp_port_t;
 
 /* ----------------------- Static variables & functions ----------------------*/
@@ -35,6 +81,10 @@ static const char *TAG = "mb_port.tcp.slave";
 
 static uint64_t mbs_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event);
 static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj);
+static void mbs_lc_on_cmd(void *arg, const mb_drv_cmd_t *cmd);
+static void mbs_lc_on_timer(void *arg);
+static bool mbs_lc_is_running(mbs_tcp_port_t *port_obj);
+static bool mbs_lc_event_is_current(mbs_tcp_port_t *port_obj, const mb_event_info_t *event_info);
 
 static esp_err_t mbs_port_tcp_register_handlers(void *ctx)
 {
@@ -135,6 +185,21 @@ mb_err_enum_t mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
     ptcp->drv_obj->event_cbs.mb_sync_event_cb = mbs_port_tcp_sync_event;
     ptcp->drv_obj->event_cbs.port_arg = (void *)ptcp;
 
+    portMUX_INITIALIZE(&ptcp->lc_ack_spin);
+    ptcp->lc_api_mutex = xSemaphoreCreateMutex();
+    ptcp->lc_ack_sema = xSemaphoreCreateBinary();
+    MB_GOTO_ON_FALSE((ptcp->lc_api_mutex && ptcp->lc_ack_sema), MB_EILLSTATE, error,
+                     TAG, "mb tcp port lifecycle objects creation failed.");
+    ptcp->lc_state = MBS_LC_STOPPED;
+    const mb_drv_lc_ops_t lc_ops = {
+        .on_cmd = mbs_lc_on_cmd,
+        .on_timer = mbs_lc_on_timer,
+        .arg = ptcp
+    };
+    err = mb_drv_lc_init(ptcp->drv_obj, &lc_ops, MBS_LC_QUEUE_DEPTH);
+    MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error,
+                     TAG, "mb tcp port lifecycle init failed, err = (%x).", (int)err);
+
 #ifdef MB_MDNS_IS_INCLUDED
     err = port_start_mdns_service(&ptcp->drv_obj->dns_name, false, tcp_opts->uid, ptcp->drv_obj->network_iface_ptr);
     MB_GOTO_ON_FALSE((err == ESP_OK), MB_EILLSTATE, error,
@@ -150,9 +215,6 @@ mb_err_enum_t mbs_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
     return MB_ENOERR;
 
 error:
-    if (ptcp && ptcp->transaction) {
-        transaction_destroy(ptcp->transaction);
-    }
     if (ptcp && ptcp->drv_obj) {
 #ifdef MB_MDNS_IS_INCLUDED
         port_stop_mdns_service(&ptcp->drv_obj->dns_name);
@@ -161,6 +223,17 @@ error:
             mbs_port_tcp_unregister_handlers(ptcp->drv_obj);
         }
         (void)mb_drv_unregister(ptcp->drv_obj);
+    }
+    if (ptcp && ptcp->transaction) {
+        transaction_destroy(ptcp->transaction);
+    }
+    if (ptcp) {
+        if (ptcp->lc_api_mutex) {
+            vSemaphoreDelete(ptcp->lc_api_mutex);
+        }
+        if (ptcp->lc_ack_sema) {
+            vSemaphoreDelete(ptcp->lc_ack_sema);
+        }
         CRITICAL_SECTION_CLOSE(ptcp->base.lock);
     }
     free(ptcp);
@@ -170,35 +243,362 @@ error:
 void mbs_port_tcp_delete(mb_port_base_t *inst)
 {
     mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
-    if (port_obj && port_obj->transaction) {
-        transaction_destroy(port_obj->transaction);
-    }
-    if (port_obj && port_obj->drv_obj) {
+    if (port_obj->drv_obj) {
+        // Close the listener and the clients while the driver task is still running
+        mbs_port_tcp_disable(inst);
 #ifdef MB_MDNS_IS_INCLUDED
         port_stop_mdns_service(&port_obj->drv_obj->dns_name);
 #endif
         if (port_obj->drv_obj->event_handler[0]) {
             mbs_port_tcp_unregister_handlers(port_obj->drv_obj);
         }
+        // The driver task exits here, only after that the objects it uses can be destroyed
         (void)mb_drv_unregister(port_obj->drv_obj);
+        port_obj->drv_obj = NULL;
+    }
+    if (port_obj->transaction) {
+        transaction_destroy(port_obj->transaction);
+        port_obj->transaction = NULL;
+    }
+    if (port_obj->lc_api_mutex) {
+        vSemaphoreDelete(port_obj->lc_api_mutex);
+    }
+    if (port_obj->lc_ack_sema) {
+        vSemaphoreDelete(port_obj->lc_ack_sema);
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
     free(port_obj);
+}
+
+/* ----------------------- Lifecycle: caller side ----------------------*/
+
+static uint32_t mbs_lc_next_seq(mbs_tcp_port_t *port_obj)
+{
+    // 0 is never used, so a zeroed acknowledge slot never matches
+    if (++port_obj->lc_next_seq == 0) {
+        port_obj->lc_next_seq = 1;
+    }
+    return port_obj->lc_next_seq;
+}
+
+// Waits for the acknowledge of the command with the sequence number seq
+static esp_err_t mbs_lc_wait_ack(mbs_tcp_port_t *port_obj, bool is_start, uint32_t seq, uint32_t timeout_ms)
+{
+    const TickType_t start = xTaskGetTickCount();
+    const TickType_t timeout = pdMS_TO_TICKS(timeout_ms);
+    mbs_lc_ack_t *slot = is_start ? &port_obj->lc_start_ack : &port_obj->lc_stop_ack;
+    for (;;) {
+        portENTER_CRITICAL(&port_obj->lc_ack_spin);
+        mbs_lc_ack_t ack = *slot;
+        portEXIT_CRITICAL(&port_obj->lc_ack_spin);
+        if (ack.seq == seq) {
+            return ack.err;
+        }
+        TickType_t elapsed = xTaskGetTickCount() - start;
+        if (elapsed >= timeout) {
+            return ESP_ERR_TIMEOUT;
+        }
+        // The semaphore might be given for another acknowledge, the slot is checked again anyway
+        (void)xSemaphoreTake(port_obj->lc_ack_sema, timeout - elapsed);
+    }
+}
+
+static mbs_lc_state_t mbs_lc_get_state(mbs_tcp_port_t *port_obj)
+{
+    mb_drv_lock(port_obj->drv_obj);
+    mbs_lc_state_t state = port_obj->lc_state;
+    mb_drv_unlock(port_obj->drv_obj);
+    return state;
 }
 
 void mbs_port_tcp_enable(mb_port_base_t *inst)
 {
     mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
     (void)mb_drv_start_task(port_obj->drv_obj);
-    DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_READY, UNDEF_FD);
+    // A request received before the last stop can still be queued in the stack,
+    // it must not be executed in the new session (its connection is already closed).
+    mb_port_event_flush(inst);
+    // Only post the start here: this is called under the object locks. The result is
+    // received by mbs_port_tcp_wait_started() without the locks held.
+    (void)xSemaphoreTake(port_obj->lc_api_mutex, portMAX_DELAY);
+    mb_drv_cmd_t cmd = {
+        .id = MBS_LC_CMD_START,
+        .seq = mbs_lc_next_seq(port_obj)
+    };
+    port_obj->lc_start_seq = cmd.seq;
+    port_obj->lc_enabled = true;
+    port_obj->lc_start_post_err = mb_drv_lc_post(port_obj->drv_obj, &cmd, MBS_LC_POST_TICKS);
+    (void)xSemaphoreGive(port_obj->lc_api_mutex);
+}
+
+esp_err_t mbs_port_tcp_wait_started(mb_port_base_t *inst)
+{
+    mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
+    MB_RETURN_ON_FALSE(!mb_drv_is_task_context(port_obj->drv_obj), ESP_ERR_INVALID_STATE, TAG,
+                       "%p, can not wait for the start in the driver task.", port_obj);
+    (void)xSemaphoreTake(port_obj->lc_api_mutex, portMAX_DELAY);
+    esp_err_t err = port_obj->lc_start_post_err;
+    if (err == ESP_OK) {
+        err = mbs_lc_wait_ack(port_obj, true, port_obj->lc_start_seq,
+                              MBS_LC_START_BUDGET_MS + MBS_LC_ACK_MARGIN_MS);
+    }
+    (void)xSemaphoreGive(port_obj->lc_api_mutex);
+    return err;
 }
 
 void mbs_port_tcp_disable(mb_port_base_t *inst)
 {
     mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
-    // Change the state of all slaves to close
-    DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_CLOSE, UNDEF_FD);
-    (void)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_DISCONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
+    esp_err_t err = ESP_OK;
+    if (mb_drv_is_task_context(port_obj->drv_obj)) {
+        // The driver task can not wait for itself
+        ESP_LOGE(TAG, "%p, can not stop the port in the driver task.", port_obj);
+        port_obj->lc_stop_err = ESP_ERR_INVALID_STATE;
+        return;
+    }
+    (void)xSemaphoreTake(port_obj->lc_api_mutex, portMAX_DELAY);
+    if (port_obj->lc_enabled || (mbs_lc_get_state(port_obj) != MBS_LC_STOPPED)) {
+        mb_drv_cmd_t cmd = {
+            .id = MBS_LC_CMD_STOP,
+            .seq = mbs_lc_next_seq(port_obj)
+        };
+        err = mb_drv_lc_post(port_obj->drv_obj, &cmd, MBS_LC_POST_TICKS);
+        if (err == ESP_OK) {
+            err = mbs_lc_wait_ack(port_obj, false, cmd.seq, MBS_LC_STOP_TIMEOUT_MS);
+        }
+        if (err == ESP_OK) {
+            port_obj->lc_enabled = false;
+        } else {
+            ESP_LOGE(TAG, "%p, stop of the port failed, err = 0x%x.", port_obj, (int)err);
+        }
+    }
+    port_obj->lc_stop_err = err;
+    (void)xSemaphoreGive(port_obj->lc_api_mutex);
+}
+
+esp_err_t mbs_port_tcp_get_stop_status(mb_port_base_t *inst)
+{
+    mbs_tcp_port_t *port_obj = __containerof(inst, mbs_tcp_port_t, base);
+    return port_obj->lc_stop_err;
+}
+
+/* ----------------------- Lifecycle: driver task side ----------------------*/
+
+static void mbs_lc_ack(mbs_tcp_port_t *port_obj, bool is_start, uint32_t seq, esp_err_t err)
+{
+    portENTER_CRITICAL(&port_obj->lc_ack_spin);
+    mbs_lc_ack_t *slot = is_start ? &port_obj->lc_start_ack : &port_obj->lc_stop_ack;
+    slot->seq = seq;
+    slot->err = err;
+    portEXIT_CRITICAL(&port_obj->lc_ack_spin);
+    (void)xSemaphoreGive(port_obj->lc_ack_sema);
+}
+
+static bool mbs_lc_is_running(mbs_tcp_port_t *port_obj)
+{
+    // Called by the driver task (the only writer) or under the driver lock
+    return (port_obj->lc_state == MBS_LC_RUNNING);
+}
+
+// An event is handled only if the port is running and the event was posted in the current session.
+// The events of a closed session can still be queued in the loop (or be posted while it closes),
+// they must not touch the nodes of the next session which reuse the same indexes.
+// The event loop run is limited in time, so the events of a stopped session can stay queued
+// while the next session accepts clients with the same node indexes. Such events are dropped here.
+static bool mbs_lc_event_is_current(mbs_tcp_port_t *port_obj, const mb_event_info_t *event_info)
+{
+    return mbs_lc_is_running(port_obj)
+           && (event_info->session == atomic_load(&port_obj->drv_obj->event_session));
+}
+
+// Starts a new event session, all the events posted before are dropped by the handlers
+static void mbs_lc_new_session(mbs_tcp_port_t *port_obj)
+{
+    (void)atomic_fetch_add(&port_obj->drv_obj->event_session, 1);
+}
+
+static bool mbs_bind_is_retryable(const mb_bind_diag_t *diag)
+{
+    switch (diag->stage) {
+    case MB_BIND_STAGE_RESOLVE:
+        return (diag->err == EAI_MEMORY);
+    case MB_BIND_STAGE_SOCKET:
+        return ((diag->err == ENFILE) || (diag->err == EMFILE)
+                || (diag->err == ENOBUFS) || (diag->err == ENOMEM));
+    case MB_BIND_STAGE_BIND:
+    case MB_BIND_STAGE_LISTEN:
+        // EADDRINUSE: the port can still be held by a closing listener (or another service)
+        return ((diag->err == EADDRINUSE) || (diag->err == ENOBUFS) || (diag->err == ENOMEM));
+    default:
+        return false;
+    }
+}
+
+static esp_err_t mbs_bind_to_esp_err(const mb_bind_diag_t *diag)
+{
+    switch (diag->stage) {
+    case MB_BIND_STAGE_RESOLVE:
+        return (diag->err == EAI_MEMORY) ? ESP_ERR_NO_MEM : ESP_ERR_INVALID_ARG;
+    case MB_BIND_STAGE_SOCKET:
+        if ((diag->err == ENFILE) || (diag->err == EMFILE) || (diag->err == ENOBUFS) || (diag->err == ENOMEM)) {
+            return ESP_ERR_NO_MEM;
+        }
+        if ((diag->err == EAFNOSUPPORT) || (diag->err == EINVAL) || (diag->err == EPROTONOSUPPORT)) {
+            return ESP_ERR_INVALID_ARG;
+        }
+        return ESP_FAIL;
+    case MB_BIND_STAGE_BIND:
+    case MB_BIND_STAGE_LISTEN:
+        if (diag->err == EADDRINUSE) {
+            return ESP_ERR_TIMEOUT;
+        }
+        if ((diag->err == ENOBUFS) || (diag->err == ENOMEM)) {
+            return ESP_ERR_NO_MEM;
+        }
+        if ((diag->err == EADDRNOTAVAIL) || (diag->err == EINVAL)) {
+            return ESP_ERR_INVALID_ARG;
+        }
+        return ESP_FAIL;
+    default:
+        return ESP_FAIL;
+    }
+}
+
+// Prepares a new session: clears the state left by the previous one
+static void mbs_lc_reset_session(mbs_tcp_port_t *port_obj)
+{
+    port_driver_t *drv_obj = port_obj->drv_obj;
+    (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY | MB_FLAG_DISCONNECTED | MB_FLAG_CONNECTED);
+    mb_drv_lock(drv_obj);
+    transaction_delete_all_items(port_obj->transaction);
+    mb_drv_unlock(drv_obj);
+    port_obj->tout_curr_fd = 0;
+    drv_obj->accept_hold_until_us = 0;
+    // A request that was taken by the stack before the stop is never answered, so release
+    // the resource here, otherwise every request of the new session would be postponed.
+    mb_port_event_res_release(&port_obj->base);
+}
+
+// Closes the listener and all the clients. The port is STOPPED when it returns.
+static void mbs_lc_teardown(mbs_tcp_port_t *port_obj)
+{
+    port_driver_t *drv_obj = port_obj->drv_obj;
+    mb_drv_lock(drv_obj);
+    // From now on the data path does not post new events
+    port_obj->lc_state = MBS_LC_STOPPED;
+    mbs_lc_new_session(port_obj);
+    int listen_fd = drv_obj->listen_sock_fd;
+    drv_obj->listen_sock_fd = UNDEF_FD;
+    transaction_delete_all_items(port_obj->transaction);
+    mb_drv_unlock(drv_obj);
+    if (MB_FD_IS_VALID(listen_fd)) {
+        shutdown(listen_fd, SHUT_RDWR);
+        close(listen_fd);
+    }
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        mb_node_info_t *pnode = mb_drv_get_node(drv_obj, fd);
+        if (pnode) {
+            if (MB_FD_IS_VALID(pnode->sock_id)) {
+                mb_set_linger(pnode->sock_id, 0); // send RST immediately
+            }
+            mb_drv_close(drv_obj, fd);
+        }
+    }
+    mb_drv_lock(drv_obj);
+    FD_ZERO(&drv_obj->conn_set);
+    drv_obj->node_conn_count = 0;
+    mb_drv_unlock(drv_obj);
+    mb_drv_lc_set_timer(drv_obj, 0);
+    (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY | MB_FLAG_CONNECTED);
+    (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
+}
+
+static void mbs_lc_try_bind(mbs_tcp_port_t *port_obj)
+{
+    port_driver_t *drv_obj = port_obj->drv_obj;
+    mb_bind_diag_t diag;
+    int listen_fd = port_bind_addr(port_obj->tcp_opts.ip_addr_table,
+                                   port_obj->tcp_opts.addr_type,
+                                   port_obj->tcp_opts.mode,
+                                   port_obj->tcp_opts.port,
+                                   &diag);
+    port_obj->lc_attempts++;
+    int64_t now = esp_timer_get_time();
+    uint32_t elapsed_ms = (uint32_t)((now - (port_obj->lc_start_deadline_us - (MBS_LC_START_BUDGET_MS * 1000LL))) / 1000);
+    if (MB_FD_IS_VALID(listen_fd)) {
+        // so, all accepted sockets will inherit the keep-alive feature
+        (void)port_keep_alive_enable(listen_fd, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
+        mb_drv_lock(drv_obj);
+        drv_obj->listen_sock_fd = listen_fd;
+        port_obj->lc_state = MBS_LC_RUNNING;
+        mb_drv_unlock(drv_obj);
+        mb_drv_lc_set_timer(drv_obj, 0);
+        (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
+        drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_READY);
+        ESP_LOGI(TAG, "%p, listening on port %u (attempts: %u, %" PRIu32 " ms).", port_obj,
+                 (unsigned)port_obj->tcp_opts.port, (unsigned)port_obj->lc_attempts, elapsed_ms);
+        mbs_lc_ack(port_obj, true, port_obj->lc_pending_start_seq, ESP_OK);
+        return;
+    }
+    bool retry = mbs_bind_is_retryable(&diag)
+                 && ((now + (port_obj->lc_backoff_ms * 1000LL)) < port_obj->lc_start_deadline_us);
+    if (!retry) {
+        esp_err_t err = mbs_bind_to_esp_err(&diag);
+        ESP_LOGE(TAG, "%p, listener on port %u failed: stage=%s, err=%d, family=%d, attempts=%u, %" PRIu32 " ms (%s).",
+                 port_obj, (unsigned)port_obj->tcp_opts.port, port_bind_stage_str(diag.stage), diag.err, diag.family,
+                 (unsigned)port_obj->lc_attempts, elapsed_ms, esp_err_to_name(err));
+        mbs_lc_teardown(port_obj);
+        mbs_lc_ack(port_obj, true, port_obj->lc_pending_start_seq, err);
+        return;
+    }
+    ESP_LOGW(TAG, "%p, listener on port %u failed: stage=%s, err=%d, retry in %" PRIu32 " ms.",
+             port_obj, (unsigned)port_obj->tcp_opts.port, port_bind_stage_str(diag.stage), diag.err,
+             port_obj->lc_backoff_ms);
+    mb_drv_lc_set_timer(drv_obj, now + (port_obj->lc_backoff_ms * 1000LL));
+    port_obj->lc_backoff_ms = MIN(port_obj->lc_backoff_ms * 2, MBS_LC_RETRY_MAX_MS);
+}
+
+static void mbs_lc_on_cmd(void *arg, const mb_drv_cmd_t *cmd)
+{
+    mbs_tcp_port_t *port_obj = (mbs_tcp_port_t *)arg;
+    switch (cmd->id) {
+    case MBS_LC_CMD_START:
+        if (port_obj->lc_state != MBS_LC_STOPPED) {
+            mbs_lc_ack(port_obj, true, cmd->seq, ESP_ERR_INVALID_STATE);
+            break;
+        }
+        mbs_lc_reset_session(port_obj);
+        port_obj->lc_pending_start_seq = cmd->seq;
+        port_obj->lc_attempts = 0;
+        port_obj->lc_backoff_ms = MBS_LC_RETRY_FIRST_MS;
+        port_obj->lc_start_deadline_us = esp_timer_get_time() + (MBS_LC_START_BUDGET_MS * 1000LL);
+        mb_drv_lock(port_obj->drv_obj);
+        mbs_lc_new_session(port_obj);
+        port_obj->lc_state = MBS_LC_STARTING;
+        mb_drv_unlock(port_obj->drv_obj);
+        mbs_lc_try_bind(port_obj);
+        break;
+    case MBS_LC_CMD_STOP:
+        if (port_obj->lc_state == MBS_LC_STARTING) {
+            // The start is cancelled by this stop
+            mbs_lc_ack(port_obj, true, port_obj->lc_pending_start_seq, ESP_ERR_INVALID_STATE);
+        }
+        mbs_lc_teardown(port_obj);
+        ESP_LOGD(TAG, "%p, port is stopped.", port_obj);
+        mbs_lc_ack(port_obj, false, cmd->seq, ESP_OK);
+        break;
+    default:
+        ESP_LOGE(TAG, "%p, unknown lifecycle command %" PRIu32 ".", port_obj, cmd->id);
+        break;
+    }
+}
+
+static void mbs_lc_on_timer(void *arg)
+{
+    mbs_tcp_port_t *port_obj = (mbs_tcp_port_t *)arg;
+    if (port_obj->lc_state == MBS_LC_STARTING) {
+        mbs_lc_try_bind(port_obj);
+    }
 }
 
 bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
@@ -211,6 +611,10 @@ bool mbs_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *len
 
     if (length && frame && *frame) {
         mb_drv_lock(drv_obj);
+        if (port_obj->lc_state != MBS_LC_RUNNING) {
+            mb_drv_unlock(drv_obj);
+            return false;
+        }
         item = transaction_get_first(port_obj->transaction);
         if (item && (transaction_item_get_state(item) == ACKNOWLEDGED)) {
             uint16_t tid = 0;
@@ -254,6 +658,11 @@ bool mbs_port_tcp_send_data(mb_port_base_t *inst, uint8_t *frame, uint16_t lengt
     bool retrigger_pending = false;
 
     mb_drv_lock(drv_obj);
+    if (port_obj->lc_state != MBS_LC_RUNNING) {
+        // The port is stopped, the connection of this request is closed already
+        mb_drv_unlock(drv_obj);
+        return false;
+    }
     item = transaction_get_first(port_obj->transaction);
     if (item && transaction_item_get_state(item) == CONFIRMED) {
         uint16_t msg_id = 0;
@@ -338,46 +747,9 @@ static uint64_t mbs_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event)
 
 MB_EVENT_HANDLER(mbs_on_ready)
 {
-    // The driver is registered
+    // The listener is created by the lifecycle commands (see mbs_lc_on_cmd), this event is not used by the slave
     mb_event_info_t *event_info = (mb_event_info_t *)data;
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    ESP_LOGD(TAG, "addr_table:%p, addr_type:%d, mode:%d, port:%d", port_obj->tcp_opts.ip_addr_table,
-             (int)port_obj->tcp_opts.addr_type,
-             (int)port_obj->tcp_opts.mode,
-             (int)port_obj->tcp_opts.port);
-
-    int listen_sock = port_bind_addr(port_obj->tcp_opts.ip_addr_table,
-                                     port_obj->tcp_opts.addr_type,
-                                     port_obj->tcp_opts.mode,
-                                     port_obj->tcp_opts.port);
-    if (listen_sock < 0) {
-        mb_drv_check_suspend_shutdown(ctx);
-        ESP_LOGE(TAG, "%s, sock: %d, bind error", (char *)base, listen_sock);
-        mb_drv_lock(drv_obj);
-        if (drv_obj->retry_cnt) {
-            drv_obj->retry_cnt--;
-        }
-        mb_drv_unlock(drv_obj);
-        if (drv_obj->retry_cnt) {
-            vTaskDelay(TRANSACTION_TICKS);
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_READY, UNDEF_FD);
-        } else {
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_CLOSE, UNDEF_FD);
-            ESP_LOGE(TAG, "%s, stop binding.", (char *)base);
-            // mbs_port_tcp_disable(&port_obj->base);
-        }
-    } else {
-        mb_drv_lock(ctx);
-        drv_obj->listen_sock_fd = listen_sock;
-        // so, all accepted sockets will inherit the keep-alive feature
-        (void)port_keep_alive_enable(drv_obj->listen_sock_fd, CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC);
-        (void)mb_drv_set_status_flag(drv_obj, MB_FLAG_TRANSACTION_READY);
-        mb_drv_unlock(ctx);
-        drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_READY);
-        ESP_LOGI(TAG, "%s  %s: fd: %d, bind is done", (char *)base, __func__, (int)event_info->opt_fd);
-    }
 }
 
 MB_EVENT_HANDLER(mbs_on_open)
@@ -391,6 +763,9 @@ MB_EVENT_HANDLER(mbs_on_connect)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    if (!mbs_lc_event_is_current((mbs_tcp_port_t *)drv_obj->parent, event_info)) {
+        return;
+    }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (!pnode) {
         ESP_LOGD(TAG, "%s %s: fd: %d, is closed.", (char *)base, __func__, (int)event_info->opt_fd);
@@ -412,6 +787,9 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     mbs_tcp_port_t *port_obj = (mbs_tcp_port_t *)drv_obj->parent;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     transaction_item_handle_t item = NULL;
     if (pnode) {
@@ -499,6 +877,9 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     int ret = 0;
     bool retrigger_pending = false;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (pnode && !queue_is_empty(pnode->tx_queue)) {
         // Pop the frame entry, keep the buffer
@@ -621,6 +1002,9 @@ MB_EVENT_HANDLER(mbs_on_error)
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     mb_node_info_t *pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
     if (!pnode) {
         ESP_LOGD(TAG, "%s %s: fd: %d, is closed.", (char *)base, __func__, (int)event_info->opt_fd);
@@ -657,6 +1041,9 @@ MB_EVENT_HANDLER(mbs_on_close)
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
     mb_node_info_t *pnode = NULL;
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     // if close all sockets event is received
     if (event_info->opt_fd < 0) {
         (void)mb_drv_clear_status_flag(drv_obj, MB_FLAG_DISCONNECTED);
@@ -686,18 +1073,24 @@ MB_EVENT_HANDLER(mbs_on_close)
 MB_EVENT_HANDLER(mbs_on_timeout)
 {
     // Slave timeout triggered
-    //mb_event_info_t *event_info = (mb_event_info_t *)data;
+    mb_event_info_t *event_info = (mb_event_info_t *)data;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     mbs_tcp_port_t *port_obj = __containerof(drv_obj->parent, mbs_tcp_port_t, base);
-    static int curr_fd = 0;
-    mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
+    int curr_fd = port_obj->tout_curr_fd;
     ESP_LOGD(TAG, "%s %s: fd: %d, count: %d", (char *)base, __func__, (int)curr_fd, drv_obj->node_conn_count);
+    if (!mbs_lc_event_is_current(port_obj, event_info)) {
+        return;
+    }
     mb_drv_check_suspend_shutdown(ctx);
     int ret = mb_drv_check_node_state(drv_obj, &curr_fd, CONFIG_FMB_TCP_CONNECTION_TOUT_SEC * 1000);
     if ((ret != ERR_OK) && (ret != ERR_TIMEOUT)) {
-        ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
-                 port_obj, pnode->index, pnode->sock_id,
-                 pnode->addr_info.ip_addr_str, (int)ret);
+        // the cursor may have moved to the next connected node, so resolve the node after the check
+        mb_node_info_t *pnode = mb_drv_get_node(drv_obj, curr_fd);
+        if (pnode) {
+            ESP_LOGE(TAG, "%p, " MB_NODE_FMT(", connection lost, err=%d, drop connection."),
+                     port_obj, pnode->index, pnode->sock_id,
+                     pnode->addr_info.ip_addr_str, (int)ret);
+        }
         mb_drv_lock(drv_obj);
         (void)transaction_delete_by_node_id(port_obj->transaction, curr_fd);
         mb_drv_unlock(drv_obj);
@@ -708,6 +1101,7 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     } else {
         curr_fd++;
     }
+    port_obj->tout_curr_fd = curr_fd;
     vTaskDelay(1);
 }
 
