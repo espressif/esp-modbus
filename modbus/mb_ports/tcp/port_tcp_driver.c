@@ -494,6 +494,11 @@ static int mb_drv_register_fds(void *ctx, fd_set *fdset)
     for (int i = 0; i < MB_MAX_FDS; i++) {
         node_ptr = drv_obj->mb_nodes[i];
         if (node_ptr && node_ptr->sock_id && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
+            // Slave back-pressure: a node whose requests are still pending is not read, so a
+            // pipelining master waits in TCP flow control instead of in the slave heap.
+            if (!drv_obj->is_master && (node_ptr->pending >= MB_TCP_SLAVE_MAX_PENDING)) {
+                continue;
+            }
             MB_ADD_FD(node_ptr->sock_id, max_fd, fdset);
         }
     }
@@ -659,7 +664,10 @@ void mb_drv_tcp_task(void *ctx)
             mb_node_info_t *node_ptr = NULL;
             while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
                     && (curr_fd < MB_MAX_FDS))) {
-                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+                // Slave back-pressure: the event loop above may have queued a request of this
+                // node after the select set was built; its next frame waits in TCP.
+                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)
+                        && (drv_obj->is_master || (node_ptr->pending < MB_TCP_SLAVE_MAX_PENDING))) {
                     // The data is ready in the socket, read frame and queue
                     FD_CLR(node_ptr->sock_id, &readset);
                     int ret = port_read_packet(node_ptr);
@@ -668,6 +676,9 @@ void mb_drv_tcp_task(void *ctx)
                                  (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                         mb_drv_lock(ctx);
                         node_ptr->recv_time = esp_timer_get_time();
+                        if (!drv_obj->is_master) {
+                            node_ptr->pending++;   // in rx_queue until the RECV handler lists it
+                        }
                         mb_drv_unlock(ctx);
                         DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, node_ptr->index);
                     } else if (ret == ERR_TIMEOUT) {

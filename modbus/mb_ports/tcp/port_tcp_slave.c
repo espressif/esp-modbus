@@ -36,6 +36,20 @@ static const char *TAG = "mb_port.tcp.slave";
 static uint64_t mbs_port_tcp_sync_event(void *inst, mb_sync_event_t sync_event);
 static void mbs_retrigger_pending_transactions(void *ctx, mbs_tcp_port_t *port_obj);
 
+// Back-pressure bookkeeping: pending = requests of each node read from the socket and not
+// answered yet (still in rx_queue or in the transaction list). Only the driver task writes it
+// (event handlers) and reads it (select set), so it needs no lock.
+static void mbs_update_pending(port_driver_t *drv_obj, mbs_tcp_port_t *port_obj)
+{
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        mb_node_info_t *pnode = mb_drv_get_node(drv_obj, fd);
+        if (pnode) {
+            UBaseType_t unlisted = pnode->rx_queue ? uxQueueMessagesWaiting(pnode->rx_queue) : 0;
+            pnode->pending = (uint16_t)(unlisted + transaction_count_by_node_id(port_obj->transaction, fd));
+        }
+    }
+}
+
 static esp_err_t mbs_port_tcp_register_handlers(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
@@ -454,6 +468,7 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                     mb_drv_lock(drv_obj);
                     transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
                     mb_drv_unlock(drv_obj);
+                    mbs_update_pending(drv_obj, port_obj);
                     mb_drv_check_suspend_shutdown(ctx);
                     return;
                 }
@@ -485,6 +500,7 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
             ESP_LOGD(TAG, "%p, no queued items found", ctx);
         }
     }
+    mbs_update_pending(drv_obj, port_obj);
     mb_drv_check_suspend_shutdown(ctx);
 }
 
@@ -596,6 +612,7 @@ MB_EVENT_HANDLER(mbs_on_send_data)
     if (retrigger_pending) {
         mbs_retrigger_pending_transactions(ctx, port_obj);
     }
+    mbs_update_pending(drv_obj, port_obj);
     mb_drv_check_suspend_shutdown(ctx);
 }
 
@@ -708,6 +725,13 @@ MB_EVENT_HANDLER(mbs_on_timeout)
     } else {
         curr_fd++;
     }
+    // Idle sweep: without new frames nothing else expires the list, and a node held by the
+    // back-pressure stays out of the select set until its pending requests leave the list.
+    mb_drv_lock(drv_obj);
+    (void)transaction_delete_expired(port_obj->transaction, port_get_timestamp(), MB_DROP_TRANSACTION_TIME_US);
+    mb_drv_unlock(drv_obj);
+    mbs_update_pending(drv_obj, port_obj);
+    mbs_retrigger_pending_transactions(ctx, port_obj);
     vTaskDelay(1);
 }
 

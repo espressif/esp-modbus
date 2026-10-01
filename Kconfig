@@ -92,6 +92,19 @@ menu "Modbus configuration"
                 before returning to check sockets. Lower values reduce latency for socket
                 I/O at the cost of processing fewer events per iteration.
 
+    config FMB_TCP_SLAVE_MAX_PENDING
+        int "Modbus TCP slave maximum queued requests per connection"
+        range 1 64
+        default 1
+        depends on FMB_COMM_MODE_TCP_EN
+        help
+                The TCP slave reads the next request from a connection only while that connection
+                has fewer than this number of requests in the transaction list. Requests that a master
+                sends without waiting for the responses (pipelining) stay in the TCP receive window,
+                so TCP flow control throttles the master instead of the slave heap growing with one
+                transaction item and one frame copy per request. With 1, each connection is served
+                one request at a time, in order.
+
     config FMB_TCP_UID_ENABLED
         bool "Modbus TCP enable UID (Unit Identifier) support"
         default n
