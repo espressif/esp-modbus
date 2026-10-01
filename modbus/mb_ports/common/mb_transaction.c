@@ -280,6 +280,20 @@ int transaction_delete_expired(transaction_handle_t transaction, transaction_tic
     return deleted_items;
 }
 
+int transaction_count_by_node_id(transaction_handle_t transaction, int node_id)
+{
+    int count = 0;
+    transaction_item_handle_t item;
+    CRITICAL_SECTION_LOCK(transaction->lock);
+    STAILQ_FOREACH(item, transaction->list, next) {
+        if (item->node_id == node_id) {
+            count++;
+        }
+    }
+    CRITICAL_SECTION_UNLOCK(transaction->lock);
+    return count;
+}
+
 uint64_t transaction_get_size(transaction_handle_t transaction)
 {
     return transaction->size;

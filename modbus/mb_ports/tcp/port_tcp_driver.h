@@ -212,8 +212,13 @@ typedef struct mb_node_info_s {
     uint16_t tid_counter;               /*!< transaction identifier (TID) for slave */
     uint16_t send_counter;              /*!< number of packets sent to slave during one session */
     uint16_t recv_counter;              /*!< number of packets received from slave during one session */
+    uint16_t pending;                   /*!< (slave) requests of this node read and not answered yet */
     bool is_blocking;                   /*!< slave blocking bit state saved */
 } mb_node_info_t;
+
+// Slave back-pressure: a connection with this many pending requests is not read, so a
+// pipelining master waits in TCP flow control instead of in the slave heap.
+#define MB_TCP_SLAVE_MAX_PENDING    (CONFIG_FMB_TCP_SLAVE_MAX_PENDING)
 
 typedef enum _mb_sync_event {
     MB_SYNC_EVENT_RECV_OK = 0x0001,
