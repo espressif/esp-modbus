@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2021 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,6 +13,7 @@
 #include "soc/soc.h"                // for BITN definitions
 #include "esp_err.h"                // for esp_err_t
 #include "esp_modbus_common.h"      // for common defines
+#include "esp_modbus_master.h"      // for custom transport factory
 #include "sdkconfig.h"
 
 #ifdef __cplusplus
@@ -31,6 +32,11 @@ extern "C" {
  *     - ESP_ERR_NO_MEM Parameter error
  */
 esp_err_t mbc_serial_master_create(mb_communication_info_t *config, void **ctx);
+
+esp_err_t mbc_serial_master_create_with_transport(mb_communication_info_t *config,
+        mbc_master_transport_factory_t factory,
+        void *user_ctx,
+        void **ctx);
 
 #endif
 

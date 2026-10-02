@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -215,7 +215,10 @@ error:
 }
 
 // Initialization of Modbus controller
-esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
+esp_err_t mbc_serial_slave_create_with_transport(mb_communication_info_t *config,
+        mbc_slave_transport_factory_t factory,
+        void *user_ctx,
+        void **ctx)
 {
     mbs_controller_iface_t *mbs_controller_iface = NULL;
     MB_RETURN_ON_FALSE((ctx && config), ESP_ERR_INVALID_STATE, TAG,
@@ -248,7 +251,7 @@ esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
     // Initialize Modbus stack using mbcontroller parameters
     if (pcomm_info->mode == MB_RTU) {
 #if (CONFIG_FMB_COMM_MODE_RTU_EN)
-        err = mbs_rtu_create(pcomm_info, &inst);
+        err = mbs_rtu_create_with_transport(config, &inst, factory, user_ctx);
 #else
         ESP_LOGE(TAG, "RTU mode is not enabled in the configuration.");
         ret = ESP_ERR_NOT_SUPPORTED;
@@ -290,6 +293,11 @@ error:
         *ctx = NULL;
     }
     return ret;
+}
+
+esp_err_t mbc_serial_slave_create(mb_communication_info_t *config, void **ctx)
+{
+    return mbc_serial_slave_create_with_transport(config, NULL, NULL, ctx);
 }
 
 #endif // #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)

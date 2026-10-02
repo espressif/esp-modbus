@@ -11,6 +11,8 @@
 #include "soc/soc.h"                // for BITN definitions
 #include "esp_modbus_common.h"      // for common types
 
+typedef struct mb_trans_base_t mb_trans_base_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -222,6 +224,49 @@ esp_err_t mbc_master_create_tcp(mb_communication_info_t *config, void **ctx);
  *     - ESP_ERR_INVALID_STATE  Initialization failure
  */
 esp_err_t mbc_master_create_serial(mb_communication_info_t *config, void **ctx);
+
+/**
+ * @brief Arguments supplied when constructing a custom serial master transport.
+ *
+ * The factory must return an initialized RTU transport whose `port_obj` is set.
+ * The transport implementation owns `user_ctx`; the controller does not retain
+ * or delete it directly.
+ */
+typedef struct {
+    const mb_communication_info_t *comm_info; /*!< Requested serial configuration. */
+    void *parent;                             /*!< Owning controller object. */
+    void *user_ctx;                           /*!< Caller-defined factory context. */
+} mbc_master_transport_factory_args_t;
+
+/**
+ * @brief Factory used to construct a custom RTU master transport.
+ *
+ * @param[in] args Factory arguments supplied by the controller.
+ * @param[out] transport Initialized transport instance on success.
+ *
+ * @return `MB_ENOERR` on success; another `mb_err_enum_t` value on failure.
+ */
+typedef mb_err_enum_t (*mbc_master_transport_factory_t)(
+    const mbc_master_transport_factory_args_t *args, mb_trans_base_t **transport);
+
+/**
+ * @brief Initialize a serial Modbus master controller with a caller-provided RTU transport.
+ *
+ * Passing a factory bypasses the stock serial port and RTU transport creation.
+ * The supplied factory is used only for `MB_RTU`; ASCII uses the stock transport.
+ *
+ * @param[in] config Pointer to the master communication configuration.
+ * @param[in] factory Custom RTU transport factory, or `NULL` for the stock transport.
+ * @param[in] user_ctx Caller-defined context passed to `factory`.
+ * @param[out] ctx Initialized controller context.
+ *
+ * @return ESP_OK on success; an ESP-IDF error code otherwise.
+ */
+esp_err_t mbc_master_create_serial_with_transport(
+    mb_communication_info_t *config,
+    mbc_master_transport_factory_t factory,
+    void *user_ctx,
+    void **ctx);
 
 /**
  * @brief Deletes Modbus controller and stack engine

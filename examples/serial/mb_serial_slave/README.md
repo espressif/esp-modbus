@@ -62,6 +62,16 @@ Set ```Modbus slave address``` for the example application (by default for examp
 The communication parameters of esp-modbus stack (Component config->Modbus configuration) allow to configure it appropriately but usually it is enough to use default settings.
 See the help strings of parameters for more information.
 
+### Custom RTU transport factory
+
+Enable `Create the RTU slave with a transport factory` in the `Modbus Example
+Configuration` menu to exercise `mbc_slave_create_serial_with_transport()`.
+The example factory delegates to the stock RTU transport, so its on-wire behavior
+is unchanged. It shows the construction boundary where an application can supply
+its own initialized `mb_trans_base_t` implementation instead, for example to own
+serial I/O or route complete RTU frames. A custom transport must set its
+`port_obj` and implement the transport callbacks required by the controller.
+
 ### Setup external Modbus master software
 Option 1:
 Configure the external Modbus master software according to port configuration parameters used in application.

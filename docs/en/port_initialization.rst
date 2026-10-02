@@ -7,6 +7,8 @@ The ESP_Modbus supports Modbus SERIAL and TCP communication objects and an objec
 
 - :cpp:func:`mbc_slave_create_serial`
 - :cpp:func:`mbc_master_create_serial`
+- :cpp:func:`mbc_slave_create_serial_with_transport`
+- :cpp:func:`mbc_master_create_serial_with_transport`
 - :cpp:func:`mbc_master_create_tcp`
 - :cpp:func:`mbc_slave_create_tcp`
 
@@ -39,6 +41,49 @@ Calling the constructor function allows to create communication object with the 
     ...
 
 Refer to :ref:`modbus_api_master_setup_communication_options` and :ref:`modbus_api_slave_setup_communication_options` for more information on how to configure communication options for the master and slave object accordingly.
+
+Custom RTU Transport
+^^^^^^^^^^^^^^^^^^^^
+
+The serial master and slave constructors normally create the standard RTU
+transport and serial port. Applications that need to provide their own RTU
+framing, serial I/O, or routing can instead use
+:cpp:func:`mbc_master_create_serial_with_transport` or
+:cpp:func:`mbc_slave_create_serial_with_transport`. These constructors accept
+a factory which creates an initialized ``mb_trans_base_t`` transport.
+
+The custom factory path applies only when ``config.ser_opts.mode`` is
+``MB_RTU``. ASCII mode continues to use the standard transport. A factory
+returns the initialized transport through its output argument and must set the
+transport's ``port_obj``. It must also implement the transport callbacks used
+by the controller. The controller takes ownership of a successfully returned
+transport and calls its ``frm_delete`` callback during cleanup.
+
+The following slave example shows the factory call. The master equivalent uses
+``mbc_master_create_serial_with_transport()`` and
+``mbc_master_transport_factory_t``.
+
+.. code:: c
+
+    static mb_err_enum_t custom_slave_transport_factory(
+        const mbc_slave_transport_factory_args_t *args,
+        mb_trans_base_t **transport)
+    {
+        // Create an initialized custom RTU transport using args->comm_info
+        // and, when needed, args->user_ctx.
+        return my_rtu_transport_create(args, transport);
+    }
+
+    static void *slave_handle = NULL;
+    ESP_ERROR_CHECK(mbc_slave_create_serial_with_transport(
+        &config, custom_slave_transport_factory, my_transport_context,
+        &slave_handle));
+
+The factory receives the requested communication configuration, the owning
+controller object, and the caller-defined context. The caller retains ownership
+of the context itself unless the custom transport documents otherwise. Pass
+``NULL`` as the factory to use the standard RTU transport; the ordinary
+``mbc_*_create_serial()`` constructors already do this.
 
 .. _modbus_api_master_setup_communication_options:
 
