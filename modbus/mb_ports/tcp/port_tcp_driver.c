@@ -617,21 +617,7 @@ void mb_drv_tcp_task(void *ctx)
             mb_drv_check_suspend_shutdown(ctx);
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
         } else {
-            // Is the fd event triggered, process the event
-            if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
-                FD_CLR(drv_obj->event_fd, &readset);
-                mb_event_info_t mb_event = {0};
-                int32_t event_id = read_event(ctx, &mb_event);
-                ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
-                         ctx, (int)event_id, (int)mb_event.opt_fd, driver_event_to_name_r(event_id));
-                mb_drv_check_suspend_shutdown(ctx);
-                // Drive the event loop
-                esp_err_t err = esp_event_loop_run(mb_drv_loop_handle, pdMS_TO_TICKS(MB_TCP_EVENT_LOOP_TICK_MS));
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
-                }
-            }
-            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if (drv_obj->listen_sock_fd > 0 && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
@@ -648,9 +634,25 @@ void mb_drv_tcp_task(void *ctx)
                         if (fd < 0) {
                             ESP_LOGE(TAG, "%p, unable to open node: %s", drv_obj, node_info.ip_addr_str);
                         } else {
+                            int nodelay = 1;
+                            (void)setsockopt(sock_id, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
                             DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, fd);
                         }
                     }
+                }
+            }
+            // Is the fd event triggered, process the event
+            if (drv_obj->event_fd > 0 && FD_ISSET(drv_obj->event_fd, &readset)) {
+                FD_CLR(drv_obj->event_fd, &readset);
+                mb_event_info_t mb_event = {0};
+                int32_t event_id = read_event(ctx, &mb_event);
+                ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
+                         ctx, (int)event_id, (int)mb_event.opt_fd, driver_event_to_name_r(event_id));
+                mb_drv_check_suspend_shutdown(ctx);
+                // Drive the event loop
+                esp_err_t err = esp_event_loop_run(mb_drv_loop_handle,  pdMS_TO_TICKS(MB_TCP_EVENT_LOOP_TICK_MS));
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
             // If socket events are ready, process each socket event
