@@ -120,6 +120,7 @@ mb_err_enum_t mbm_port_tcp_create(mb_tcp_opts_t *tcp_opts, mb_port_base_t **port
     MB_GOTO_ON_FALSE(((err == ESP_OK) && ptcp->drv_obj), MB_EILLSTATE, error,
                      TAG, "mb tcp port driver event handlers registration failed, err = (%x).", (int)err);
 
+    ptcp->tcp_opts = *tcp_opts;
     ptcp->drv_obj->network_iface_ptr = tcp_opts->ip_netif_ptr;
     ptcp->drv_obj->mb_proto = tcp_opts->mode;
     ptcp->drv_obj->port = tcp_opts->port;
@@ -216,6 +217,53 @@ void mbm_port_tcp_disable(mb_port_base_t *inst)
     (void)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_DISCONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
 }
 
+static bool mbm_node_reconnect_due(const mb_node_info_t *node_ptr)
+{
+    uint64_t elapsed_us = (uint64_t)esp_timer_get_time() - node_ptr->send_time;
+    return (elapsed_us >= ((uint64_t)MB_RECONNECT_TIME_MS * 1000ULL));
+}
+
+// Advance one registered node that is not CONNECTED. send_time is the last attempt.
+static void mbm_progress_node_connection(void *ctx, mb_node_info_t *node_ptr)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    mb_sock_state_t state;
+
+    if (!node_ptr || !FD_ISSET(node_ptr->index, &drv_obj->open_set)) {
+        return;
+    }
+    state = MB_GET_NODE_STATE(node_ptr);
+    if (state >= MB_SOCK_STATE_CONNECTED) {
+        return;
+    }
+    if (!mbm_node_reconnect_due(node_ptr)) {
+        return;
+    }
+    node_ptr->send_time = esp_timer_get_time();
+    if (state == MB_SOCK_STATE_OPENED) {
+        DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, node_ptr->index);
+    } else {
+        DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, node_ptr->index);
+    }
+}
+
+// Idle select and the response timer both post MB_EVENT_TIMEOUT. Use that as the scan.
+static void mbm_progress_pending_connections(void *ctx)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+    mb_status_flags_t status = mb_drv_wait_status_flag(drv_obj, MB_FLAG_DISCONNECTED, 0);
+
+    if (status & MB_FLAG_DISCONNECTED) {
+        return;
+    }
+    for (int fd = 0; fd < MB_MAX_FDS; fd++) {
+        mb_node_info_t *node_ptr = mb_drv_get_node(drv_obj, fd);
+        if (node_ptr) {
+            mbm_progress_node_connection(ctx, node_ptr);
+        }
+    }
+}
+
 bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *length)
 {
     mbm_tcp_port_t *port_obj = __containerof(inst, mbm_tcp_port_t, base);
@@ -260,23 +308,24 @@ bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *fram
     // get slave descriptor from its address
     mb_node_info_t *info_ptr = mb_drv_get_node_info_from_addr(port_obj->drv_obj, address);
 
-    bool all_nodes_connected = mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_CONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
+    bool connections_ready = port_obj->tcp_opts.start_disconnected ||
+                             (bool)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_CONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
 
-    MB_RETURN_ON_FALSE((all_nodes_connected && info_ptr && (MB_GET_NODE_STATE(info_ptr) >= MB_SOCK_STATE_CONNECTED)),
-                       false, TAG, "The node UID #%d, is not connected.", address);
-
-    if (info_ptr && frame) {
-        // Apply TID field to the frame before send
-        MB_TCP_MBAP_SET_FIELD(frame, MB_TCP_TID, info_ptr->tid_counter);
-        frame[MB_TCP_UID] = (uint8_t)(info_ptr->addr_info.uid);
+    if (!connections_ready || !info_ptr || (MB_GET_NODE_STATE(info_ptr) < MB_SOCK_STATE_CONNECTED)) {
+        ESP_LOGD(TAG, "The node UID #%d, is not connected.", address);
+        return false;
     }
+
+    // Apply TID field to the frame before send
+    MB_TCP_MBAP_SET_FIELD(frame, MB_TCP_TID, info_ptr->tid_counter);
+    frame[MB_TCP_UID] = (uint8_t)(info_ptr->addr_info.uid);
 
     ESP_LOGD(TAG, "%p,  send fd: %d, sock_id: %d[%s], %p, len: %d",
              port_obj->drv_obj, info_ptr->fd, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, frame, length);
 
     // Write data to the modbus driver send queue of the slave
     int write_length = mb_drv_write(port_obj->drv_obj, info_ptr->fd, frame, length);
-    if (write_length) {
+    if (write_length > 0) {
         frame_sent = true;
     } else {
         ESP_LOGE(TAG, "mbm_write fail, returns %d.", write_length);
@@ -332,11 +381,7 @@ mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb
         if (MB_GET_NODE_STATE(node_ptr) >= exp_state) {
             addr_info = &node_ptr->addr_info;
         } else {
-            ESP_LOGW(TAG, "Node #%d (uid=%u) is unreachable — attempting to re-establish the connection.", node_ptr->index, node_ptr->addr_info.uid);
-            if ((node_ptr->sock_id < 0) && FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
-                // Try to restore node connection as soon as possible
-                DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
-            }
+            ESP_LOGD(TAG, "Node #%d (uid=%u) is unreachable.", node_ptr->index, node_ptr->addr_info.uid);
         }
     }
 
@@ -410,13 +455,9 @@ MB_EVENT_HANDLER(mbm_on_resolve)
                     ESP_LOGI(TAG, "%p, slave: %d, resolved with IP:%s.", ctx, (int)fd, pslave->addr_info.ip_addr_str);
                     MB_SET_NODE_STATE(pslave, MB_SOCK_STATE_RESOLVED);
                     DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, pslave->index);
-                } else {
-                    // continue resolve while not resolved
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, pslave->index);
                 }
 #else
                 ESP_LOGE(TAG, "%p, slave: %d, IP:%s, mdns service is not supported.", ctx, (int)fd, pslave->addr_info.node_name_str);
-                DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, pslave->index);
 #endif
             }
         }
@@ -480,34 +521,26 @@ MB_EVENT_HANDLER(mbm_on_connect)
                 }
                 break;
             case ERR_INPROGRESS:
-                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
-                    FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
-                    ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connect fail error = %d.",
+                if (MB_GET_NODE_STATE(node_ptr) == MB_SOCK_STATE_CONNECTING) {
+                    ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connect still pending, retry later.",
                              ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id,
-                             node_ptr->addr_info.ip_addr_str, (int)err);
-                    mb_drv_lock(ctx);
-                    if (drv_obj->node_conn_count) {
-                        drv_obj->node_conn_count--;
+                             node_ptr->addr_info.ip_addr_str);
+                    if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+                        FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
                     }
-                    mb_drv_unlock(ctx);
                     port_close_connection(node_ptr);
                 } else {
                     ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connection is in progress.",
                              ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id,
                              node_ptr->addr_info.ip_addr_str);
                     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CONNECTING);
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
-                    // Follow reconnecion cycle
-                    DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, event_info->opt_fd);
+                    node_ptr->send_time = esp_timer_get_time();
                 }
                 break;
             case ERR_CONN:
                 ESP_LOGE(TAG, "Modbus connection phase, slave: %d (%s), connection error (%d).",
                          (int)event_info->opt_fd, node_ptr->addr_info.ip_addr_str, (int)err);
                 port_close_connection(node_ptr);
-                DRIVER_SEND_EVENT(ctx, MB_EVENT_TIMEOUT, node_ptr->index);
-                // On connection error, try to reconnect node as soon as possible
-                DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, node_ptr->index);
                 break;
             default:
                 ESP_LOGE(TAG, "Invalid error state, slave: %d (%s), error = %d.",
@@ -712,8 +745,9 @@ MB_EVENT_HANDLER(mbm_on_timeout)
     // Socket read/write timeout is triggered
     mb_event_info_t *event_info = (mb_event_info_t *)data;
     ESP_LOGD(TAG, "%s  %s: fd: %d", (char *)base, __func__, (int)event_info->opt_fd);
-    // Todo: this event can be used to check network state (keep empty for now)
     mb_drv_check_suspend_shutdown(ctx);
+    // Use timeout event to refresh connections pool
+    mbm_progress_pending_connections(ctx);
     // Intentionally allow IDLE task to trigger if other tasks do not perform it properly.
     vTaskDelay(1);
 }
