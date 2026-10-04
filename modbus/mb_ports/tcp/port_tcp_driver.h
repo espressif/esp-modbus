@@ -96,11 +96,11 @@ typedef struct _port_driver port_driver_t;
 }                                                                                   \
 ))
 
-#define MB_ADD_FD(fd, max_fd, fdset) do {       \
-    if (fd) {                                   \
-        (max_fd = (fd > max_fd) ? fd : max_fd); \
-        FD_SET(fd, fdset);                      \
-    }                                           \
+#define MB_ADD_FD(fd, max_fd, fdset) do {                   \
+    if (((fd) >= 0) && ((fd) < FD_SETSIZE)) {               \
+        (max_fd = ((fd) > (max_fd)) ? (fd) : (max_fd));     \
+        FD_SET((fd), (fdset));                              \
+    }                                                       \
 } while(0)
 
 
@@ -339,6 +339,17 @@ ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size);
 ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size);
 
 int mb_drv_close(void *ctx, int fd);
+
+/**
+ * @brief Close and release every opened node owned by the driver.
+ *
+ * The listening socket and driver task are intentionally kept alive so a TCP
+ * slave can accept fresh clients after the network interface recovers.
+ *
+ * @param ctx pointer to the driver context
+ * @return number of nodes that were closed
+ */
+int mb_drv_close_all(void *ctx);
 
 int32_t write_event(void *ctx, mb_event_info_t *event);
 
