@@ -312,6 +312,9 @@ bool mbm_port_tcp_send_data(mb_port_base_t *inst, uint8_t address, uint8_t *fram
                              (bool)mb_drv_wait_status_flag(port_obj->drv_obj, MB_FLAG_CONNECTED, pdMS_TO_TICKS(MB_RECONNECT_TIME_MS));
 
     if (!connections_ready || !info_ptr || (MB_GET_NODE_STATE(info_ptr) < MB_SOCK_STATE_CONNECTED)) {
+        if (info_ptr) {
+            mbm_progress_node_connection(port_obj->drv_obj, info_ptr);
+        }
         ESP_LOGD(TAG, "The node UID #%d, is not connected.", address);
         return false;
     }
@@ -382,6 +385,9 @@ mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb
             addr_info = &node_ptr->addr_info;
         } else {
             ESP_LOGD(TAG, "Node #%d (uid=%u) is unreachable.", node_ptr->index, node_ptr->addr_info.uid);
+            if (FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
+                DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_CONNECT, node_ptr->index);
+            }
         }
     }
 
