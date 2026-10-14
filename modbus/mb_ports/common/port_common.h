@@ -86,7 +86,7 @@ void unlock_obj(_lock_t *lock_ptr);
 #define MB_PORT_CLEAR_EVENT(event, mask) \
     do                                   \
     {                                    \
-        event &= ~mask;                  \
+        event &= (mb_event_enum_t) ~ (unsigned int)(mask); \
     } while (0)
 
 // concatenation of the two arguments
@@ -180,6 +180,8 @@ void mb_port_timer_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms
 uint32_t mb_port_timer_get_response_time_ms(mb_port_base_t *inst);
 void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms);
 void mb_port_timer_delete(mb_port_base_t *inst);
+
+int64_t port_get_timestamp(void);
 
 // Common functions to track instance descriptors
 void mb_port_set_inst_counter(uint32_t inst_counter);

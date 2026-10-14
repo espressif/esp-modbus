@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,10 +20,6 @@ extern "C" {
 #include "net/if.h"     // for SOMAXCONN
 
 #include "port_tcp_common.h"
-
-#if __has_include("esp_timer.h")
-#include "esp_timer.h"
-#endif
 
 #if __has_include("esp_mac.h")
 #include "esp_mac.h"
@@ -117,7 +113,6 @@ err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms);
 err_t port_connect(void *ctx, mb_node_info_t *info_ptr);
 bool port_close_connection(mb_node_info_t *info_ptr);
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout);
-int64_t port_get_timestamp(void);
 
 typedef struct uid_info_s mb_uid_info_t;
 

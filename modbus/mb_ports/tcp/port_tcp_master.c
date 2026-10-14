@@ -224,17 +224,17 @@ bool mbm_port_tcp_recv_data(mb_port_base_t *inst, uint8_t **frame, uint16_t *len
     MB_RETURN_ON_FALSE((info_ptr), false, TAG, "incorrect current slave pointer.");
     bool status = false;
 
-    size_t sz = mb_drv_read(port_obj->drv_obj, info_ptr->fd, port_obj->ptemp_buf, MB_BUFFER_SIZE);
+    ssize_t read_len = mb_drv_read(port_obj->drv_obj, info_ptr->fd, port_obj->ptemp_buf, MB_BUFFER_SIZE);
+    size_t sz = (read_len > 0) ? (size_t)read_len : 0;
     if (sz > MB_TCP_FUNC) {
         uint16_t tid_counter = MB_TCP_MBAP_GET_FIELD(port_obj->ptemp_buf, MB_TCP_TID);
         if (tid_counter == (info_ptr->tid_counter - 1)) {
             *frame = port_obj->ptemp_buf;
-            *length = sz;
+            *length = (uint16_t)sz;
             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", get packet TID: 0x%04" PRIx16 ":0x%04" PRIx16 ", %p."),
                      port_obj->drv_obj, info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str,
                      (unsigned)tid_counter, (unsigned)info_ptr->tid_counter, *frame);
-            uint64_t time = 0;
-            time = port_get_timestamp() - info_ptr->send_time;
+            uint64_t time = (uint64_t)(port_get_timestamp() - info_ptr->send_time);
             ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", processing time[us] = %ju."), port_obj->drv_obj, info_ptr->index,
                      info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, time);
             status = true;
@@ -307,7 +307,7 @@ bool mbm_port_timer_expired(void *inst)
     if (mb_port_get_cur_timer_mode(inst) == MB_TMODE_RESPOND_TIMEOUT) {
         // It is now to check solution.
         mb_event.event_id = MB_EVENT_TIMEOUT;
-        mb_event.opt_fd = port_obj->drv_obj->curr_node_index;
+        mb_event.opt_fd = (int16_t)port_obj->drv_obj->curr_node_index;
         err = esp_event_isr_post_to(port_obj->drv_obj->event_loop_hdl, MB_EVENT_BASE(port_obj->drv_obj),
                                     (int32_t)MB_EVENT_TIMEOUT, (void *)&mb_event, sizeof(mb_event_info_t *), &task_unblocked);
         if (err != ESP_OK) {
@@ -328,15 +328,14 @@ mb_uid_info_t *mbm_port_tcp_get_slave_info(mb_port_base_t *inst, uint8_t uid, mb
     if (!node_ptr) {
         ESP_LOGE(TAG, "Node (uid=%u) is unreachable.", uid);
         return NULL;
+    }
+    if (MB_GET_NODE_STATE(node_ptr) >= exp_state) {
+        addr_info = &node_ptr->addr_info;
     } else {
-        if (MB_GET_NODE_STATE(node_ptr) >= exp_state) {
-            addr_info = &node_ptr->addr_info;
-        } else {
-            ESP_LOGW(TAG, "Node #%d (uid=%u) is unreachable — attempting to re-establish the connection.", node_ptr->index, node_ptr->addr_info.uid);
-            if ((node_ptr->sock_id < 0) && FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
-                // Try to restore node connection as soon as possible
-                DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
-            }
+        ESP_LOGW(TAG, "Node #%d (uid=%u) is unreachable — attempting to re-establish the connection.", node_ptr->index, node_ptr->addr_info.uid);
+        if ((node_ptr->sock_id < 0) && MB_FD_ISSET(node_ptr->index, &port_obj->drv_obj->open_set)) {
+            // Try to restore node connection as soon as possible
+            DRIVER_SEND_EVENT(port_obj->drv_obj, MB_EVENT_RESOLVE, node_ptr->index);
         }
     }
 
@@ -390,7 +389,7 @@ MB_EVENT_HANDLER(mbm_on_resolve)
         int fd = event_info->opt_fd;
         mb_node_info_t *pslave = mb_drv_get_node(drv_obj, fd);
         if (pslave && (MB_GET_NODE_STATE(pslave) == MB_SOCK_STATE_OPENED)
-                && FD_ISSET(pslave->index, &drv_obj->open_set)) {
+                && MB_FD_ISSET(pslave->index, &drv_obj->open_set)) {
             mb_status_flags_t status = mb_drv_wait_status_flag(drv_obj, MB_FLAG_DISCONNECTED, 0);
             if ((status & MB_FLAG_DISCONNECTED)) {
                 ESP_LOGV(TAG, "%p, slave: %d, sock: %d, IP:%s, disconnected.",
@@ -430,7 +429,7 @@ MB_EVENT_HANDLER(mbm_on_resolve)
         for (int fd = 0; fd < drv_obj->mb_node_open_count; fd++) {
             mb_node_info_t *pslave = mb_drv_get_node(drv_obj, fd);
             if (pslave && (MB_GET_NODE_STATE(pslave) == MB_SOCK_STATE_OPENED)
-                    && FD_ISSET(pslave->index, &drv_obj->open_set)) {
+                    && MB_FD_ISSET(pslave->index, &drv_obj->open_set)) {
                 DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, pslave->index);
             }
             mb_drv_check_suspend_shutdown(ctx);
@@ -456,12 +455,12 @@ MB_EVENT_HANDLER(mbm_on_connect)
             err = port_connect(ctx, node_ptr);
             switch (err) {
             case ERR_OK:
-                FD_SET(node_ptr->sock_id, &drv_obj->conn_set);
+                MB_FD_SET(node_ptr->sock_id, &drv_obj->conn_set);
                 mb_drv_lock(ctx);
                 drv_obj->node_conn_count++;
                 // Update time stamp for connected slaves
-                node_ptr->send_time = esp_timer_get_time();
-                node_ptr->recv_time = esp_timer_get_time();
+                node_ptr->send_time = port_get_timestamp();
+                node_ptr->recv_time = port_get_timestamp();
                 mb_drv_unlock(ctx);
                 ESP_LOGI(TAG, "%p, slave: #%d, sock:%d, IP: %s, is connected.",
                          ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id,
@@ -480,8 +479,8 @@ MB_EVENT_HANDLER(mbm_on_connect)
                 }
                 break;
             case ERR_INPROGRESS:
-                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
-                    FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
+                if (MB_FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+                    MB_FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
                     ESP_LOGD(TAG, "%p, slave: #%d, sock:%d, IP:%s, connect fail error = %d.",
                              ctx, (int)event_info->opt_fd, (int)node_ptr->sock_id,
                              node_ptr->addr_info.ip_addr_str, (int)err);
@@ -523,8 +522,8 @@ MB_EVENT_HANDLER(mbm_on_connect)
             if (node_ptr &&
                     (MB_GET_NODE_STATE(node_ptr) < MB_SOCK_STATE_CONNECTED) &&
                     (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_RESOLVED)) {
-                if (((node_ptr->sock_id < 0) || !FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))
-                        && FD_ISSET(node, &drv_obj->open_set)) {
+                if (((node_ptr->sock_id < 0) || !MB_FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))
+                        && MB_FD_ISSET(node, &drv_obj->open_set)) {
                     DRIVER_SEND_EVENT(ctx, MB_EVENT_CONNECT, node_ptr->index);
                 }
             }
@@ -553,7 +552,7 @@ MB_EVENT_HANDLER(mbm_on_error)
             ESP_LOGW(TAG, "%p, "MB_NODE_FMT(", error handling."), ctx, (int)node_ptr->fd,
                      (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
             ESP_LOGE(TAG, "Node: %d, try to repair lost connection, err= %d", curr_fd, ret);
-            FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
+            MB_FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
             mb_drv_lock(ctx);
             if (drv_obj->node_conn_count) {
                 drv_obj->node_conn_count--;
@@ -568,7 +567,7 @@ MB_EVENT_HANDLER(mbm_on_error)
             mb_drv_check_suspend_shutdown(ctx);
             mb_node_info_t *pslave = mb_drv_get_node(drv_obj, fd);
             if (pslave && (MB_GET_NODE_STATE(pslave) == MB_SOCK_STATE_OPENED)
-                    && FD_ISSET(pslave->index, &drv_obj->open_set)) {
+                    && MB_FD_ISSET(pslave->index, &drv_obj->open_set)) {
                 DRIVER_SEND_EVENT(ctx, MB_EVENT_RESOLVE, pslave->index);
             }
         }
@@ -627,12 +626,12 @@ MB_EVENT_HANDLER(mbm_on_send_data)
         }
         mb_drv_lock(ctx);
         drv_obj->mb_node_curr = info_ptr;
-        drv_obj->curr_node_index = info_ptr->index;
-        info_ptr->send_time = esp_timer_get_time();
-        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1)) ? (info_ptr->send_counter + 1) : 0;
+        drv_obj->curr_node_index = (uint16_t)info_ptr->index;
+        info_ptr->send_time = port_get_timestamp();
+        info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1)) ? (uint16_t)(info_ptr->send_counter + 1) : 0;
         mb_drv_unlock(ctx);
         // Get send buffer from stack
-        ESP_LOG_BUFFER_HEX_LEVEL("SENT", tx_buffer, sz, ESP_LOG_DEBUG);
+        ESP_LOG_BUFFER_HEX_LEVEL("SENT", tx_buffer, (uint16_t)sz, ESP_LOG_DEBUG);
     }
 }
 
@@ -661,7 +660,7 @@ MB_EVENT_HANDLER(mbm_on_recv_data)
                 if (tid == (node_ptr->tid_counter - 1)) {
                     queue_push(node_ptr->rx_queue, buf, sz, NULL);
                     mb_drv_lock(ctx);
-                    node_ptr->recv_time = esp_timer_get_time();
+                    node_ptr->recv_time = port_get_timestamp();
                     mb_drv_unlock(ctx);
                     // send receive event to modbus object
                     drv_obj->event_cbs.mb_sync_event_cb(drv_obj->event_cbs.port_arg, MB_SYNC_EVENT_RECV_OK);
@@ -686,7 +685,7 @@ MB_EVENT_HANDLER(mbm_on_close)
         for (int fd = 0; fd < MB_MAX_FDS; fd++) {
             mb_node_info_t *pnode = mb_drv_get_node(drv_obj, fd);
             if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)
-                    && FD_ISSET(pnode->index, &drv_obj->open_set)) {
+                    && MB_FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 // Close node immediately
                 MB_SET_NODE_STATE(pnode, MB_SOCK_STATE_READY);
                 ESP_LOGD(TAG, "%p, Close node %d, sock #%d.", ctx, fd, pnode->sock_id);
@@ -699,7 +698,7 @@ MB_EVENT_HANDLER(mbm_on_close)
         pnode = mb_drv_get_node(drv_obj, event_info->opt_fd);
         if (pnode && (MB_GET_NODE_STATE(pnode) >= MB_SOCK_STATE_OPENED)) {
             ESP_LOGD(TAG, "%p, Close node %d, sock #%d, intentionally.", ctx, (int)event_info->opt_fd, pnode->sock_id);
-            if ((pnode->sock_id < 0) && FD_ISSET(pnode->sock_id, &drv_obj->open_set)) {
+            if ((pnode->sock_id < 0) && MB_FD_ISSET(pnode->index, &drv_obj->open_set)) {
                 mb_drv_close(drv_obj, event_info->opt_fd);
             }
         }

@@ -11,7 +11,6 @@
 
 #include "esp_log.h"
 #include "esp_check.h"
-#include "esp_timer.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -273,7 +272,7 @@ mb_status_flags_t mb_drv_wait_status_flag(void *ctx, mb_status_flags_t mask, Tic
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     return (mb_status_flags_t)xEventGroupWaitBits(drv_obj->status_flags_hdl,
-            (BaseType_t)(mask),
+            (EventBits_t)mask,
             pdFALSE,
             pdFALSE,
             ticks);
@@ -311,16 +310,16 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
             node_ptr->recv_err = -1;
             node_ptr->addr_info = addr_info;
             //node_ptr->addr_info.ip_addr_str = NULL;
-            node_ptr->addr_info.index = fd;
-            node_ptr->send_time = esp_timer_get_time();
-            node_ptr->recv_time = esp_timer_get_time();
+            node_ptr->addr_info.index = (uint16_t)fd;
+            node_ptr->send_time = port_get_timestamp();
+            node_ptr->recv_time = port_get_timestamp();
             node_ptr->tid_counter = 0;
             node_ptr->send_counter = 0;
             node_ptr->recv_counter = 0;
             node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
             drv_obj->mb_nodes[fd] = node_ptr;
             // mark opened node in the open set
-            FD_SET(fd, &drv_obj->open_set);
+            MB_FD_SET(fd, &drv_obj->open_set);
             mb_drv_unlock(ctx);
             MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_OPENED);
             DRIVER_SEND_EVENT(ctx, MB_EVENT_OPEN, fd);
@@ -366,7 +365,7 @@ ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size)
 
     if (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED) {
         if (queue_push(node_ptr->tx_queue, (void *)data, size, NULL) == ESP_OK) {
-            ret = size;
+            ret = (ssize_t)size;
             // Inform FSM that is new frame data is ready to be send
             DRIVER_SEND_EVENT(ctx, MB_EVENT_SEND_DATA, node_ptr->index);
         } else {
@@ -423,8 +422,8 @@ int mb_drv_close(void *ctx, int fd)
     // stop socket
     if (MB_GET_NODE_STATE(node_ptr) != MB_SOCK_STATE_CLOSED) {
         // Do we need to close connection, if the close event is not run
-        if ((node_ptr->sock_id > 0) && (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
-            FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
+        if ((node_ptr->sock_id > 0) && (MB_FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
+            MB_FD_CLR(node_ptr->sock_id, &drv_obj->conn_set);
             if (drv_obj->node_conn_count) {
                 drv_obj->node_conn_count--;
             }
@@ -432,7 +431,7 @@ int mb_drv_close(void *ctx, int fd)
         port_close_connection(node_ptr);
     }
     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CLOSED);
-    FD_CLR(fd, &drv_obj->open_set);
+    MB_FD_CLR(fd, &drv_obj->open_set);
     delete_queues(node_ptr);
     if (drv_obj->mb_node_open_count) {
         drv_obj->mb_node_open_count--;
@@ -461,7 +460,7 @@ mb_node_info_t *mb_drv_get_next_node_from_set(void *ctx, int *fd_ptr, fd_set *fd
         node_ptr = drv_obj->mb_nodes[fd];
         if (node_ptr && (node_ptr->sock_id > 0)
                 && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)
-                && (FD_ISSET(node_ptr->index, fdset) || (FD_ISSET(node_ptr->sock_id, fdset)))) {
+                && (MB_FD_ISSET(node_ptr->index, fdset) || (MB_FD_ISSET(node_ptr->sock_id, fdset)))) {
             *fd_ptr = fd;
             //FD_CLR(node_ptr->sock_id, fdset);
             return node_ptr;
@@ -516,7 +515,7 @@ static int mb_drv_wait_fd_events(void *ctx, fd_set *fdset, fd_set *perrset, int 
     }
 
     tv.tv_sec = time_ms / 1000;
-    tv.tv_usec = (time_ms - (tv.tv_sec * 1000)) * 1000;
+    tv.tv_usec = (suseconds_t)((time_ms % 1000) * 1000);
 
     // fill the readset according to the active fds
     int max_fd = mb_drv_register_fds(ctx, &readset);
@@ -576,21 +575,21 @@ err_t mb_drv_check_node_state(void *ctx, int *fd_ptr, uint32_t timeout_ms)
     err_t err = ERR_TIMEOUT;
 
     pnode = mb_drv_get_next_node_from_set(ctx, fd_ptr, &drv_obj->conn_set);
-    if (pnode && FD_ISSET(pnode->sock_id, &drv_obj->conn_set)) {
-        uint64_t last_read_div_us = (esp_timer_get_time() - pnode->recv_time);
+    if (pnode && MB_FD_ISSET(pnode->sock_id, &drv_obj->conn_set)) {
+        uint64_t last_read_div_us = (uint64_t)(port_get_timestamp() - pnode->recv_time);
         ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection timeout = %" PRId64 ", rcv_time: %" PRId64 " %" PRIu32,
                  ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
-                 (esp_timer_get_time() / 1000), pnode->recv_time / 1000, timeout_ms);
+                 (port_get_timestamp() / 1000), pnode->recv_time / 1000, timeout_ms);
         if (last_read_div_us >= (uint64_t)(timeout_ms * 1000)) {
             ESP_LOGD(TAG, "%p, node: %d, sock: %d, IP:%s, check connection state, time = %" PRId64 ", rcv_time: %" PRId64,
                      ctx, (int)pnode->index, (int)pnode->sock_id, pnode->addr_info.ip_addr_str,
-                     (esp_timer_get_time() / 1000), pnode->recv_time / 1000);
+                     (port_get_timestamp() / 1000), pnode->recv_time / 1000);
             err = port_check_alive(pnode, 1); // minimize blocking time
             if ((err < 0) && (err != ERR_INPROGRESS)) {
                 ESP_LOGD(TAG, "Node #%d (%s), connection error, err=(%d).", pnode->index, pnode->addr_info.ip_addr_str, (int)err);
             } if (err == ERR_OK) {
                 ESP_LOGD(TAG, "Node #%d (%s), connection is alive, err=(%d).", pnode->index, pnode->addr_info.ip_addr_str, (int)err);
-                pnode->recv_time = esp_timer_get_time();
+                pnode->recv_time = port_get_timestamp();
             }
         }
     }
@@ -618,8 +617,8 @@ void mb_drv_tcp_task(void *ctx)
             ESP_LOGD(TAG, "%p, socket error, fdset: %" PRIx64, ctx, *(uint64_t *)&errorset);
         } else {
             // Is the fd event triggered, process the event
-            if (drv_obj->event_fd && FD_ISSET(drv_obj->event_fd, &readset)) {
-                FD_CLR(drv_obj->event_fd, &readset);
+            if (drv_obj->event_fd && MB_FD_ISSET(drv_obj->event_fd, &readset)) {
+                MB_FD_CLR(drv_obj->event_fd, &readset);
                 mb_event_info_t mb_event = {0};
                 int32_t event_id = read_event(ctx, &mb_event);
                 ESP_LOGD(TAG, "%p, fd event get: 0x%02x:%d, %s",
@@ -631,9 +630,9 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if (drv_obj->listen_sock_fd && MB_FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
-                FD_CLR(drv_obj->listen_sock_fd, &readset);
+                MB_FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
                 mb_uid_info_t node_info;
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
@@ -659,15 +658,15 @@ void mb_drv_tcp_task(void *ctx)
             mb_node_info_t *node_ptr = NULL;
             while (((node_ptr = mb_drv_get_next_node_from_set(ctx, &curr_fd, &readset))
                     && (curr_fd < MB_MAX_FDS))) {
-                if (FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
+                if (MB_FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set)) {
                     // The data is ready in the socket, read frame and queue
-                    FD_CLR(node_ptr->sock_id, &readset);
+                    MB_FD_CLR(node_ptr->sock_id, &readset);
                     int ret = port_read_packet(node_ptr);
                     if (ret > 0) {
                         ESP_LOGD(TAG, "%p, "MB_NODE_FMT(", frame received."), ctx, (int)node_ptr->fd,
                                  (int)node_ptr->sock_id, node_ptr->addr_info.ip_addr_str);
                         mb_drv_lock(ctx);
-                        node_ptr->recv_time = esp_timer_get_time();
+                        node_ptr->recv_time = port_get_timestamp();
                         mb_drv_unlock(ctx);
                         DRIVER_SEND_EVENT(ctx, MB_EVENT_RECV_DATA, node_ptr->index);
                     } else if (ret == ERR_TIMEOUT) {

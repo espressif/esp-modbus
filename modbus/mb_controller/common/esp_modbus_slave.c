@@ -1,11 +1,10 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "esp_err.h"                // for esp_err_t
-#include "esp_timer.h"              // for esp_timer_get_time()
 #include "sdkconfig.h"              // for KConfig defines
 
 #include "mbc_slave.h"              // for slave private type definitions
@@ -287,13 +286,6 @@ esp_err_t mbc_slave_set_descriptor(void *ctx, mb_register_area_descriptor_t desc
     return error;
 }
 
-// The helper function to get time stamp in microseconds
-static uint64_t mbc_slave_get_time_stamp(void)
-{
-    uint64_t time_stamp = esp_timer_get_time();
-    return time_stamp;
-}
-
 // Helper function to send parameter information to application task
 static esp_err_t mbc_slave_send_param_info(void *ctx, mb_event_group_t par_type, uint16_t mb_offset,
         uint8_t *par_address, uint16_t par_size)
@@ -302,12 +294,12 @@ static esp_err_t mbc_slave_send_param_info(void *ctx, mb_event_group_t par_type,
                        "Slave interface is not correctly initialized.");
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     esp_err_t error = ESP_FAIL;
-    mb_param_info_t par_info;
+    mb_param_info_t par_info = {0};
     // Check if queue is not full the send parameter information
     par_info.type = par_type;
     par_info.size = par_size;
     par_info.address = par_address;
-    par_info.time_stamp = mbc_slave_get_time_stamp();
+    par_info.time_stamp = (uint32_t)port_get_timestamp();
     par_info.mb_offset = mb_offset;
     BaseType_t status = xQueueSend(mbs_opts->notification_queue_handle, &par_info, MB_PAR_INFO_TOUT);
     if (pdTRUE == status) {
@@ -354,15 +346,18 @@ mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
         uint16_t regs = n_regs;
         uint16_t reg_index;
         // If input or configuration parameters are incorrect then return an error to stack layer
+        if (address < input_reg_start) {
+            return MB_ENOREG;
+        }
         reg_index = (uint16_t)(address - input_reg_start);
-        reg_index <<= 1; // register Address to byte address
+        reg_index = (uint16_t)(reg_index << 1); // register Address to byte address
         input_buffer += reg_index;
         uint8_t *buffer_start = input_buffer;
         CRITICAL_SECTION(inst->lock) {
             while (regs > 0) {
                 _XFER_2_RD(reg_buffer, input_buffer);
-                reg_index += 2;
-                regs -= 1;
+                reg_index = (uint16_t)(reg_index + 2);
+                regs = (uint16_t)(regs - 1);
             }
         }
         // Send access notification
@@ -380,17 +375,19 @@ mb_err_enum_t mbc_reg_input_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
 mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_regs, mb_reg_mode_enum_t mode)
 {
     void *ctx = (void *)MB_SLAVE_GET_IFACE_FROM_BASE(inst);
-    MB_RETURN_ON_FALSE(reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
+    MB_RETURN_ON_FALSE(address && reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
     mb_err_enum_t status = MB_ENOERR;
-    uint16_t reg_index;
     address--; // address of register is already +1
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_HOLDING, address, n_regs);
     if (it) {
         uint16_t reg_holding_start = it->start_offset; // Get Modbus start address
         uint8_t *holding_buffer = it->p_data; // Get instance address
         uint16_t regs = n_regs;
-        reg_index = (uint16_t) (address - reg_holding_start);
-        reg_index <<= 1; // register Address to byte address
+        if (address < reg_holding_start) {
+            return MB_ENOREG;
+        }
+        uint16_t reg_index = (uint16_t)(address - reg_holding_start);
+        reg_index = (uint16_t)(reg_index << 1); // register Address to byte address
         holding_buffer += reg_index;
         uint8_t *buffer_start = holding_buffer;
         switch (mode) {
@@ -399,8 +396,8 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
                 CRITICAL_SECTION(inst->lock) {
                     while (regs > 0) {
                         _XFER_2_RD(reg_buffer, holding_buffer);
-                        reg_index += 2;
-                        regs -= 1;
+                        reg_index = (uint16_t)(reg_index + 2);
+                        regs = (uint16_t)(regs - 1);
                     };
                 }
                 // Send access notification
@@ -417,8 +414,8 @@ mb_err_enum_t mbc_reg_holding_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uin
                     while (regs > 0) {
                         _XFER_2_WR(holding_buffer, reg_buffer);
                         holding_buffer += 2;
-                        reg_index += 2;
-                        regs -= 1;
+                        reg_index = (uint16_t)(reg_index + 2);
+                        regs = (uint16_t)(regs - 1);
                     };
                 }
                 // Send access notification
@@ -441,16 +438,19 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
 {
     void *ctx = (void *)MB_SLAVE_GET_IFACE_FROM_BASE(inst);
     MB_RETURN_ON_FALSE(ctx, MB_EILLSTATE, TAG, "Slave stack uninitialized.");
-    MB_RETURN_ON_FALSE(reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
+    MB_RETURN_ON_FALSE(address && reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
     mb_err_enum_t status = MB_ENOERR;
-    uint16_t reg_index;
+    uint16_t reg_index = 0;
     uint16_t coils = n_coils;
     address--; // The address is already +1
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_COIL, address, n_coils);
     if (it) {
         uint16_t reg_coils_start = it->start_offset; // MB offset of coils
         uint8_t *reg_coils_buf = it->p_data;
-        reg_index = (uint16_t) (address - it->start_offset);
+        if (address < reg_coils_start) {
+            return MB_ENOREG;
+        }
+        reg_index = (uint16_t)(address - reg_coils_start);
         char *coils_data_buf = (char *)(reg_coils_buf + (reg_index >> 3));
         switch (mode) {
         case MB_REG_READ:
@@ -458,9 +458,9 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
                 CRITICAL_SECTION(inst->lock) {
                     while (coils > 0) {
                         uint8_t result = mb_util_get_bits(reg_coils_buf, reg_index, 1);
-                        mb_util_set_bits(reg_buffer, reg_index - (address - reg_coils_start), 1, result);
-                        reg_index++;
-                        coils--;
+                        mb_util_set_bits(reg_buffer, (uint16_t)(reg_index - (address - reg_coils_start)), 1, result);
+                        reg_index = (uint16_t)(reg_index + 1);
+                        coils = (uint16_t)(coils - 1);
                     }
                 }
                 // Send an event to notify application task about event
@@ -476,10 +476,10 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
                 CRITICAL_SECTION(inst->lock) {
                     while (coils > 0) {
                         uint8_t result = mb_util_get_bits(reg_buffer,
-                                                          reg_index - (address - reg_coils_start), 1);
+                                                          (uint16_t)(reg_index - (address - reg_coils_start)), 1);
                         mb_util_set_bits(reg_coils_buf, reg_index, 1, result);
-                        reg_index++;
-                        coils--;
+                        reg_index = (uint16_t)(reg_index + 1);
+                        coils = (uint16_t)(coils - 1);
                     }
                 }
                 // Send an event to notify application task about event
@@ -502,21 +502,21 @@ mb_err_enum_t mbc_reg_coils_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint1
 mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t address, uint16_t n_discrete)
 {
     void *ctx = (void *)MB_SLAVE_GET_IFACE_FROM_BASE(inst);
-    MB_RETURN_ON_FALSE(reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
+    MB_RETURN_ON_FALSE(address && reg_buffer, MB_EINVAL, TAG, "Slave stack call failed.");
     mb_err_enum_t status = MB_ENOERR;
-    uint16_t reg_index;
-    uint16_t reg_bit_index;
-    uint16_t n_reg;
-    uint8_t *discrete_input_buf;
+    uint16_t n_reg = 0;
     // It already plus one in modbus function method.
     address--;
     mb_descr_entry_t *it = mbc_slave_find_reg_descriptor(ctx, MB_PARAM_DISCRETE, address, n_discrete);
     if (it) {
         uint16_t reg_discrete_start = it->start_offset; // MB offset of registers
-        n_reg = (n_discrete >> 3) + 1;
-        discrete_input_buf = (uint8_t *)it->p_data; // the storage address
-        reg_index = (uint16_t) (address - reg_discrete_start) / 8; // Get register index in the buffer for bit number
-        reg_bit_index = (uint16_t)(address - reg_discrete_start) % 8; // Get bit index
+        n_reg = (uint16_t)((n_discrete >> 3) + 1);
+        uint8_t *discrete_input_buf = (uint8_t *)it->p_data; // the storage address
+        if (address < reg_discrete_start) {
+            return MB_ENOREG;
+        }
+        uint16_t reg_index = (uint16_t)(address - reg_discrete_start) / 8; // Get register index in the buffer for bit number
+        uint16_t reg_bit_index = reg_index % 8; // Get bit index
         uint8_t *temp_buf = &discrete_input_buf[reg_index];
         CRITICAL_SECTION(inst->lock) {
             while (n_reg > 0) {
@@ -526,10 +526,10 @@ mb_err_enum_t mbc_reg_discrete_slave_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
         }
         reg_buffer--;
         // Last discrete
-        n_discrete = n_discrete % 8;
+        n_discrete = (uint16_t)(n_discrete % 8);
         // Filling zero to high bit
-        *reg_buffer = *reg_buffer << (8 - n_discrete);
-        *reg_buffer = *reg_buffer >> (8 - n_discrete);
+        *reg_buffer = (uint8_t)(*reg_buffer << (8 - n_discrete));
+        *reg_buffer = (uint8_t)(*reg_buffer >> (8 - n_discrete));
         // Send an event to notify application task about event
         (void)mbc_slave_send_param_access_notification(ctx, MB_EVENT_DISCRETE_RD);
         (void)mbc_slave_send_param_info(ctx, MB_EVENT_DISCRETE_RD, address, temp_buf, n_discrete);

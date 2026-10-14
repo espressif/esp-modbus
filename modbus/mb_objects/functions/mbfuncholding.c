@@ -174,11 +174,11 @@ mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
 
             /* First byte contains the function code. */
             *frame_cur++ = MB_FUNC_READ_HOLDING_REGISTER;
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
 
             /* Second byte in the response contain the number of bytes. */
             *frame_cur++ = (uint8_t) (reg_cnt * 2);
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
 
             /* Make callback to fill the buffer. */
             if (inst->rw_cbs.reg_holding_cb) {
@@ -188,7 +188,7 @@ mb_exception_t mbs_fn_read_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, uint
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {
-                *len_buf += reg_cnt * 2;
+                *len_buf = (uint16_t)(*len_buf + reg_cnt * 2);
             }
         } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;
@@ -250,18 +250,18 @@ mb_exception_t mbs_fn_rw_multi_holding_reg(mb_base_t *inst, uint8_t *frame_ptr, 
 
                 /* First byte contains the function code. */
                 *frame_cur++ = MB_FUNC_READWRITE_MULTIPLE_REGISTERS;
-                *len_buf += 1;
+                *len_buf = (uint16_t)(*len_buf + 1);
 
                 /* Second byte in the response contain the number of bytes. */
                 *frame_cur++ = (uint8_t) (reg_rd_cnt * 2);
-                *len_buf += 1;
+                *len_buf = (uint16_t)(*len_buf + 1);
 
                 /* Make the read callback. */
                 if (inst->rw_cbs.reg_holding_cb) {
                     reg_status = inst->rw_cbs.reg_holding_cb(inst, frame_cur, reg_rd_addr, reg_rd_cnt, MB_REG_READ);
                 }
                 if (reg_status == MB_ENOERR) {
-                    *len_buf += 2 * reg_rd_cnt;
+                    *len_buf = (uint16_t)(*len_buf + 2 * reg_rd_cnt);
                 }
             }
             if (reg_status != MB_ENOERR) {

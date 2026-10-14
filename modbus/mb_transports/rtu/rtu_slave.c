@@ -135,7 +135,7 @@ static mb_err_enum_t mbs_rtu_transp_receive(mb_trans_base_t *inst, uint8_t *recv
     uint8_t *buf = (uint8_t *)transp->rcv_buf;
     uint16_t length = *buf_len;
 
-    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false) {
+    if (!mb_port_ser_recv_data(inst->port_obj, &buf, &length)) {
         *buf_len = 0;
         return MB_EPORTERR;
     }
@@ -182,7 +182,7 @@ static mb_err_enum_t mbs_rtu_transp_send(mb_trans_base_t *inst, uint8_t slv_addr
 
         /* Now copy the Modbus-PDU into the Modbus-Serial-Line-PDU. */
         transp->snd_buf_cur[MB_SER_PDU_ADDR_OFF] = slv_addr;
-        transp->snd_buf_cnt += frame_len;
+        transp->snd_buf_cnt = (uint16_t)(transp->snd_buf_cnt + frame_len);
         /* Calculate CRC16 checksum for Modbus-Serial-Line-PDU. */
         crc16 = mb_crc16(transp->snd_buf_cur, transp->snd_buf_cnt);
         transp->snd_buf_cur[transp->snd_buf_cnt++] = (uint8_t)(crc16 & 0xFF);

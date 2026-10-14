@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -60,6 +60,17 @@ extern "C" {
 #endif
 
 #define MB_TCP_BUFF_MAX_SIZE    MB_TCP_FUNC + MB_PDU_SIZE_MAX
+
+/* Pack uint16 as Modbus big-endian without integer-promotion warnings. */
+#define MB_PUT_UINT16_BE(buf, off, val) do { \
+        uint16_t _mb_val = (uint16_t)(val); \
+        (buf)[(off)] = (uint8_t)(_mb_val >> 8); \
+        (buf)[(off) + 1] = (uint8_t)(_mb_val); \
+    } while (0)
+#define MB_PUT_UINT16_BE_INC(ptr, val) do { \
+        MB_PUT_UINT16_BE((ptr), 0, (val)); \
+        (ptr) += 2; \
+    } while (0)
 
 #define MB_TCP_PSEUDO_ADDRESS   (255)
 #define MB_TCP_PROTOCOL_ID      (0)   /* 0 = Modbus Protocol */

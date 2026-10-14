@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -144,7 +144,7 @@ static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *re
     uint8_t *buf = (uint8_t *)transp->rcv_buf;
     uint16_t length = *buf_len;
 
-    if (mb_port_ser_recv_data(inst->port_obj, &buf, &length) == false) {
+    if (!mb_port_ser_recv_data(inst->port_obj, &buf, &length)) {
         return MB_EPORTERR;
     }
 
@@ -164,7 +164,7 @@ static mb_err_enum_t mbm_ascii_transp_receive(mb_trans_base_t *inst, uint8_t *re
          * size of address field and LRC checksum.
          */
         *buf_len = (uint16_t)(ret - MB_SER_PDU_PDU_OFF - MB_SER_PDU_SIZE_LRC);
-        transp->rcv_buf_pos = ret;
+        transp->rcv_buf_pos = (uint16_t)ret;
 
         /* Return the start of the Modbus PDU to the caller. */
         *frame_buf = &buf[MB_SER_PDU_PDU_OFF];
@@ -190,16 +190,16 @@ static mb_err_enum_t mbm_ascii_transp_send(mb_trans_base_t *inst, uint8_t slv_ad
 
         /* Now copy the Modbus-PDU into the Modbus-Serial-Line-PDU. */
         transp->snd_buf_cur[MB_SER_PDU_ADDR_OFF] = slv_addr;
-        transp->snd_buf_cnt += frame_len;
+        transp->snd_buf_cnt = (uint16_t)(transp->snd_buf_cnt + frame_len);
 
         /* Prepare the ASCII buffer and send it to port */
         int ascii_len = mb_ascii_set_buf(transp->snd_buf_cur, transp->pascii_puf, transp->snd_buf_cnt);
         if (ascii_len > MB_ASCII_SER_PDU_SIZE_MIN) {
-            bool ret = mb_port_ser_send_data(inst->port_obj, transp->pascii_puf, ascii_len);
+            bool ret = mb_port_ser_send_data(inst->port_obj, transp->pascii_puf, (uint16_t)ascii_len);
             if (!ret) {
                 return MB_EPORTERR;
             }
-            transp->frame_is_broadcast = (slv_addr == MB_ADDRESS_BROADCAST) ? true : false;
+            transp->frame_is_broadcast = (slv_addr == MB_ADDRESS_BROADCAST);
             // If the frame is broadcast, master will enable timer of convert delay,
             // else master will enable timer of respond timeout. */
             if (transp->frame_is_broadcast) {

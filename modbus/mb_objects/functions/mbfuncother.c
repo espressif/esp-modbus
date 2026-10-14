@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -45,6 +45,8 @@
 #define MB_CMD_SL_ID_LEN                (1)
 #define MB_SLAVE_ID_CHUNK_SIZE          (MIN(MB_FUNC_OTHER_REP_SLAVEID_BUF, 32))
 
+#define MB_SLAVE_ID_OBJ_MAX             ((uint8_t)MIN(MB_FUNC_OTHER_REP_SLAVEID_BUF, (MB_PDU_SIZE_MAX - 2)))
+
 /* ----------------------- Start implementation -----------------------------*/
 mb_exception_t mb_error_to_exception(mb_err_enum_t error_code);
 
@@ -75,7 +77,7 @@ mb_err_enum_t mbm_rq_custom(mb_base_t *inst, uint8_t uid, uint8_t fc, uint8_t *b
 
     memcpy(&mb_frame_ptr[MB_PDU_DATA_OFF], buf, buf_size);
 
-    inst->set_send_len(inst, MB_PDU_SIZE_MIN + buf_size);
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + buf_size));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -130,14 +132,13 @@ mb_exception_t mbs_fn_report_slave_id(mb_base_t *inst, uint8_t *frame, uint16_t 
     mb_exception_t status = MB_EX_NONE;
     if (!inst || !frame || !len_buf || !inst->obj_id || !inst->obj_id_len) {
         status = MB_EX_SLAVE_DEVICE_FAILURE;
-    } else if ((inst->obj_id_len <= MB_BUFFER_SIZE - 2)
+    } else if ((inst->obj_id_len <= MB_SLAVE_ID_OBJ_MAX)
                && (*len_buf == MB_CMD_SL_ID_LEN)) {
         CRITICAL_SECTION(inst->lock) {
             frame[MB_PDU_FUNC_OFF] = MB_FUNC_OTHER_REPORT_SLAVEID; // rewrite the FC
-            *len_buf = inst->obj_id_len;
-            frame[MB_PDU_BYTECNT_OFF] = *len_buf;
+            frame[MB_PDU_BYTECNT_OFF] = inst->obj_id_len;
             memcpy(&frame[MB_PDU_FUNC_DATA_OFF], inst->obj_id, (size_t)inst->obj_id_len);
-            *len_buf += 2; // count function code + length in frame length
+            *len_buf = (uint16_t)(inst->obj_id_len + 2); // function code + byte count + object
         }
     } else {
         status = MB_EX_ILLEGAL_DATA_VALUE;
@@ -151,25 +152,25 @@ mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t slave_id, bool is_runnin
     // the first byte and second byte in the buffer is reserved for
     // the parameter slave_id and the running flag. The rest of
     // the buffer is available for additional data.
-    if (inst && inst->lock && (data_len + 2 <= MB_FUNC_OTHER_REP_SLAVEID_BUF)) {
-        uint8_t chunk_num = ((data_len + 2) / MB_SLAVE_ID_CHUNK_SIZE) + 1;
+    if (inst && inst->lock && (((uint16_t)data_len + 2U) <= MB_SLAVE_ID_OBJ_MAX)) {
+        uint8_t obj_len = (uint8_t)((uint16_t)data_len + 2U);
+        uint8_t chunk_num = (uint8_t)((obj_len / MB_SLAVE_ID_CHUNK_SIZE) + 1U);
         if (!inst->obj_id || inst->obj_id_chunks != chunk_num) {
             CRITICAL_SECTION(inst->lock) {
-                inst->obj_id = realloc(inst->obj_id, (chunk_num * MB_SLAVE_ID_CHUNK_SIZE));
+                inst->obj_id = realloc(inst->obj_id, (size_t)chunk_num * MB_SLAVE_ID_CHUNK_SIZE);
             }
         }
         if (!inst->obj_id) {
             return MB_ENORES;
         }
         CRITICAL_SECTION(inst->lock) {
-            inst->obj_id_len = 0;
-            inst->obj_id[inst->obj_id_len++] = slave_id;
-            inst->obj_id[inst->obj_id_len++] = (uint8_t)(is_running ? 0xFF : 0x00);
+            inst->obj_id[0] = slave_id;
+            inst->obj_id[1] = (uint8_t)(is_running ? 0xFF : 0x00);
             if (data_len > 0) {
-                memcpy(&inst->obj_id[inst->obj_id_len], data_ptr, (size_t)data_len);
-                inst->obj_id_len += data_len;
-                inst->obj_id_chunks = chunk_num;
+                memcpy(&inst->obj_id[2], data_ptr, (size_t)data_len);
             }
+            inst->obj_id_len = obj_len;
+            inst->obj_id_chunks = chunk_num;
         }
     } else {
         status = MB_ENORES;

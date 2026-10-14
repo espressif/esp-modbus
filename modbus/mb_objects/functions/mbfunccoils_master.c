@@ -104,13 +104,10 @@ mb_err_enum_t mbm_rq_read_coils(mb_base_t *inst, uint8_t snd_addr, uint16_t coil
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_READ_COILS;
 
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] = coil_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1] = coil_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_ADDR_OFF, coil_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_COILCNT_OFF, coil_num);
 
-    mb_frame_ptr[MB_PDU_REQ_READ_COILCNT_OFF] = coil_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_COILCNT_OFF + 1] = coil_num;
-
-    inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE);
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -208,13 +205,10 @@ mb_err_enum_t mbm_rq_write_coil(mb_base_t *inst, uint8_t snd_addr, uint16_t coil
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_WRITE_SINGLE_COIL;
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_ADDR_OFF] = coil_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_ADDR_OFF + 1] = coil_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_ADDR_OFF, coil_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_VALUE_OFF, coil_data);
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF] = coil_data >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF + 1] = coil_data;
-
-    inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_SIZE));
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_SIZE));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -279,11 +273,8 @@ mb_err_enum_t mbm_rq_write_multi_coils(mb_base_t *inst, uint8_t snd_addr, uint16
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_WRITE_MULTIPLE_COILS;
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF] = coil_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF + 1] = coil_addr;
-
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_COILCNT_OFF] = coil_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_COILCNT_OFF + 1] = coil_num;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_MUL_ADDR_OFF, coil_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_MUL_COILCNT_OFF, coil_num);
 
     if ((coil_num & 0x0007) != 0) {
         byte_cnt = (uint8_t)(coil_num / 8 + 1);
@@ -298,7 +289,7 @@ mb_err_enum_t mbm_rq_write_multi_coils(mb_base_t *inst, uint8_t snd_addr, uint16
         mb_data_ptr[reg_idx] = data_ptr[reg_idx];
     }
 
-    inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_MUL_SIZE_MIN + byte_cnt));
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_MUL_SIZE_MIN + byte_cnt));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
     return mb_port_event_wait_req_finish(inst->port_obj);

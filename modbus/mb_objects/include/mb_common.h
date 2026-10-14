@@ -153,7 +153,7 @@ struct mb_base_t {
 
 #if MB_FUNC_OTHER_REP_SLAVEID_ENABLED
     uint8_t *obj_id;
-    uint16_t obj_id_len;
+    uint8_t obj_id_len;
     uint8_t obj_id_chunks;
 #endif
 

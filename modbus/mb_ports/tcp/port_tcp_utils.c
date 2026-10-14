@@ -91,17 +91,10 @@ bool port_close_connection(mb_node_info_t *info_ptr)
     return true;
 }
 
-// The helper function to get time stamp in microseconds
-int64_t port_get_timestamp(void)
-{
-    int64_t time_stamp = esp_timer_get_time();
-    return time_stamp;
-}
-
 static void port_ms_to_tv(uint16_t timeout_ms, struct timeval *tv)
 {
     tv->tv_sec = timeout_ms / 1000;
-    tv->tv_usec = (timeout_ms - (tv->tv_sec * 1000)) * 1000;
+    tv->tv_usec = (suseconds_t)((timeout_ms % 1000) * 1000);
 }
 
 int port_enqueue_packet(QueueHandle_t queue, uint8_t *buf, uint16_t len)
@@ -117,7 +110,7 @@ int port_enqueue_packet(QueueHandle_t queue, uint8_t *buf, uint16_t len)
         frame_info.tid = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_TID);
         frame_info.uid = buf[MB_TCP_UID];
         frame_info.pid = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_PID);
-        uint16_t derived_len = MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_LEN) + MB_TCP_UID;
+        uint16_t derived_len = (uint16_t)(MB_TCP_MBAP_GET_FIELD(buf, MB_TCP_LEN) + MB_TCP_UID);
         if (derived_len != len) {
             // Header can disagree with actual bytes (truncated read, clamp, or bad peer).
             ESP_LOGW(TAG, "Packet TID 0x%x: MBAP len %u != actual %u, using actual.",
@@ -258,7 +251,7 @@ int port_read_packet(mb_node_info_t *info_ptr)
         if ((ret != temp) || (ret <= MB_PDU_SIZE_MIN)) {
             info_ptr->recv_err = ERR_VAL;
             ESP_LOGD(TAG, "Incorrect length: %u", ret);
-            ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, MB_TCP_UID + ret, ESP_LOG_DEBUG);
+            ESP_LOG_BUFFER_HEX_LEVEL(TAG, ptemp_buf, (uint16_t)(MB_TCP_UID + ret), ESP_LOG_DEBUG);
             return ERR_VAL;
         }
 
@@ -269,13 +262,13 @@ int port_read_packet(mb_node_info_t *info_ptr)
             return ERR_BUF;
         }
 
-        ret = port_enqueue_packet(info_ptr->rx_queue, ptemp_buf, temp + MB_TCP_UID);
+        ret = port_enqueue_packet(info_ptr->rx_queue, ptemp_buf, (uint16_t)(temp + MB_TCP_UID));
         if (ret < 0) {
             info_ptr->recv_err = ret;
             return ret;
         }
 
-        ESP_LOG_BUFFER_HEX_LEVEL("READ", ptemp_buf, temp + MB_TCP_UID, ESP_LOG_DEBUG);
+        ESP_LOG_BUFFER_HEX_LEVEL("READ", ptemp_buf, (uint16_t)(temp + MB_TCP_UID), ESP_LOG_DEBUG);
         info_ptr->recv_counter++;
 
         info_ptr->recv_err = ERR_OK;
@@ -290,8 +283,8 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking)
         return ERR_CONN;
     }
     // Set non blocking attribute for socket
-    uint32_t flags = fcntl(info_ptr->sock_id, F_GETFL);
-    flags = is_blocking ? flags & ~O_NONBLOCK : flags | O_NONBLOCK;
+    int flags = fcntl(info_ptr->sock_id, F_GETFL);
+    flags = is_blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
     if (fcntl(info_ptr->sock_id, F_SETFL, flags) == -1) {
         ESP_LOGE(TAG, "Socket(#%d)(%s), fcntl() call error=%d",
                  info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, (int)errno);
@@ -363,12 +356,12 @@ err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms)
     }
     FD_ZERO(&write_set);
     FD_ZERO(&err_set);
-    FD_SET(info_ptr->sock_id, &write_set);
-    FD_SET(info_ptr->sock_id, &err_set);
-    port_ms_to_tv(timeout_ms, &time_val);
+    MB_FD_SET(info_ptr->sock_id, &write_set);
+    MB_FD_SET(info_ptr->sock_id, &err_set);
+    port_ms_to_tv((uint16_t)timeout_ms, &time_val);
     // Check if the socket is writable and no errors
-    err = select(info_ptr->sock_id + 1, NULL, &write_set, &err_set, &time_val);
-    if (err < 0 || FD_ISSET(info_ptr->sock_id, &err_set)) {
+    err = (err_t)select(info_ptr->sock_id + 1, NULL, &write_set, &err_set, &time_val);
+    if (err < 0 || MB_FD_ISSET(info_ptr->sock_id, &err_set)) {
         ESP_LOGV(TAG, MB_NODE_FMT(" connection, select write err(errno) = %d(%d)."),
                  info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, err, (int)errno);
         return ERR_CONN;
@@ -448,7 +441,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
             string_ptr = ip6addr_ntoa_r(ip_2_ip6(&target_addr), str, sizeof(str));
             // Set scope id to fix routing issues with local address
             ((struct sockaddr_in6 *)(cur_addr->ai_addr))->sin6_scope_id =
-                esp_netif_get_netif_impl_index(drv_obj->network_iface_ptr);
+                (u32_t)esp_netif_get_netif_impl_index(drv_obj->network_iface_ptr);
         }
 #endif
         if (info_ptr->sock_id <= 0) {
@@ -467,7 +460,7 @@ err_t port_connect(void *ctx, mb_node_info_t *info_ptr)
 
         // Can return EINPROGRESS as an error which means
         // that connection is in progress and should be checked later
-        err = connect(info_ptr->sock_id, cur_addr->ai_addr, cur_addr->ai_addrlen);
+        err = (err_t)connect(info_ptr->sock_id, cur_addr->ai_addr, cur_addr->ai_addrlen);
         if ((err < 0) && (errno == EINPROGRESS || errno == EALREADY)) {
             // The unblocking connect is pending (check status later) or already connected
             ESP_LOGD(TAG, "Socket(#%d)(%s) connection is pending, errno %d (%s).",
@@ -521,11 +514,11 @@ int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t fra
                  info_ptr->index, info_ptr->sock_id, info_ptr->addr_info.ip_addr_str, ret, (int)errno);
         info_ptr->error = ret;
     } else {
-        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, ret, ESP_LOG_DEBUG);
+        ESP_LOG_BUFFER_HEX_LEVEL("SENT", frame, (uint16_t)ret, ESP_LOG_DEBUG);
         info_ptr->error = 0;
         info_ptr->send_time = port_get_timestamp();
         info_ptr->send_counter = (info_ptr->send_counter < (USHRT_MAX - 1))
-                                 ? (info_ptr->send_counter + 1) : 0;
+                                 ? (uint16_t)(info_ptr->send_counter + 1) : 0;
     }
     return ret;
 }
@@ -857,7 +850,7 @@ int port_resolve_mdns_host(const char *host_name, char **addr_str)
         ESP_LOGD(TAG, "Node: %s, was resolved with IP: %s", host_name, string_ptr);
         *addr_str = string_ptr;
     }
-    return strlen(string_ptr);
+    return (int)strlen(string_ptr);
 }
 
 #endif // #ifdef MB_MDNS_IS_INCLUDED

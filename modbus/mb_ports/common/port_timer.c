@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,6 +31,11 @@ struct mb_port_timer_t {
 static const char *TAG = "mb_port.timer";
 
 /* ----------------------- Start implementation -----------------------------*/
+int64_t port_get_timestamp(void)
+{
+    return esp_timer_get_time();
+}
+
 mb_timer_mode_enum_t mb_port_get_cur_timer_mode(mb_port_base_t *inst);
 
 static void IRAM_ATTR timer_alarm_cb(void *param)
@@ -151,7 +156,7 @@ void mb_port_timer_respond_timeout_enable(mb_port_base_t *inst)
 
 void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms)
 {
-    uint64_t tout_us = (timeout_ms * 1000);
+    uint64_t tout_us = (uint64_t)timeout_ms * 1000ULL;
     mb_port_timer_us(inst, tout_us);
 }
 

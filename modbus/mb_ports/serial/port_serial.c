@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdatomic.h>
-#include "esp_timer.h"
 #include "mb_common.h"
 #include "port_common.h"
 #include "mb_config.h"
@@ -33,8 +32,8 @@ typedef struct {
     bool rx_state_en;
     bool tx_state_en;
     uint16_t recv_length;
-    uint64_t send_time_stamp;
-    uint64_t recv_time_stamp;
+    int64_t send_time_stamp;
+    int64_t recv_time_stamp;
     uint32_t flags;
     _Atomic(bool) enabled;
     QueueHandle_t uart_queue;           // A queue to handle UART event.
@@ -88,7 +87,7 @@ static bool mb_port_ser_bus_sema_is_busy(mb_port_base_t *inst)
 {
     BaseType_t status = pdFALSE;
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
-    status = (uxSemaphoreGetCount(port_obj->bus_sema_handle) == 0) ? true : false;
+    status = (uxSemaphoreGetCount(port_obj->bus_sema_handle) == 0);
     return status;
 }
 
@@ -165,7 +164,7 @@ static void mb_port_ser_task(void *p_args)
                         ESP_LOGD(TAG, "%s, Fragmented data is detected", port_obj->base.descr.parent_name);
                     }
                     uart_get_buffered_data_len(port_obj->ser_opts.port, (unsigned int *)&event.size);
-                    port_obj->recv_length = (event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE;
+                    port_obj->recv_length = (uint16_t)((event.size < MB_BUFFER_SIZE) ? event.size : MB_BUFFER_SIZE);
                     if (event.size <= MB_SER_PDU_SIZE_MIN) {
                         ESP_LOGD(TAG, "%s, drop short packet %d byte(s)", port_obj->base.descr.parent_name, (int)event.size);
                         (void)mb_port_ser_rx_flush(&port_obj->base);
@@ -226,7 +225,7 @@ mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in
     ser_port->ser_opts = *ser_opts;
     // Configure serial communication parameters
     uart_config_t uart_cfg = {
-        .baud_rate = ser_opts->baudrate,
+        .baud_rate = (int)ser_opts->baudrate,
         .data_bits = ser_opts->data_bits,
         .parity = ser_opts->parity,
         .stop_bits = ser_opts->stop_bits,
@@ -302,14 +301,14 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *
     status = mb_port_ser_bus_sema_take(inst, pdMS_TO_TICKS(mb_port_timer_get_response_time_ms(inst)));
     if (status && counter && *ser_frame && atomic_load(&(port_obj->enabled))) {
         // Read frame data from the ringbuffer of receiver
-        counter = uart_read_bytes(port_obj->ser_opts.port, *ser_frame, counter, MB_SERIAL_RX_TOUT_TICKS);
+        counter = (uint16_t)uart_read_bytes(port_obj->ser_opts.port, *ser_frame, counter, MB_SERIAL_RX_TOUT_TICKS);
         // Store the timestamp of received frame
-        port_obj->recv_time_stamp = esp_timer_get_time();
+        port_obj->recv_time_stamp = port_get_timestamp();
         ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, (int)counter);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV", *ser_frame, counter, ESP_LOG_DEBUG);
         int64_t time_delta = (port_obj->recv_time_stamp > port_obj->send_time_stamp) ?
-                             (port_obj->recv_time_stamp - port_obj->send_time_stamp) :
-                             (port_obj->send_time_stamp - port_obj->recv_time_stamp);
+                             (int64_t)(port_obj->recv_time_stamp - port_obj->send_time_stamp) :
+                             (int64_t)(port_obj->send_time_stamp - port_obj->recv_time_stamp);
         ESP_LOGD(TAG, "%s, serial processing time[us] = %" PRId64, inst->descr.parent_name, time_delta);
         status = true;
         *p_ser_length = counter;
@@ -338,7 +337,7 @@ bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t 
         MB_RETURN_ON_FALSE((status == ESP_OK), false, TAG, "%s, mb serial sent buffer failure.",
                            inst->descr.parent_name);
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_SEND", p_ser_frame, ser_length, ESP_LOG_DEBUG);
-        port_obj->send_time_stamp = esp_timer_get_time();
+        port_obj->send_time_stamp = port_get_timestamp();
         res = true;
     } else {
         ESP_LOGE(TAG, "%s, send fail state:%d, %p, %u. ", inst->descr.parent_name, (int)port_obj->tx_state_en, p_ser_frame, (unsigned)ser_length);
