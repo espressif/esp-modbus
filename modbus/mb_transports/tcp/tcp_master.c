@@ -129,13 +129,12 @@ static mb_err_enum_t mbm_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
     uint16_t len = *buf_len;
     uint16_t pid;
 
-    if (mbm_port_tcp_recv_data(inst->port_obj, &frame_ptr, &len) != false) {
-        pid = frame_ptr[MB_TCP_PID] << 8U;
-        pid |= frame_ptr[MB_TCP_PID + 1];
+    if (mbm_port_tcp_recv_data(inst->port_obj, &frame_ptr, &len)) {
+        pid = MB_TCP_MBAP_GET_FIELD(frame_ptr, MB_TCP_PID);
 
         if (pid == MB_TCP_PROTOCOL_ID) {
             *frame_buf = &frame_ptr[MB_TCP_FUNC];
-            *buf_len = len - MB_TCP_FUNC;
+            *buf_len = (uint16_t)(len - MB_TCP_FUNC);
             status = MB_ENOERR;
 
             /* Get MBAP UID field if its support is enabled.
@@ -173,8 +172,7 @@ static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address,
      * header includes the size of the Modbus PDU and the UID Byte. Therefore
      * the length is len plus one.
      */
-    frame_ptr[MB_TCP_LEN] = (len + 1) >> 8U;
-    frame_ptr[MB_TCP_LEN + 1] = (len + 1) & 0xFF;
+    MB_TCP_MBAP_SET_FIELD(frame_ptr, MB_TCP_LEN, len + 1);
 
     /* Set UID field in the MBAP if it is supported.
      * If the RTU over TCP is not supported, the UID = 0 or 0xFF.
@@ -185,7 +183,7 @@ static mb_err_enum_t mbm_tcp_transp_send(mb_trans_base_t *inst, uint8_t address,
     frame_ptr[MB_TCP_UID] = 0x00;
 #endif
 
-    if (mbm_port_tcp_send_data(inst->port_obj, address, frame_ptr, tcp_len) == false) {
+    if (!mbm_port_tcp_send_data(inst->port_obj, address, frame_ptr, tcp_len)) {
         status = MB_EIO;
     }
     mb_port_timer_respond_timeout_enable(inst->port_obj);

@@ -102,6 +102,27 @@ target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-strict-aliasing -Wno-write-
 if(CONFIG_FMB_COMPILER_STATIC_ANALYZER_ENABLE AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${COMPONENT_LIB} PRIVATE "-fanalyzer")
     message(STATUS "Static analyzer option `-analyzer` is applied for ${COMPONENT_NAME}.")
+    # Narrowing flags are advisory while the backlog is cleared; the rest
+    # are hard errors from day one.
+    set_source_files_properties(${srcs}
+        PROPERTIES COMPILE_FLAGS
+        "-Wconversion \
+        -Wsign-conversion \
+        -Warith-conversion \
+        -Wno-error=conversion \
+        -Wno-error=sign-conversion \
+        -Wno-error=arith-conversion \
+        -Wshift-overflow=2 \
+        -Wduplicated-cond \
+        -Wduplicated-branches \
+        -Wlogical-op \
+        -Wnull-dereference \
+        -Wbidi-chars=any \
+        -Wimplicit-fallthrough=5 \
+        -Walloc-zero \
+        -Wuse-after-free=3"
+    )
 endif()
+
 
 message(STATUS "The mdns included is: ${MB_MDNS_IS_INCLUDED}")

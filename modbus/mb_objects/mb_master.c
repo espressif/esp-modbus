@@ -41,7 +41,7 @@ typedef struct {
     uint8_t master_dst_addr;
     uint64_t curr_trans_id;
     handler_descriptor_t handler_descriptor;
-    uint64_t cooldown_until_us;
+    int64_t cooldown_until_us;
     bool last_request_timed_out;
 } mbm_object_t;
 
@@ -534,9 +534,9 @@ static void mbm_apply_timeout_cooldown(mb_base_t *inst, mbm_object_t *mbm_obj)
             !((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII))) {
         return;
     }
-    const uint64_t now_us = esp_timer_get_time();
+    const int64_t now_us = port_get_timestamp();
     if (mbm_obj->cooldown_until_us > now_us) {
-        const uint64_t delay_us = mbm_obj->cooldown_until_us - now_us;
+        const int64_t delay_us = mbm_obj->cooldown_until_us - now_us;
         ESP_LOGD(TAG, "Master apply cooldown time...");
         vTaskDelay(pdMS_TO_TICKS((uint32_t)((delay_us + 999) / 1000)));
     }
@@ -675,7 +675,7 @@ mb_err_enum_t mbm_poll(mb_base_t *inst)
                 if (((mbm_obj->cur_mode == MB_RTU) || (mbm_obj->cur_mode == MB_ASCII)) &&
                         CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS > 0) {
                     mbm_obj->cooldown_until_us =
-                        esp_timer_get_time() + ((uint64_t)CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS * 1000);
+                        port_get_timestamp() + ((int64_t)CONFIG_FMB_MASTER_TIMEOUT_COOLDOWN_MS * 1000);
                 }
                 mbm_error_cb_respond_timeout(inst, mbm_obj->master_dst_addr,
                                              mbm_obj->snd_frame, mbm_obj->pdu_snd_len);

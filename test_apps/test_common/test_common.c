@@ -288,7 +288,7 @@ int test_common_task_wait_done_delete_all(TickType_t task_timeout_tick)
 {
     task_entry_t *it, *ptmp = NULL;
     int task_count = 0;
-    int64_t start_time = esp_timer_get_time(); //getting the reference system time to compare
+    int64_t start_time = port_get_timestamp(); //getting the reference system time to compare
 
     if (LIST_EMPTY(&s_task_list)) {
         return 0;

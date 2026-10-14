@@ -34,7 +34,7 @@ extern "C" {
 #define MB_RTU_GET_T35_VAL(baudrate) (__extension__(            \
 {                                                               \
     uint16_t tmr_35_50us = (baudrate > 19200) ?                 \
-                    35 : ((7UL * 220000UL) / (2UL * baudrate)); \
+                    35 : (uint16_t)((7UL * 220000UL) / (2UL * baudrate)); \
     tmr_35_50us;                                                \
 }                                                               \
 ))

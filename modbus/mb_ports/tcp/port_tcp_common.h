@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,11 +25,10 @@ extern "C" {
 #define MB_TCP_KEEP_ALIVE_TOUT_MS       (CONFIG_FMB_TCP_KEEP_ALIVE_TOUT_SEC * 1000UL)
 #define MB_EVENT_SEND_RCV_TOUT_MS       (500)
 
-#define MB_TCP_MBAP_GET_FIELD(buffer, field) ((uint16_t)((buffer[field] << 8U) | buffer[field + 1]))
-#define MB_TCP_MBAP_SET_FIELD(buffer, field, val) { \
-    buffer[(field)] = (uint8_t)((val) >> 8U);       \
-    buffer[(field) + 1] = (uint8_t)((val) & 0xFF);  \
-}
+#define MB_TCP_MBAP_GET_FIELD(buffer, field) \
+    ((uint16_t)(((uint16_t)(buffer)[(field)] << 8) | (buffer)[(field) + 1]))
+#define MB_TCP_MBAP_SET_FIELD(buffer, field, val) \
+    MB_PUT_UINT16_BE((buffer), (field), (val))
 
 #define MB_NODE_FMT(fmt) "node #%d, socket(#%d)(%s)" fmt
 

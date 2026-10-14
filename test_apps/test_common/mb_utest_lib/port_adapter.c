@@ -43,8 +43,8 @@ typedef struct _mb_adapter_port_entry {
     mb_port_base_t base;
     uint8_t rx_buffer[CONFIG_FMB_BUFFER_SIZE];
     uint16_t recv_length;
-    uint64_t send_time_stamp;
-    uint64_t recv_time_stamp;
+    int64_t send_time_stamp;
+    int64_t recv_time_stamp;
     _Atomic(uint64_t) test_timeout_us;
     uint32_t flags;
     mb_uid_info_t addr_info;
@@ -546,7 +546,7 @@ bool mb_port_adapter_recv_data(mb_port_base_t *inst, uint8_t **frame_ptr, uint16
         if (rx_len) {
             ESP_LOGD(TAG, "%s, received data: %d bytes.", inst->descr.parent_name, rx_len);
             // Store the timestamp of received frame
-            port_obj->recv_time_stamp = esp_timer_get_time();
+            port_obj->recv_time_stamp = port_get_timestamp();
             *frame_ptr = &port_obj->rx_buffer[0];
             MB_PRT_BUF(inst->descr.parent_name, ":PORT_RECV",
                        &port_obj->rx_buffer[0], rx_len, ESP_LOG_DEBUG);
@@ -576,7 +576,7 @@ bool mb_port_adapter_send_data(mb_port_base_t *inst, uint8_t addrets, uint8_t *f
                            false, TAG, "%s, could not set output timer.", inst->descr.parent_name);
         // Wait for send buffer completion
         uint16_t flags = mb_port_adapter_wait_flag(inst, MB_QUEUE_FLAG_SENT, MB_EVENT_QUEUE_TIMEOUT_MAX);
-        port_obj->send_time_stamp = esp_timer_get_time();
+        port_obj->send_time_stamp = (uint64_t)port_get_timestamp();
         // Print sent packet, the tag used is more clear to see
         MB_PRT_BUF(inst->descr.parent_name, ":PORT_SEND", frame_ptr, length, ESP_LOG_DEBUG);
         (void)mb_port_event_post(inst, EVENT(EV_FRAME_SENT));

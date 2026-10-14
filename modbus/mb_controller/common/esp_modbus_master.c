@@ -294,7 +294,7 @@ mb_err_enum_t mbc_reg_input_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
         CRITICAL_SECTION(inst->lock) {
             while (regs_cnt > 0) {
                 _XFER_2_RD(input_reg_buf, reg_buffer);
-                regs_cnt -= 1;
+                regs_cnt = (uint16_t)(regs_cnt - 1);
             }
         }
     } else {
@@ -333,7 +333,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
             CRITICAL_SECTION(inst->lock) {
                 while (regs_cnt > 0) {
                     _XFER_2_RD(reg_buffer, holding_buf);
-                    regs_cnt -= 1;
+                    regs_cnt = (uint16_t)(regs_cnt - 1);
                 }
             }
             break;
@@ -342,7 +342,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
                 while (regs_cnt > 0) {
                     _XFER_2_WR(holding_buf, reg_buffer);
                     holding_buf += 2;
-                    regs_cnt -= 1;
+                    regs_cnt = (uint16_t)(regs_cnt - 1);
                 }
             }
             break;
@@ -367,7 +367,7 @@ mb_err_enum_t mbc_reg_holding_master_cb(mb_base_t *inst, uint8_t *reg_buffer, ui
 mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_addr,
                                       uint16_t ncoils, mb_reg_mode_enum_t mode)
 {
-    MB_RETURN_ON_FALSE((reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
+    MB_RETURN_ON_FALSE((reg_addr && reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
     uint16_t num_coil_regs = mbm_opts->reg_buffer_size;
     uint8_t *coils_buf = mbm_opts->reg_buffer_ptr;
@@ -381,20 +381,20 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
         case MB_REG_WRITE:
             CRITICAL_SECTION(inst->lock) {
                 while (coils_cnt > 0) {
-                    uint8_t result = mb_util_get_bits(coils_buf, reg_index - (reg_addr % 8), 1);
-                    mb_util_set_bits(reg_buffer, reg_index - (reg_addr % 8), 1, result);
-                    reg_index++;
-                    coils_cnt--;
+                    uint8_t result = mb_util_get_bits(coils_buf, (uint16_t)(reg_index - (reg_addr % 8)), 1);
+                    mb_util_set_bits(reg_buffer, (uint16_t)(reg_index - (reg_addr % 8)), 1, result);
+                    reg_index = (uint16_t)(reg_index + 1);
+                    coils_cnt = (uint16_t)(coils_cnt - 1);
                 }
             }
             break;
         case MB_REG_READ:
             CRITICAL_SECTION(inst->lock) {
                 while (coils_cnt > 0) {
-                    uint8_t result = mb_util_get_bits(reg_buffer, reg_index - (reg_addr % 8), 1);
-                    mb_util_set_bits(coils_buf, reg_index - (reg_addr % 8), 1, result);
-                    reg_index++;
-                    coils_cnt--;
+                    uint8_t result = mb_util_get_bits(reg_buffer, (uint16_t)(reg_index - (reg_addr % 8)), 1);
+                    mb_util_set_bits(coils_buf, (uint16_t)(reg_index - (reg_addr % 8)), 1, result);
+                    reg_index = (uint16_t)(reg_index + 1);
+                    coils_cnt = (uint16_t)(coils_cnt - 1);
                 }
             }
             break;
@@ -421,7 +421,7 @@ mb_err_enum_t mbc_reg_coils_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint
 mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, uint16_t reg_addr,
         uint16_t n_discrete)
 {
-    MB_RETURN_ON_FALSE((reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
+    MB_RETURN_ON_FALSE((reg_addr && reg_buffer), MB_EINVAL, TAG, "Master stack processing error.");
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(MB_MASTER_GET_IFACE_FROM_BASE(inst));
     uint16_t num_discr_regs = mbm_opts->reg_buffer_size;
     uint8_t *discr_buf = mbm_opts->reg_buffer_ptr;
@@ -436,10 +436,10 @@ mb_err_enum_t mbc_reg_discrete_master_cb(mb_base_t *inst, uint8_t *reg_buffer, u
         bit_index = (reg_addr) % 8; // Get bit index
         CRITICAL_SECTION(inst->lock) {
             while (num_reg > 0) {
-                uint8_t result = mb_util_get_bits(reg_buffer, bit_index - (reg_addr % 8), 1);
-                mb_util_set_bits(temp_discr_buf, bit_index - (reg_addr % 8), 1, result);
-                bit_index++;
-                num_reg--;
+                uint8_t result = mb_util_get_bits(reg_buffer, (uint16_t)(bit_index - (reg_addr % 8)), 1);
+                mb_util_set_bits(temp_discr_buf, (uint16_t)(bit_index - (reg_addr % 8)), 1, result);
+                bit_index = (uint16_t)(bit_index + 1);
+                num_reg = (uint16_t)(num_reg - 1);
             }
         }
     } else {

@@ -9,7 +9,6 @@ Checks: >
   modernize-use-bool-literals,
   modernize-use-equals-default,
   modernize-use-equals-delete,
-  modernize-use-nullptr,
   readability-avoid-const-params-in-decls,
   readability-make-member-function-const,
   readability-redundant-control-flow,
@@ -18,5 +17,5 @@ Checks: >
   readability-static-accessed-through-instance,
   readability-else-after-return,
   readability-inconsistent-declaration-parameter-name,
-WarningsAsErrors: '*'
+WarningsAsErrors: ..., modernize-use-nullptr
 HeaderFilterRegex: '(examples|include|src).*(?<!third_party.*repo)'

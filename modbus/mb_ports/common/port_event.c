@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,7 +8,6 @@
 #include <string.h>
 #include "esp_attr.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "sdkconfig.h"
 
 #include "port_common.h"
@@ -91,12 +90,12 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
     BaseType_t result = pdFALSE;
     mb_event_t temp_event;
     temp_event = event;
-    temp_event.post_ts = esp_timer_get_time();
+    temp_event.post_ts = (uint64_t)port_get_timestamp();
 
     if (event.event & EV_TRANS_START) {
         atomic_store(&(inst->event_obj->curr_trans_id), temp_event.post_ts);
     }
-    temp_event.event = (event.event & ~EV_TRANS_START);
+    temp_event.event = (mb_event_enum_t)(event.event & ~(unsigned)EV_TRANS_START);
 
     if (xPortInIsrContext()) {
         BaseType_t high_prio_task_woken = pdFALSE;
@@ -131,7 +130,7 @@ bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 
     if (xQueueReceive(inst->event_obj->event_hdl, event, MB_EVENT_QUEUE_TIMEOUT_MAX) == pdTRUE) {
         event->trans_id = atomic_load(&inst->event_obj->curr_trans_id);
-        event->get_ts = esp_timer_get_time();
+        event->get_ts = (uint64_t)port_get_timestamp();
         event_happened = true;
     } else {
         ESP_LOGD(TAG, "%s, get event timeout.", inst->descr.parent_name);

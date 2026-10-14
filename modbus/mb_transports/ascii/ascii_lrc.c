@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,7 +39,7 @@ uint8_t __attribute__ ((unused)) mb_lrc(uint8_t *frame, uint16_t length)
     uint8_t lrc = 0; /* LRC char initialized */
 
     while (length--) {
-        lrc += *frame++; /* Add buffer byte without carry */
+        lrc = (uint8_t)(lrc + *frame++); /* Add buffer byte without carry */
     }
 
     /* Return twos complement */
@@ -60,7 +60,7 @@ int mb_ascii_set_buf(const uint8_t *data_ptr, uint8_t *buf, int bin_length)
     for (frm_idx = 1; (bin_idx < bin_length); bin_idx++) {
         buf[frm_idx++] = mb_bin2char((uint8_t)(data_ptr[bin_idx] >> 4));   // High nibble
         buf[frm_idx++] = mb_bin2char((uint8_t)(data_ptr[bin_idx] & 0X0F)); // Low nibble
-        lrc += data_ptr[bin_idx];
+        lrc = (uint8_t)(lrc + data_ptr[bin_idx]);
     }
     lrc = (uint8_t)(-((char)lrc));
     buf[frm_idx++] = mb_bin2char((uint8_t)(lrc >> 4));
@@ -80,9 +80,9 @@ int mb_ascii_get_binary_buf(uint8_t *data_ptr, int length)
 
     if ((data_ptr[0] == ':') && (data_ptr[length - 1] == '\n') && (data_ptr[length - 2] == '\r')) {
         for (int str_idx = 1; (str_idx < length) && (data_ptr[str_idx] > ' '); str_idx += 2) {
-            data_ptr[bin_idx] = (mb_char2bin(data_ptr[str_idx]) << 4); // High nibble
+            data_ptr[bin_idx] = (uint8_t)(mb_char2bin(data_ptr[str_idx]) << 4); // High nibble
             data_ptr[bin_idx] |= mb_char2bin(data_ptr[str_idx + 1]);   // Low nibble
-            lrc += data_ptr[bin_idx++];
+            lrc = (uint8_t)(lrc + data_ptr[bin_idx++]);
         }
     }
 

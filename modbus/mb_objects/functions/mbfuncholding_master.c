@@ -107,13 +107,10 @@ mb_err_enum_t mbm_rq_write_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_WRITE_REGISTER;
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_ADDR_OFF] = reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_ADDR_OFF + 1] = reg_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_ADDR_OFF, reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_VALUE_OFF, reg_data);
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF] = reg_data >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_VALUE_OFF + 1] = reg_data;
-
-    inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_SIZE);
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -184,22 +181,18 @@ mb_err_enum_t mbm_rq_write_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, 
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_WRITE_MULTIPLE_REGISTERS;
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF] = reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_ADDR_OFF + 1] = reg_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_MUL_ADDR_OFF, reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_WRITE_MUL_REGCNT_OFF, reg_num);
 
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_REGCNT_OFF] = reg_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_REGCNT_OFF + 1] = reg_num;
-
-    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_BYTECNT_OFF] = reg_num * 2;
+    mb_frame_ptr[MB_PDU_REQ_WRITE_MUL_BYTECNT_OFF] = (uint8_t)(reg_num * 2);
 
     mb_frame_ptr += MB_PDU_REQ_WRITE_MUL_VALUES_OFF;
 
     while (reg_num > reg_idx) {
-        *mb_frame_ptr++ = data_ptr[reg_idx] >> 8;
-        *mb_frame_ptr++ = data_ptr[reg_idx++];
+        MB_PUT_UINT16_BE_INC(mb_frame_ptr, data_ptr[reg_idx++]);
     }
 
-    inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_MUL_SIZE_MIN + 2 * reg_num));
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_WRITE_MUL_SIZE_MIN + 2 * reg_num));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -285,13 +278,10 @@ mb_err_enum_t mbm_rq_read_holding_reg(mb_base_t *inst, uint8_t snd_addr, uint16_
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_READ_HOLDING_REGISTER;
 
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF] = reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1] = reg_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_ADDR_OFF, reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_REGCNT_OFF, reg_num);
 
-    mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF] = reg_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF + 1] = reg_num;
-
-    inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);
@@ -372,27 +362,19 @@ mb_err_enum_t mbm_rq_rw_multi_holding_reg(mb_base_t *inst, uint8_t snd_addr, uin
 
     mb_frame_ptr[MB_PDU_FUNC_OFF] = MB_FUNC_READWRITE_MULTIPLE_REGISTERS;
 
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF] = rd_reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_ADDR_OFF + 1] = rd_reg_addr;
-
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_REGCNT_OFF] = rd_reg_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_READ_REGCNT_OFF + 1] = rd_reg_num;
-
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_ADDR_OFF] = wr_reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_ADDR_OFF + 1] = wr_reg_addr;
-
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_REGCNT_OFF] = wr_reg_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_REGCNT_OFF + 1] = wr_reg_num;
-    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_BYTECNT_OFF] = wr_reg_num * 2;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READWRITE_READ_ADDR_OFF, rd_reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READWRITE_READ_REGCNT_OFF, rd_reg_num);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READWRITE_WRITE_ADDR_OFF, wr_reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READWRITE_WRITE_REGCNT_OFF, wr_reg_num);
+    mb_frame_ptr[MB_PDU_REQ_READWRITE_WRITE_BYTECNT_OFF] = (uint8_t)(wr_reg_num * 2);
 
     mb_frame_ptr += MB_PDU_REQ_READWRITE_WRITE_VALUES_OFF;
 
     while (wr_reg_num > reg_idx) {
-        *mb_frame_ptr++ = data_ptr[reg_idx] >> 8;
-        *mb_frame_ptr++ = data_ptr[reg_idx++];
+        MB_PUT_UINT16_BE_INC(mb_frame_ptr, data_ptr[reg_idx++]);
     }
 
-    inst->set_send_len(inst, (MB_PDU_SIZE_MIN + MB_PDU_REQ_READWRITE_SIZE_MIN + 2 * wr_reg_num));
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_READWRITE_SIZE_MIN + 2 * wr_reg_num));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START));
     return mb_port_event_wait_req_finish(inst->port_obj);

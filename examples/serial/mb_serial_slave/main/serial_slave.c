@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include "esp_err.h"
 #include "mbcontroller.h"       // for mbcontroller defines and api
 #include "modbus_params.h"      // for modbus parameters structures

@@ -88,13 +88,10 @@ mb_err_enum_t mbm_rq_read_inp_reg(mb_base_t *inst, uint8_t snd_addr, uint16_t re
 
     mb_frame_ptr[MB_PDU_FUNC_OFF]                = MB_FUNC_READ_INPUT_REGISTER;
 
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF]       = reg_addr >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_ADDR_OFF + 1]   = reg_addr;
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_ADDR_OFF, reg_addr);
+    MB_PUT_UINT16_BE(mb_frame_ptr, MB_PDU_REQ_READ_REGCNT_OFF, reg_num);
 
-    mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF]     = reg_num >> 8;
-    mb_frame_ptr[MB_PDU_REQ_READ_REGCNT_OFF + 1] = reg_num;
-
-    inst->set_send_len(inst, MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE);
+    inst->set_send_len(inst, (uint16_t)(MB_PDU_SIZE_MIN + MB_PDU_REQ_READ_SIZE));
 
     (void)mb_port_event_post(inst->port_obj, EVENT(EV_FRAME_TRANSMIT | EV_TRANS_START) );
     return mb_port_event_wait_req_finish(inst->port_obj);

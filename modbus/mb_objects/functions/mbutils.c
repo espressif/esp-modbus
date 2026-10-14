@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -37,7 +37,7 @@
 #include "mb_common.h"
 #include "mb_proto.h"
 /* ----------------------- Defines ------------------------------------------*/
-#define BITS_uint8_t                (8U)
+#define BITS_UINT8                (8U)
 static const char TAG[] __attribute__((unused)) = "MB_UTILS";
 
 /* ----------------------- Start implementation -----------------------------*/
@@ -50,32 +50,31 @@ void mb_util_set_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num, u
     uint16_t us_val = value;
 
     assert(but_num <= 8);
-    assert((size_t)BITS_uint8_t == sizeof(uint8_t) * 8);
+    assert((size_t)BITS_UINT8 == sizeof(uint8_t) * 8);
 
     /* Calculate byte offset for first byte containing the bit values starting
      * at bit_offset. */
-    byte_offset = (uint16_t)((bit_offset) / BITS_uint8_t);
+    byte_offset = (uint16_t)((bit_offset) / BITS_UINT8);
 
     /* How many bits precede our bits to set. */
-    pre_bits_num = (uint16_t)(bit_offset - byte_offset * BITS_uint8_t);
+    pre_bits_num = (uint16_t)(bit_offset - byte_offset * BITS_UINT8);
 
     /* Move bit field into position over bits to set */
-    us_val <<= pre_bits_num;
+    us_val = (uint16_t)(us_val << pre_bits_num);
 
     /* Prepare a mask for setting the new bits. */
-    msk = (uint16_t)((1 << (uint16_t) but_num) - 1);
-    msk <<= bit_offset - byte_offset * BITS_uint8_t;
+    msk = (uint16_t)(((1U << (unsigned)but_num) - 1U) << (unsigned)(bit_offset - byte_offset * BITS_UINT8));
 
     /* copy bits into temporary storage. */
     word_buf = byte_buf[byte_offset];
-    word_buf |= byte_buf[byte_offset + 1] << BITS_uint8_t;
+    word_buf |= (uint16_t)(byte_buf[byte_offset + 1] << BITS_UINT8);
 
     /* Zero out bit field bits and then or value bits into them. */
     word_buf = (uint16_t)((word_buf & (~msk)) | us_val);
 
     /* move bits back into storage */
     byte_buf[byte_offset] = (uint8_t)(word_buf & 0xFF);
-    byte_buf[byte_offset + 1] = (uint8_t)(word_buf >> BITS_uint8_t);
+    byte_buf[byte_offset + 1] = (uint8_t)(word_buf >> BITS_UINT8);
 }
 
 uint8_t mb_util_get_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num)
@@ -87,20 +86,20 @@ uint8_t mb_util_get_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num
 
     /* Calculate byte offset for first byte containing the bit values starting
      * at bit_offset. */
-    byte_offset = (uint16_t)((bit_offset) / BITS_uint8_t);
+    byte_offset = (uint16_t)((bit_offset) / BITS_UINT8);
 
     /* How many bits precede our bits to set. */
-    pre_bits_num = (uint16_t)(bit_offset - byte_offset * BITS_uint8_t);
+    pre_bits_num = (uint16_t)(bit_offset - byte_offset * BITS_UINT8);
 
     /* Prepare a mask for setting the new bits. */
     msk = (uint16_t)((1 << (uint16_t) but_num) - 1);
 
     /* copy bits into temporary storage. */
     word_buf = byte_buf[byte_offset];
-    word_buf |= byte_buf[byte_offset + 1] << BITS_uint8_t;
+    word_buf |= (uint16_t)(byte_buf[byte_offset + 1] << BITS_UINT8);
 
     /* throw away unneeded bits. */
-    word_buf >>= pre_bits_num;
+    word_buf = (uint16_t)(word_buf >> pre_bits_num);
 
     /* mask away bits above the requested bitfield. */
     word_buf &= msk;

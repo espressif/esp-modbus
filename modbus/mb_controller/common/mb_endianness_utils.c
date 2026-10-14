@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -47,7 +47,7 @@ static INLINE uint16_t mb_set_uint16_generic(int n0, int n1, val_16_arr *dest_pt
     return (*((uint16_t *)pv));
 }
 
-static INLINE int16_t mb_set_int16_generic(int n0, int n1, val_16_arr *dest_ptr, int16_t val)
+static INLINE uint16_t mb_set_int16_generic(int n0, int n1, val_16_arr *dest_ptr, int16_t val)
 {
     val_16_arr *pv = dest_ptr;
     union {
@@ -338,12 +338,12 @@ uint16_t mb_set_int16_ba(val_16_arr *pi16, int16_t i16)
 
 uint16_t mb_get_uint16_ba(val_16_arr *pu16)
 {
-    return mb_get_int16_generic(1, 0, pu16);
+    return mb_get_uint16_generic(1, 0, pu16);
 }
 
 uint16_t mb_set_uint16_ba(val_16_arr *pu16, uint16_t u16)
 {
-    return mb_set_int16_generic(1, 0, pu16, u16);
+    return mb_set_uint16_generic(1, 0, pu16, u16);
 }
 
 int32_t mb_get_int32_abcd(val_32_arr *pi32)
@@ -578,7 +578,7 @@ uint64_t mb_set_uint64_ghefcdab(val_64_arr *pui, uint64_t ui)
 
 uint64_t mb_get_uint64_badcfehg(val_64_arr *pui)
 {
-    return mb_get_int64_generic(1, 0, 3, 2, 5, 4, 7, 6, pui);
+    return mb_get_uint64_generic(1, 0, 3, 2, 5, 4, 7, 6, pui);
 }
 
 uint64_t mb_set_uint64_badcfehg(val_64_arr *pui, uint64_t ui)

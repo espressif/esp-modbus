@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeModbus Library: A portable Modbus implementation for Modbus ASCII/RTU.
@@ -78,11 +78,11 @@ mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16
 
             /* First byte contains the function code. */
             *frame_cur++ = MB_FUNC_READ_INPUT_REGISTER;
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
 
             /* Second byte in the response contain the number of bytes. */
             *frame_cur++ = (uint8_t)(reg_cnt * 2);
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
             if (inst->rw_cbs.reg_input_cb) {
                 reg_status = inst->rw_cbs.reg_input_cb(inst, frame_cur, reg_addr, reg_cnt);
             }
@@ -91,7 +91,7 @@ mb_exception_t mbs_fn_read_input_reg(mb_base_t *inst, uint8_t *frame_ptr, uint16
             if (reg_status != MB_ENOERR) {
                 status = mb_error_to_exception(reg_status);
             } else {
-                *len_buf += reg_cnt * 2;
+                *len_buf = (uint16_t)(*len_buf + reg_cnt * 2);
             }
         } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;

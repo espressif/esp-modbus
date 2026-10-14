@@ -122,7 +122,7 @@ uint8_t mb_util_get_bits(uint8_t *byte_buf, uint16_t bit_offset, uint8_t but_num
  * returns the modbus error code = MB_ENOERR, if set correctly, MB_ENOREG, otherwise
  * \endcode
  */
-mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t sl_id, bool is_running, uint8_t const *data_ptr, uint16_t len);
+mb_err_enum_t mbs_set_slave_id(mb_base_t *inst, uint8_t sl_id, bool is_running, uint8_t const *data_ptr, uint8_t len);
 
 /*! \brief Standard function to get slave ID from the modbus object.
  *

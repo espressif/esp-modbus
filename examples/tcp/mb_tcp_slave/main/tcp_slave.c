@@ -9,6 +9,7 @@
 
 
 #include <stdio.h>
+#include <inttypes.h>
 #include "esp_err.h"
 #include "sdkconfig.h"
 #include "esp_log.h"
@@ -169,10 +170,10 @@ static void slave_operation_func(void *arg)
             // Filter events and process them accordingly
             if (reg_info.type & (MB_EVENT_HOLDING_REG_WR | MB_EVENT_HOLDING_REG_RD)) {
                 // Get parameter information from parameter queue
-                ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%u us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
+                ESP_LOGI(TAG, "OBJ %p, HOLDING %s (%" PRIu32 " us), ADDR:%u, TYPE:%u, INST_ADDR:0x%.4x, SIZE:%u",
                          slave_handle,
                          rw_str,
-                         (unsigned)reg_info.time_stamp,
+                         reg_info.time_stamp,
                          (unsigned)reg_info.mb_offset,
                          (unsigned)reg_info.type,
                          (int)reg_info.address,

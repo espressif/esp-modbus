@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -131,13 +131,12 @@ static mb_err_enum_t mbs_tcp_transp_receive(mb_trans_base_t *inst, uint8_t *rcv_
     mb_err_enum_t status = MB_EIO;
     uint16_t pid;
 
-    if (mbs_port_tcp_recv_data(inst->port_obj, &frame_ptr, &length) != false) {
-        pid = frame_ptr[MB_TCP_PID] << 8U;
-        pid |= frame_ptr[MB_TCP_PID + 1];
+    if (mbs_port_tcp_recv_data(inst->port_obj, &frame_ptr, &length)) {
+        pid = MB_TCP_MBAP_GET_FIELD(frame_ptr, MB_TCP_PID);
 
         if (pid == MB_TCP_PROTOCOL_ID) {
             *frame_buf = &frame_ptr[MB_TCP_FUNC];
-            *buf_len = length - MB_TCP_FUNC;
+            *buf_len = (uint16_t)(length - MB_TCP_FUNC);
             status = MB_ENOERR;
 
             /* Get MBAP UID field if its support is enabled.
@@ -159,7 +158,7 @@ static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused,
 {
     mb_err_enum_t status = MB_ENOERR;
     uint8_t *frame_ptr = (uint8_t *)frame - MB_TCP_FUNC;
-    uint16_t tcp_len = len + MB_TCP_FUNC;
+    uint16_t tcp_len = (uint16_t)(len + MB_TCP_FUNC);
 
     /* The MBAP header is already initialized because the caller calls this
      * function with the buffer returned by the previous call. Therefore we
@@ -167,10 +166,9 @@ static mb_err_enum_t mbs_tcp_transp_send(mb_trans_base_t *inst, uint8_t _unused,
      * header includes the size of the Modbus PDU and the UID Byte. Therefore
      * the length is len plus one.
      */
-    frame_ptr[MB_TCP_LEN] = (len + 1) >> 8U;
-    frame_ptr[MB_TCP_LEN + 1] = (len + 1) & 0xFF;
+    MB_TCP_MBAP_SET_FIELD(frame_ptr, MB_TCP_LEN, len + 1);
 
-    if (mbs_port_tcp_send_data(inst->port_obj, frame_ptr, tcp_len) == false) {
+    if (!mbs_port_tcp_send_data(inst->port_obj, frame_ptr, tcp_len)) {
         status = MB_EIO;
     }
     return status;

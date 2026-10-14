@@ -39,11 +39,11 @@ static void mbc_ser_master_task(void *param)
     // Main Modbus stack processing cycle
     for (;;) {
         // Wait for poll events
-        BaseType_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
-                                                (BaseType_t)(MB_EVENT_STACK_STARTED),
-                                                pdFALSE,
-                                                pdFALSE,
-                                                portMAX_DELAY);
+        EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
+                             (EventBits_t)(MB_EVENT_STACK_STARTED),
+                             pdFALSE,
+                             pdFALSE,
+                             portMAX_DELAY);
         // Check if stack started then poll for data
         if (status & MB_EVENT_STACK_STARTED) {
             (void)mbm_iface->mb_base->poll(mbm_iface->mb_base);
@@ -100,11 +100,11 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
     mb_err_enum_t mb_error = MB_ENOERR;
 
     // Check the stack started bit
-    BaseType_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
-                                            (BaseType_t)(MB_EVENT_STACK_STARTED),
-                                            pdFALSE,
-                                            pdFALSE,
-                                            pdMS_TO_TICKS(MB_MASTER_TIMEOUT_MS_RESPOND));
+    EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
+                         (EventBits_t)(MB_EVENT_STACK_STARTED),
+                         pdFALSE,
+                         pdFALSE,
+                         pdMS_TO_TICKS(MB_MASTER_TIMEOUT_MS_RESPOND));
     if (mbm_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
         ESP_LOGV(TAG, "mb stack is active, try to disable.");
         MB_RETURN_ON_FALSE((mbc_serial_master_stop(ctx) == ESP_OK),
@@ -345,7 +345,7 @@ static esp_err_t mbc_serial_master_get_parameter(void *ctx, uint16_t cid, uint8_
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
-        data_ptr = calloc(1, (reg_info.mb_size << 1));
+        data_ptr = calloc(1, (size_t)(reg_info.mb_size << 1));
         if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
@@ -397,7 +397,7 @@ static esp_err_t mbc_serial_master_get_parameter_with(void *ctx, uint16_t cid, u
         request.slave_addr = uid; // override the UID
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
         // alloc buffer to store parameter data
-        data_ptr = calloc(1, (reg_info.mb_size << 1));
+        data_ptr = calloc(1, (size_t)(reg_info.mb_size << 1));
         if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
@@ -444,7 +444,7 @@ static esp_err_t mbc_serial_master_set_parameter(void *ctx, uint16_t cid, uint8_
     error = mbc_serial_master_set_request(ctx, cid, MB_PARAM_WRITE, &request, &reg_info);
     if ((error == ESP_OK) && (cid == reg_info.cid) && (request.slave_addr != MB_SLAVE_ADDR_PLACEHOLDER)) {
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
-        data_ptr = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        data_ptr = calloc(1, (size_t)(reg_info.mb_size << 1)); // alloc parameter buffer
         if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }
@@ -494,7 +494,7 @@ static esp_err_t mbc_serial_master_set_parameter_with(void *ctx, uint16_t cid, u
         }
         request.slave_addr = uid; // override the UID
         MB_MASTER_ASSERT(xPortGetFreeHeapSize() > (reg_info.mb_size << 1));
-        data_ptr = calloc(1, (reg_info.mb_size << 1)); // alloc parameter buffer
+        data_ptr = calloc(1, (size_t)(reg_info.mb_size << 1)); // alloc parameter buffer
         if (!data_ptr) {
             return ESP_ERR_INVALID_STATE;
         }

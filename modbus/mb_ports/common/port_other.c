@@ -50,7 +50,7 @@ uint32_t mb_port_get_inst_counter_dec()
 
 QueueHandle_t queue_create(int queue_size)
 {
-    return xQueueCreate(queue_size, sizeof(frame_entry_t));
+    return xQueueCreate((UBaseType_t)queue_size, sizeof(frame_entry_t));
 }
 
 void queue_delete(QueueHandle_t queue)
@@ -85,7 +85,7 @@ esp_err_t queue_push(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *
         if (!frame_info.buf) {
             return ESP_ERR_NO_MEM;
         }
-        frame_info.len = len;
+        frame_info.len = (uint16_t)len;
         memcpy(frame_info.buf, buf, len);
     }
 
@@ -123,7 +123,7 @@ ssize_t queue_pop(QueueHandle_t queue, void *buf, size_t len, frame_entry_t *fra
     } else {
         goto err;
     }
-    return len;
+    return (ssize_t)len;
 err:
     return -1;
 }

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2020-2026 Espressif Systems (Shanghai) CO LTD
  */
 /*
  * FreeRTOS Modbus Library: A Modbus serial implementation for FreeRTOS
@@ -71,7 +71,7 @@ mbs_fn_read_discrete_inp(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
 
             /* First byte contains the function code. */
             *frame_cur++ = MB_FUNC_READ_DISCRETE_INPUTS;
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
 
             /* Test if the quantity of coils is a multiple of 8. If not last
              * byte is only partially field with unused coils set to zero. */
@@ -81,7 +81,7 @@ mbs_fn_read_discrete_inp(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
                 byte_num = (uint8_t) (discrete_cnt / 8);
             }
             *frame_cur++ = byte_num;
-            *len_buf += 1;
+            *len_buf = (uint16_t)(*len_buf + 1);
 
             /* Call r/w function if defined*/
             if (inst->rw_cbs.reg_discrete_cb) {
@@ -95,7 +95,7 @@ mbs_fn_read_discrete_inp(mb_base_t *inst, uint8_t *frame_ptr, uint16_t *len_buf)
                 /* The response contains the function code, the starting address
                  * and the quantity of registers. We reuse the old values in the
                  * buffer because they are still valid. */
-                *len_buf += byte_num;;
+                *len_buf = (uint16_t)(*len_buf + byte_num);
             }
         } else {
             status = MB_EX_ILLEGAL_DATA_VALUE;

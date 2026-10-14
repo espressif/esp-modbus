@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,11 +30,11 @@ static void modbus_tcp_slave_task(void *param)
 
     // Main Modbus stack processing cycle
     for (;;) {
-        BaseType_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
-                                                (BaseType_t)(MB_EVENT_STACK_STARTED),
-                                                pdFALSE, // do not clear bits
-                                                pdFALSE,
-                                                portMAX_DELAY);
+        EventBits_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
+                             (EventBits_t)(MB_EVENT_STACK_STARTED),
+                             pdFALSE, // do not clear bits
+                             pdFALSE,
+                             portMAX_DELAY);
         // Check if stack started then poll for data
         if (status & MB_EVENT_STACK_STARTED) {
             (void)mbs_iface->mb_base->poll(mbs_iface->mb_base);
@@ -87,8 +87,8 @@ static mb_event_group_t mbc_tcp_slave_check_event(void *ctx, mb_event_group_t gr
 {
     mb_slave_options_t *mbs_opts = MB_SLAVE_GET_OPTS(ctx);
     MB_SLAVE_ASSERT(mbs_opts->event_group_handle);
-    BaseType_t status = xEventGroupWaitBits(mbs_opts->event_group_handle, (BaseType_t)group,
-                                            pdTRUE, pdFALSE, portMAX_DELAY);
+    EventBits_t status = xEventGroupWaitBits(mbs_opts->event_group_handle, (EventBits_t)group,
+                         pdTRUE, pdFALSE, portMAX_DELAY);
     return (mb_event_group_t)status;
 }
 
@@ -116,11 +116,11 @@ static esp_err_t mbc_tcp_slave_delete(void *ctx)
     mb_err_enum_t mb_error = MB_ENOERR;
 
     // Check the stack started bit
-    BaseType_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
-                                            (BaseType_t)(MB_EVENT_STACK_STARTED),
-                                            pdFALSE,
-                                            pdFALSE,
-                                            MB_CONTROLLER_NOTIFY_TIMEOUT);
+    EventBits_t status = xEventGroupWaitBits(mbs_opts->event_group_handle,
+                         (EventBits_t)(MB_EVENT_STACK_STARTED),
+                         pdFALSE,
+                         pdFALSE,
+                         MB_CONTROLLER_NOTIFY_TIMEOUT);
     if (mbs_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
         ESP_LOGV(TAG, "mb stack is active, try to disable.");
         MB_RETURN_ON_FALSE((mbc_tcp_slave_stop(ctx) == ESP_OK),

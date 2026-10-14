@@ -7,6 +7,8 @@
 
 #include <stdatomic.h>
 
+#include <sys/select.h>
+
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -43,6 +45,16 @@ typedef void (*mb_event_handler_fp)(void *ctx, esp_event_base_t base, int32_t id
 #define MB_PORT_TASK_AFFINITY       (CONFIG_FMB_PORT_TASK_AFFINITY)
 
 #define MB_MAX_FDS                  (MB_TCP_PORT_MAX_CONN)
+/* Newlib FD_* uses a signed 1L shift; these avoid -Wconversion on that. */
+#define MB_FD_MASK(n)               (1UL << ((unsigned)(n) % NFDBITS))
+#define MB_FD_ISSET(fd, set)        (((fd) >= 0) && \
+                                    (((set)->fds_bits[(unsigned)(fd) / NFDBITS] & MB_FD_MASK(fd)) != 0))
+#define MB_FD_SET(fd, set)          do { \
+    if ((fd) >= 0) { (set)->fds_bits[(unsigned)(fd) / NFDBITS] |= MB_FD_MASK(fd); } \
+} while (0)
+#define MB_FD_CLR(fd, set)          do { \
+    if ((fd) >= 0) { (set)->fds_bits[(unsigned)(fd) / NFDBITS] &= ~MB_FD_MASK(fd); } \
+} while (0)
 #define MB_RETRY_CNT                (2)
 #define MB_RX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
 #define MB_TX_QUEUE_MAX_SIZE        (CONFIG_FMB_QUEUE_LENGTH)
@@ -99,7 +111,7 @@ typedef struct _port_driver port_driver_t;
 #define MB_ADD_FD(fd, max_fd, fdset) do {       \
     if (fd) {                                   \
         (max_fd = (fd > max_fd) ? fd : max_fd); \
-        FD_SET(fd, fdset);                      \
+        MB_FD_SET((fd), (fdset));               \
     }                                           \
 } while(0)
 
@@ -126,8 +138,8 @@ typedef struct _port_driver port_driver_t;
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);                                       \
     mb_event_info_t (event_info##__FUNCTION__##__LINE__);                               \
     (event_info##__FUNCTION__##__LINE__).event_id = (int32_t)event;                     \
-    (event_info##__FUNCTION__##__LINE__).opt_fd = fd;                                   \
-    (event_info##__FUNCTION__##__LINE__).opt_val = value;                               \
+    (event_info##__FUNCTION__##__LINE__).opt_fd = (int16_t)(fd);                        \
+    (event_info##__FUNCTION__##__LINE__).opt_val = (int16_t)(value);                    \
     ((write_event((void *)drv_obj, &(event_info##__FUNCTION__##__LINE__)) > 0)          \
                     ? ((event_info##__FUNCTION__##__LINE__)).event_id : UNDEF_FD);      \
 }                                                                                       \

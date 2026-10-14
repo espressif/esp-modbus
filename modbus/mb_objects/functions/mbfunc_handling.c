@@ -30,7 +30,7 @@ mb_err_enum_t mb_set_handler(handler_descriptor_t *descriptor, uint8_t func_code
     if (descriptor->count >= MB_FUNC_HANDLERS_MAX) {
         return MB_ENORES;
     }
-    descriptor->count += 1;
+    descriptor->count = (uint16_t)(descriptor->count + 1);
     item_ptr = (mb_command_entry_t *) heap_caps_malloc(sizeof(mb_command_entry_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
     MB_RETURN_ON_FALSE(item_ptr, MB_ENORES, TAG, "mb can not allocate memory for command handler 0x%x.", func_code);

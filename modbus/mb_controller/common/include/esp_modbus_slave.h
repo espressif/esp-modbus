@@ -18,7 +18,9 @@
 extern "C" {
 #endif
 
-#define REG_SIZE(type, nregs) ((type == MB_PARAM_INPUT) || (type == MB_PARAM_HOLDING)) ? (nregs >> 1) : (nregs << 3)
+#define REG_SIZE(type, nregs) \
+    ((uint16_t)(((type) == MB_PARAM_INPUT) || ((type) == MB_PARAM_HOLDING) ? ((nregs) >> 1) : \
+    ((type) == MB_PARAM_COIL) || ((type) == MB_PARAM_DISCRETE) ? ((nregs) << 3) : 1))
 
 #define MB_SLAVE_ASSERT(con) do { \
         if (!(con)) { ESP_LOGE(TAG, "assert errno:%d, errno_str: !(%s)", errno, strerror(errno)); assert(0 && #con); } \
