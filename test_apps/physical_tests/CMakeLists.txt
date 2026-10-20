@@ -12,4 +12,6 @@ else()
     list(APPEND EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/tools/unit-test-app/components")
 endif()
 
+set(COMPONENTS main)
+
 project(test_modbus_comm_multi_dev)

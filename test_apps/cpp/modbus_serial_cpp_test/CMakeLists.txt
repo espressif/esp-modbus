@@ -7,4 +7,5 @@ cmake_minimum_required(VERSION 3.5)
 set(EXCLUDE_COMPONENTS esp_http_server)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+set(COMPONENTS main)
 project(mb_serial_cpp)
