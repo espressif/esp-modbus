@@ -31,9 +31,9 @@ test_job_filepatterns = [
     "**/XUNIT_RESULT_*.xml",
 ]
 
+[gitlab.build_pipeline]
 runs_per_job = 15
 
-[gitlab.build_pipeline]
 job_template_jinja = """
 
 dynamic_sdkconfig_script_job:
@@ -109,6 +109,23 @@ build_test_related_apps:
     variables:
         IDF_CI_BUILD_ONLY_TEST_RELATED_APPS: "1"
 
+collect_test_related_build_artifacts:
+    stage: "{{ settings.gitlab.build_pipeline.job_stage }}"
+    image: "alpine:3.21"
+    tags: {{ settings.gitlab.build_pipeline.job_tags }}
+    timeout: "15m"
+    needs:
+        - "build_test_related_apps"
+    script:
+        - echo "Collect test-related build artifacts for downstream test pipeline"
+    artifacts:
+        paths:
+        {%- for path in settings.gitlab.artifacts.native.build_job_filepatterns %}
+            - "{{ path }}"
+        {%- endfor %}
+        expire_in: "1 week"
+        when: "always"
+
 {% endif %}
 {%- if non_test_related_apps_count > 0 %}
 build_non_test_related_apps:
@@ -145,7 +162,7 @@ workflow:
 generate_test_child_pipeline:
   extends: "{{ settings.gitlab.build_pipeline.job_template_name }}"
   needs:
-    - "build_test_related_apps"
+    - "collect_test_related_build_artifacts"
   artifacts:
     paths:
       - "{{ settings.gitlab.test_pipeline.yaml_filename }}"
@@ -191,7 +208,9 @@ job_template_jinja = """
         PYTEST_EXTRA_FLAGS: ""
     needs:
         - pipeline: "$PARENT_PIPELINE_ID"
-          job: "build_test_related_apps"
+          job: "collect_test_related_build_artifacts"
+        - pipeline: "$PARENT_PIPELINE_ID"
+          job: "generate_test_child_pipeline"
     before_script:
         - pip install -r ./tools/test_requirements.txt
     script:
