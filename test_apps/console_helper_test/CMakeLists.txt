@@ -6,4 +6,5 @@ set(EXCLUDE_COMPONENTS freemodbus)
 list(APPEND EXTRA_COMPONENT_DIRS "../../components/mb_console_helper")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+set(COMPONENTS main)
 project(modbus_console_helper_test)

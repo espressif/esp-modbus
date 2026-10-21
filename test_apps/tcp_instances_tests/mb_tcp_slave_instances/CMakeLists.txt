@@ -14,4 +14,6 @@ else()
     list(APPEND EXTRA_COMPONENT_DIRS "$ENV{IDF_PATH}/tools/unit-test-app/components")
 endif()
 
+set(COMPONENTS main)
+
 project(modbus_tcp_slave_instances)
