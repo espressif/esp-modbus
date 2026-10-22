@@ -105,6 +105,16 @@ menu "Modbus Example Configuration"
 
     endchoice
 
+    config MB_USE_TRANSPORT_FACTORY
+        bool "Create the RTU slave with a transport factory"
+        default n
+        depends on MB_COMM_MODE_RTU
+        help
+            Demonstrate mbc_slave_create_serial_with_transport(). The example
+            factory delegates to the stock RTU transport. Replace that factory
+            with an application transport implementation to customize framing,
+            serial I/O, or routing.
+
     config MB_SLAVE_ADDR
         int "Modbus slave address"
         range 1 247
