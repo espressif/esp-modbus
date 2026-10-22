@@ -115,7 +115,23 @@ static mb_exception_t mbm_check_invoke_handler(mb_base_t *inst, uint8_t func_cod
                      len ? (unsigned)*len : 0U);
             return MB_EX_ILLEGAL_DATA_VALUE;
         }
-        exception = (mb_exception_t)buf[MB_PDU_DATA_OFF];
+        uint8_t raw_ex = buf[MB_PDU_DATA_OFF];
+        switch (raw_ex) {
+        case MB_EX_ILLEGAL_FUNCTION:
+        case MB_EX_ILLEGAL_DATA_ADDRESS:
+        case MB_EX_ILLEGAL_DATA_VALUE:
+        case MB_EX_SLAVE_DEVICE_FAILURE:
+        case MB_EX_ACKNOWLEDGE:
+        case MB_EX_SLAVE_BUSY:
+        case MB_EX_MEMORY_PARITY_ERROR:
+        case MB_EX_GATEWAY_PATH_FAILED:
+        case MB_EX_GATEWAY_TGT_FAILED:
+            exception = (mb_exception_t)raw_ex;
+            break;
+        default:
+            exception = MB_EX_SLAVE_DEVICE_FAILURE;
+            break;
+        }
         return exception;
     }
     SEMA_SECTION(mbm_obj->handler_descriptor.sema, MB_HANDLER_UNLOCK_TICKS) {

@@ -111,6 +111,7 @@ err_t port_set_blocking(mb_node_info_t *info_ptr, bool is_blocking);
 int port_keep_alive_enable(int sock, int timeout_sec);
 err_t port_check_alive(mb_node_info_t *info_ptr, uint32_t timeout_ms);
 err_t port_connect(void *ctx, mb_node_info_t *info_ptr);
+bool port_shutdown_socket(int *sock);
 bool port_close_connection(mb_node_info_t *info_ptr);
 int port_write_poll(mb_node_info_t *info_ptr, const uint8_t *frame, uint16_t frame_len, uint32_t timeout);
 

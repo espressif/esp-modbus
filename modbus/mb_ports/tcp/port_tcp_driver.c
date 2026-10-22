@@ -217,6 +217,56 @@ static void delete_queues(mb_node_info_t *pmb_node)
     }
 }
 
+static void mb_drv_node_hold(mb_node_info_t *node_ptr)
+{
+    if (node_ptr) {
+        atomic_fetch_add_explicit(&node_ptr->ref_count, 1, memory_order_acquire);
+    }
+}
+
+static void mb_drv_node_free(mb_node_info_t *node_ptr)
+{
+    if (!node_ptr) {
+        return;
+    }
+    delete_queues(node_ptr);
+    if (node_ptr->addr_info.node_name_str != node_ptr->addr_info.ip_addr_str) {
+        free((void *)node_ptr->addr_info.ip_addr_str);
+    }
+    free((void *)node_ptr->addr_info.node_name_str);
+    node_ptr->addr_info.node_name_str = NULL;
+    node_ptr->addr_info.ip_addr_str = NULL;
+    free(node_ptr);
+}
+
+static void mb_drv_node_drop(mb_node_info_t *node_ptr)
+{
+    if (!node_ptr) {
+        return;
+    }
+    if (atomic_fetch_sub_explicit(&node_ptr->ref_count, 1, memory_order_acq_rel) == 1) {
+        mb_drv_node_free(node_ptr);
+    }
+}
+
+static mb_node_info_t *mb_drv_node_acquire(void *ctx, int fd)
+{
+    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
+
+    if (!MB_CHECK_FD_RANGE(fd)) {
+        return NULL;
+    }
+    mb_drv_lock(ctx);
+    mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+    if (node_ptr && (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED)) {
+        mb_drv_node_hold(node_ptr);
+    } else {
+        node_ptr = NULL;
+    }
+    mb_drv_unlock(ctx);
+    return node_ptr;
+}
+
 inline void mb_drv_lock(void *ctx)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
@@ -317,6 +367,7 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
             node_ptr->send_counter = 0;
             node_ptr->recv_counter = 0;
             node_ptr->is_blocking = ((flags & O_NONBLOCK) == 0);
+            atomic_store_explicit(&node_ptr->ref_count, 1, memory_order_relaxed);
             drv_obj->mb_nodes[fd] = node_ptr;
             // mark opened node in the open set
             MB_FD_SET(fd, &drv_obj->open_set);
@@ -326,11 +377,16 @@ int mb_drv_open(void *ctx, mb_uid_info_t addr_info, int flags)
             return fd;
         }
     }
+    // No free slot. Do not fall through to err: — node_ptr is a live node
+    // and the lock was never taken.
+    return UNDEF_FD;
 
 err:
     delete_queues(node_ptr);
     free(node_ptr);
-    drv_obj->mb_nodes[fd] = NULL;
+    if (fd < MB_MAX_FDS) {
+        drv_obj->mb_nodes[fd] = NULL;
+    }
     mb_drv_unlock(ctx);
     return UNDEF_FD;
 }
@@ -341,10 +397,26 @@ mb_node_info_t *mb_drv_get_node(void *ctx, int fd)
     return drv_obj->mb_nodes[fd];
 }
 
-// writes data into tx queue
+// writes data into tx queue (does not post MB_EVENT_SEND_DATA)
+ssize_t mb_drv_node_write(void *ctx, mb_node_info_t *node_ptr, const void *data, size_t size)
+{
+    (void)ctx;
+    ssize_t ret = -1;
+
+    if (!node_ptr || (MB_GET_NODE_STATE(node_ptr) < MB_SOCK_STATE_CONNECTED)) {
+        errno = EBADF;
+        return 0;
+    }
+    if (queue_push(node_ptr->tx_queue, (void *)data, size, NULL) == ESP_OK) {
+        ret = size;
+    } else {
+        errno = EIO;
+    }
+    return ret;
+}
+
 ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size)
 {
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
     ssize_t ret = -1;
 
     if (size == 0) {
@@ -357,24 +429,16 @@ ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size)
         return 0;
     }
 
-    mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+    mb_node_info_t *node_ptr = mb_drv_node_acquire(ctx, fd);
     if (!node_ptr) {
         errno = EBADF;
         return 0;
     }
-
-    if (MB_GET_NODE_STATE(node_ptr) >= MB_SOCK_STATE_CONNECTED) {
-        if (queue_push(node_ptr->tx_queue, (void *)data, size, NULL) == ESP_OK) {
-            ret = (ssize_t)size;
-            // Inform FSM that is new frame data is ready to be send
-            DRIVER_SEND_EVENT(ctx, MB_EVENT_SEND_DATA, node_ptr->index);
-        } else {
-            // I/O error
-            errno = EIO;
-        }
-    } else {
-        // bad file desc
-        errno = EBADF;
+    ret = mb_drv_node_write(ctx, node_ptr, data, size);
+    int index = node_ptr->index;
+    mb_drv_node_drop(node_ptr);
+    if (ret == (ssize_t)size) {
+        DRIVER_SEND_EVENT(ctx, MB_EVENT_SEND_DATA, index);
     }
     return ret;
 }
@@ -382,21 +446,14 @@ ssize_t mb_drv_write(void *ctx, int fd, const void *data, size_t size)
 // reads data from rx queue
 ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size)
 {
-    port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+    mb_node_info_t *node_ptr = mb_drv_node_acquire(ctx, fd);
     if (!node_ptr) {
         errno = EBADF;
         return 0;
     }
 
-    // fd might be in process of closing (close was already called but preempted)
-    if (MB_GET_NODE_STATE(node_ptr) < MB_SOCK_STATE_CONNECTED) {
-        // bad file desc
-        errno = EBADF;
-        return -1;
-    }
-
     if (size == 0) {
+        mb_drv_node_drop(node_ptr);
         return 0;
     }
 
@@ -404,6 +461,7 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size)
     if ((actual_size = queue_pop(node_ptr->rx_queue, data, size, NULL)) < 0) {
         errno = EAGAIN;
     }
+    mb_drv_node_drop(node_ptr);
 
     return actual_size;
 }
@@ -411,15 +469,23 @@ ssize_t mb_drv_read(void *ctx, int fd, void *data, size_t size)
 int mb_drv_close(void *ctx, int fd)
 {
     port_driver_t *drv_obj = MB_GET_DRV_PTR(ctx);
-    mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd]; // get address of configuration
 
-    if (!node_ptr) {
-        // not valid opened fd
+    if (!MB_CHECK_FD_RANGE(fd)) {
         errno = EBADF;
         return -1;
     }
+
     mb_drv_lock(ctx);
-    // stop socket
+    mb_node_info_t *node_ptr = drv_obj->mb_nodes[fd];
+    if (!node_ptr) {
+        mb_drv_unlock(ctx);
+        errno = EBADF;
+        return -1;
+    }
+
+    drv_obj->mb_nodes[fd] = NULL;
+    FD_CLR(fd, &drv_obj->open_set);
+
     if (MB_GET_NODE_STATE(node_ptr) != MB_SOCK_STATE_CLOSED) {
         // Do we need to close connection, if the close event is not run
         if ((node_ptr->sock_id > 0) && (MB_FD_ISSET(node_ptr->sock_id, &drv_obj->conn_set))) {
@@ -428,7 +494,7 @@ int mb_drv_close(void *ctx, int fd)
                 drv_obj->node_conn_count--;
             }
         }
-        port_close_connection(node_ptr);
+        (void)port_shutdown_socket(&node_ptr->sock_id);
     }
     MB_SET_NODE_STATE(node_ptr, MB_SOCK_STATE_CLOSED);
     MB_FD_CLR(fd, &drv_obj->open_set);
@@ -436,15 +502,8 @@ int mb_drv_close(void *ctx, int fd)
     if (drv_obj->mb_node_open_count) {
         drv_obj->mb_node_open_count--;
     }
-    if (node_ptr->addr_info.node_name_str != node_ptr->addr_info.ip_addr_str) {
-        free((void *)node_ptr->addr_info.ip_addr_str); // node ip addr string shall be freed
-    }
-    free((void *)node_ptr->addr_info.node_name_str);
-    node_ptr->addr_info.node_name_str = NULL;
-    node_ptr->addr_info.ip_addr_str = NULL;
-    free(node_ptr);
-    drv_obj->mb_nodes[fd] = NULL;
     mb_drv_unlock(ctx);
+    mb_drv_node_drop(node_ptr);
 
     return 0;
 }
@@ -630,13 +689,13 @@ void mb_drv_tcp_task(void *ctx)
                     ESP_LOGE(TAG, "%p, event loop run, returns fail: %x", ctx, (int)err);
                 }
             }
-            if (drv_obj->listen_sock_fd && MB_FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
+            if ((drv_obj->listen_sock_fd >= 0) && MB_FD_ISSET(drv_obj->listen_sock_fd, &readset)) {
                 // If something happened on the listen socket, then it is an incoming connection.
                 MB_FD_CLR(drv_obj->listen_sock_fd, &readset);
                 ESP_LOGD(TAG, "%p, listen_sock is active.", ctx);
-                mb_uid_info_t node_info;
+                mb_uid_info_t node_info = {0};
                 int sock_id = port_accept_connection(drv_obj->listen_sock_fd, &node_info);
-                if (sock_id) {
+                if ((sock_id >= 0) && node_info.ip_addr_str) {
                     if (drv_obj->mb_node_open_count >= MB_MAX_FDS) {
                         ESP_LOGE(TAG, "%p, unable to accept node, maximum is %u connections.", drv_obj, MB_MAX_FDS);
                         mb_set_linger(sock_id, 0);
@@ -804,11 +863,7 @@ esp_err_t mb_drv_unregister(void *ctx)
         ESP_LOGE(TAG, "could not close the eventfd handle, err = %d. Already closed?", err);
     }
 
-    if (drv_obj->listen_sock_fd) {
-        shutdown(drv_obj->listen_sock_fd, SHUT_RDWR);
-        close(drv_obj->listen_sock_fd);
-        drv_obj->listen_sock_fd = UNDEF_FD;
-    }
+    (void)port_shutdown_socket(&drv_obj->listen_sock_fd);
 
     for (int i = 0; i < MB_MAX_FDS; i++) {
         mb_node_info_t *node_ptr = drv_obj->mb_nodes[i];
