@@ -28,6 +28,7 @@ check_pre_commit:
   extends:
     - .check_pre_commit_template
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
       when: never # Skip pre-commit on main
