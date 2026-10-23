@@ -8,6 +8,7 @@ The Modbus is a data communications protocol originally published by Modicon (no
     :maxdepth: 1
 
      The Overview, Messaging Model And Data Mapping <overview_messaging_and_mapping>
+     Overview and Get Started <overview_and_get_started>
      Modbus Port Initialization <port_initialization>
      Modbus Master API <master_api_overview>
      Modbus Slave API <slave_api_overview>

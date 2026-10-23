@@ -1,5 +1,7 @@
 .. _modbus_api_slave_overview:
 
+.. _modbus_api_slave_communication_options:
+
 Modbus Slave API Overview
 -------------------------
 

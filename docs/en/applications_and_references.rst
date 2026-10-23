@@ -38,6 +38,14 @@ Application Example
 
 The examples below demonstrate the library port for serial, TCP slave and master implementations accordingly. The selection of stack is performed through KConfig menu option "Enable Modbus stack support ..." for appropriate communication mode and related configuration keys.
 
+.. _example_basic_master:
+
+- `Modbus basic master example <https://github.com/espressif/esp-modbus/tree/main/examples/get_started/basic_master>`__
+
+.. _example_basic_slave:
+
+- `Modbus basic slave example <https://github.com/espressif/esp-modbus/tree/main/examples/get_started/basic_slave>`__
+
 .. _example_mb_slave:
 
 - `Modbus serial slave example <https://github.com/espressif/esp-modbus/tree/main/examples/serial/mb_serial_slave>`__
@@ -53,6 +61,11 @@ The examples below demonstrate the library port for serial, TCP slave and master
 .. _example_mb_tcp_slave:
 
 - `Modbus TCP slave example <https://github.com/espressif/esp-modbus/tree/main/examples/tcp/mb_tcp_slave>`__
+
+.. _example_mb_tcp_slave2serial_master:
+
+- `Modbus TCP-to-serial gateway example <https://github.com/espressif/esp-modbus/tree/main/examples/gateways/mb_tcp_slave2serial_master>`__
+
 
 Please refer to the specific example README.md for details.
 

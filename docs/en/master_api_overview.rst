@@ -1,5 +1,7 @@
 .. _modbus_api_master_overview:
 
+.. _modbus_api_master_communication_options:
+
 Modbus Master API Overview
 --------------------------
 
@@ -292,6 +294,11 @@ The Modbus stack contains also the :ref:`modbus_api_endianness_conversion` - end
 
 During initialization of the Modbus stack, a pointer to the Data Dictionary (called descriptor) must be provided as the parameter of the function below. 
 
+.. _modbus_api_master_descriptor_initialization:
+
+Descriptor Initialization
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
 :cpp:func:`mbc_master_set_descriptor`:
 
 Initialization of master descriptor. The descriptor represents an array of type :cpp:type:`mb_parameter_descriptor_t` and describes all the characteristics accessed by master.
@@ -472,6 +479,8 @@ The starting of the Modbus controller is the final step in enabling communicatio
     
 The list of functions below are used by the Modbus master stack from a user's application:
 
+.. _modbus_api_master_legacy_communication:
+
 :cpp:func:`mbc_master_send_request`:
 
 This function executes a blocking Modbus request. The master sends a data request (as defined in parameter request structure :cpp:type:`mb_param_request_t`) and then blocks until a response from corresponding slave and returns the status of command execution. This function provides a standard way for read/write access to Modbus devices in the network.
@@ -533,6 +542,11 @@ The following example shows how to use the extra fields of :cpp:type:`mb_param_r
           ESP_LOGI("MASTER_COMMAND_0x17", "Read and write of multiple holding registers success. Value read: %f", read_write_holding_buffer[0]);
       }
 
+
+.. _modbus_api_master_communication:
+
+Reading and Writing Parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :cpp:func:`mbc_master_get_cid_info`:
 
