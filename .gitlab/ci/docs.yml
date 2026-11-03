@@ -13,6 +13,12 @@ build_docs:
     - cd docs
     - pip install -r requirements.txt
     - ./generate_docs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - changes:
+        - "docs/**/*"
+        - "modbus/**/*.h"
+        - ".gitlab/ci/docs.yml"
 
 .deploy_docs_template:
   stage: deploy

@@ -1,5 +1,29 @@
+.modbus_core: &modbus_core
+  depends_filepatterns:
+    - "modbus/**"
+    - "CMakeLists.txt"
+    - "Kconfig*"
+    - "idf_component.yml"
+    - "component.mk"
+    - "linker.lf"
+
+.modbus_examples: &modbus_examples
+  <<: *modbus_core
+  depends_filepatterns+:
+    - "examples/mb_example_common/**"
+    - "components/mb_console_helper/**"
+
+.modbus_test_apps: &modbus_test_apps
+  <<: *modbus_core
+  depends_filepatterns+:
+    - "test_apps/test_common/**"
+    - "test_apps/unit_tests/test_stubs/**"
+    - "tools/mb_example_common/**"
+    - "components/mb_console_helper/**"
+
 ## EXAMPLES Folder
 examples/tcp/mb_tcp_master:
+  <<: *modbus_examples
   disable:
     - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -7,6 +31,7 @@ examples/tcp/mb_tcp_master:
       reason: esp32s31 pending verification and pin defaults
 
 examples/tcp/mb_tcp_slave:
+  <<: *modbus_examples
   disable:
     - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -14,6 +39,7 @@ examples/tcp/mb_tcp_slave:
       reason: esp32s31 pending verification and pin defaults
 
 examples/get_started/basic_master:
+  <<: *modbus_examples
   disable:
     - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -21,12 +47,14 @@ examples/get_started/basic_master:
       reason: esp32s31 pending verification and pin defaults
 
 examples/serial/mb_serial_master:
+  <<: *modbus_examples
   disable:
     - if: IDF_TARGET == "esp32s31"
       temporary: true
       reason: esp32s31 pending verification and pin defaults
 
 examples/serial/mb_serial_slave:
+  <<: *modbus_examples
   disable:
     - if: (CONFIG_NAME == "default" and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -34,6 +62,7 @@ examples/serial/mb_serial_slave:
       reason: esp32s31 pending verification and pin defaults
 
 examples/gateways/mb_tcp_slave2serial_master:
+  <<: *modbus_examples
   disable:
     - if: (CONFIG_NAME == "gateway" and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -43,6 +72,7 @@ examples/gateways/mb_tcp_slave2serial_master:
     - if: (CONFIG_NAME == "gateway" and IDF_TARGET not in ["esp32"])
 
 examples/get_started/basic_slave:
+  <<: *modbus_examples
   disable:
     - if: ((CONFIG_NAME == "wifi" or CONFIG_NAME == "default") and SOC_WIFI_SUPPORTED != 1)
     - if: IDF_TARGET == "esp32s31"
@@ -51,13 +81,42 @@ examples/get_started/basic_slave:
 
 ## TEST APPS Folder
 test_apps/physical_tests:
+  <<: *modbus_test_apps
   disable:
     - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)
 
 test_apps/tcp_instances_tests/mb_tcp_master_instances:
+  <<: *modbus_test_apps
   disable:
     - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)
 
 test_apps/tcp_instances_tests/mb_tcp_slave_instances:
+  <<: *modbus_test_apps
   disable:
     - if: (CONFIG_NAME == "wifi" and SOC_WIFI_SUPPORTED != 1)
+
+test_apps/adapter_tests:
+  <<: *modbus_test_apps
+
+test_apps/broadcast_test:
+  <<: *modbus_test_apps
+
+test_apps/unit_tests/mb_controller_common:
+  <<: *modbus_test_apps
+
+test_apps/unit_tests/mb_controller_mapping:
+  <<: *modbus_test_apps
+
+test_apps/unit_tests/test_config_parser:
+  <<: *modbus_test_apps
+
+test_apps/console_helper_test:
+  <<: *modbus_core
+  depends_filepatterns+:
+    - "components/mb_console_helper/**"
+
+test_apps/cpp/modbus_serial_cpp_test:
+  <<: *modbus_core
+
+test_apps/unit_tests/mb_ext_types:
+  <<: *modbus_core
