@@ -25,6 +25,92 @@ from pytest_embedded_idf.serial import IdfSerial
 from pytest_embedded_idf import CaseTester
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the temporary-skip marks used by the test scripts."""
+    config.addinivalue_line(
+        "markers",
+        "temp_skip_ci(targets, reason): skip the test for these targets in GitLab CI. "
+        'Example: @pytest.mark.temp_skip_ci(targets=["esp32"], reason="EPROT-99")',
+    )
+    config.addinivalue_line(
+        "markers",
+        "temp_skip(targets, reason): skip the test for these targets in CI and locally. "
+        'Example: @pytest.mark.temp_skip(targets=["esp32"], reason="EPROT-99")',
+    )
+
+
+def _callspec_value(item: pytest.Item, key: str, default: Any = None) -> Any:
+    callspec = getattr(item, "callspec", None)
+    if callspec is None:
+        return default
+    return callspec.params.get(key, default)
+
+
+def _expanded_dut_targets(raw_target: str, count: int) -> List[str]:
+    """Expand a pytest-embedded target string the same way multi-DUT arguments do."""
+    parts = [part.strip() for part in raw_target.split("|") if part.strip()]
+    if len(parts) == 1 and count > 1:
+        return parts * count
+    return parts
+
+
+def _target_spec_matches(spec: str, expanded: List[str]) -> bool:
+    if not expanded:
+        return False
+    separator = "|" if "|" in spec else ","
+    spec_parts = [part.strip() for part in spec.split(separator) if part.strip()]
+    if not spec_parts:
+        return False
+    if len(spec_parts) == 1:
+        token = spec_parts[0]
+        return token == "*" or all(target == token for target in expanded)
+    if len(spec_parts) != len(expanded):
+        return False
+    return all(
+        token == "*" or token == target for token, target in zip(spec_parts, expanded)
+    )
+
+
+def _temp_skip_reason(item: pytest.Item) -> Optional[str]:
+    """Return a skip reason when temp_skip, or temp_skip_ci in CI, matches this item.
+
+    temp_skip_ci follows the ESP-IDF rule: it skips only when GitLab sets CI_JOB_ID.
+    A single target matches a multi-DUT case when every DUT uses that target.
+    """
+    in_ci = bool(os.getenv("CI_JOB_ID"))
+    marker_names = ("temp_skip", "temp_skip_ci") if in_ci else ("temp_skip",)
+    raw_target = _callspec_value(item, "target")
+    count = _callspec_value(item, "count", 1) or 1
+    try:
+        count_value = int(count)
+    except (TypeError, ValueError):
+        count_value = 1
+    expanded = _expanded_dut_targets(str(raw_target), count_value) if raw_target else []
+
+    for name in marker_names:
+        for marker in item.iter_markers(name=name):
+            targets = marker.kwargs.get("targets")
+            reason = marker.kwargs.get("reason")
+            if not targets or not reason:
+                raise pytest.UsageError(
+                    f"pytest.mark.{name} requires keyword arguments 'targets' and 'reason'. "
+                    f'Example: @pytest.mark.{name}(targets=["esp32"], reason="will fix it ASAP")'
+                )
+            target_list = [targets] if isinstance(targets, str) else list(targets)
+            for spec in target_list:
+                if _target_spec_matches(str(spec), expanded):
+                    return f"{name}: {reason} (target={'|'.join(expanded)})"
+    return None
+
+
+def pytest_collection_modifyitems(items: List[pytest.Item]) -> None:
+    """Apply temp_skip / temp_skip_ci before DUT fixtures are set up."""
+    for item in items:
+        reason = _temp_skip_reason(item)
+        if reason:
+            item.add_marker(pytest.mark.skip(reason=reason))
+
+
 class Stages(Enum):
     STACK_DEFAULT = 1
     STACK_IPV4 = 2

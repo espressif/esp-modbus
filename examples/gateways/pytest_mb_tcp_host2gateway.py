@@ -108,8 +108,9 @@ logger = logging.getLogger(LOGGER_NAME)
     ],
     indirect=True,
 )
-
-# @pytest.mark.flaky(reruns=1, reruns_delay=1)
+@pytest.mark.temp_skip_ci(
+    targets=["esp32"], reason="unreliable behavior"
+)  # TODO: EPROT-99
 def test_modbus_tcp_gateway(
     app_path: str, dut: Tuple[ModbusTestDut, ModbusTestDut]
 ) -> None:
