@@ -1,28 +1,17 @@
-ESP-Modbus
-==========
-
-Overview
---------
-
-The Modbus serial communication protocol is de facto standard protocol widely used to connect industrial electronic devices. Modbus allows communication among many devices connected to the same network, for example, a system that measures temperature and humidity and communicates the results to a computer. The Modbus protocol uses several types of data: Holding Registers, Input Registers, Coils (single bit output), Discrete Inputs. Versions of the Modbus protocol exist for serial port and for Ethernet and other protocols that support the Internet protocol suite. There are many variants of Modbus protocols, some of them are:
-
-    * ``Modbus RTU`` — This is used in serial communication and makes use of a compact, binary representation of the data for protocol communication. The RTU format follows the commands/data with a cyclic redundancy check checksum as an error check mechanism to ensure the reliability of data. Modbus RTU is the most common implementation available for Modbus. A Modbus RTU message must be transmitted continuously without inter-character hesitations. Modbus messages are framed (separated) by idle (silent) periods. The RS-485 interface communication is usually used for this type.
-    * ``Modbus ASCII`` — This is used in serial communication and makes use of ASCII characters for protocol communication. The ASCII format uses a longitudinal redundancy check checksum. Modbus ASCII messages are framed by leading colon (":") and trailing newline (CR/LF).
-    * ``Modbus TCP/IP or Modbus TCP`` — This is a Modbus variant used for communications over TCP/IP networks, connecting over port 502. It does not require a checksum calculation, as lower layers already provide checksum protection.
-
-.. note:: This documentation (and included code snippets) requires some familiarity with the Modbus protocol. Refer to the Modbus Organization's with protocol specifications for specifics :ref:`modbus_organization`.
+Modbus protocol aspects
+=======================
 
 .. _modbus_supported_communication_options:
 
 Modbus Supported Communication Options
 --------------------------------------
 
-The Modbus library supports the standard communication options as per Modbus specification stated below.
+The Modbus library supports the standard communication options from the Modbus specification:
 
 .. list-table:: Standard Modbus communication options
   :widths: 10 90
   :header-rows: 1
-  
+
   * - Modbus option
     - Description of the option
   * - RTU communication
@@ -42,13 +31,12 @@ The Modbus library supports the standard communication options as per Modbus spe
       * Connection uses the standard port 502
       * The frames do not require checksum calculation (provided by lower layers)
 
-Some vendors may use subset of communication options. In this case the detailed information is clarified in the device manual and it is possible to override the standard communication options for support of such devices.
-Please refer to :ref:`modbus_api_slave_setup_communication_options`, :ref:`modbus_api_master_setup_communication_options` for more information.
+Some vendors use a subset of these options. The device manual describes the differences, and the standard options can be overridden in ``comm_config`` when the master or slave is created.
 
 Messaging Model And Data Mapping
 --------------------------------
 
-Modbus is an application protocol that defines rules for messaging structure and data organization that are independent of the data transmission medium. Traditional serial Modbus is a register-based protocol that defines message transactions that occur between master(s) and slave devices (multiple masters are allowed on using Modbus TCP/IP). The slave devices listen for communication from the master and simply respond as instructed. The master(s) always controls communication and may communicate directly to one slave, or all connected slaves, but the slaves cannot communicate directly with each other.
+Modbus is an application protocol that defines rules for messaging structure and data organization that are independent of the data transmission medium. Traditional serial Modbus is a register-based protocol that defines message transactions that occur between master(s) and slave devices (multiple masters are allowed when using Modbus TCP/IP). The slave devices listen for communication from the master and simply respond as instructed. The master(s) always control communication and may communicate directly to one slave, or all connected slaves, but the slaves cannot communicate directly with each other.
 
 .. figure:: ../_static/modbus-segment.png
     :align: center
@@ -60,7 +48,7 @@ Modbus is an application protocol that defines rules for messaging structure and
 
 .. note:: It is assumed that the number of slaves and their register maps are known by the Modbus master before the start of stack.
 
-The register map of each slave device is usually part of its device manual. A Slave device usually permits configuration of its short slave address and communication options that are used within the device's network segment.
+The register map of each slave device is usually part of its device manual. A slave device usually permits configuration of its short slave address and communication options that are used within the device's network segment.
 
 The Modbus protocol allows devices to map data to four types of registers (Holding, Input, Discrete, Coil). The figure below illustrates an example mapping of a device's data to the four types of registers.
 
@@ -79,12 +67,12 @@ Mapping Of Complex Data Types
 
 As per section 4.2 of Modbus specification, "MODBUS uses a ``big-Endian`` representation for addresses and data items. This means that when a numerical quantity larger than a single byte is transmitted, the most significant byte is sent first". The biggest official structure defined by the Modbus specification is a 16-bit word register, which is 2 bytes. However, vendors sometimes group two or even four 16-bit registers together to be interpreted as 32-bit or 64-bit values, respectively. It is also possible when the Modbus vendors group many registers together for serial numbers, text strings, time/date, etc. Regardless of how the vendor intends the data to be interpreted, the Modbus protocol itself simply transfers 16-bit word registers. These values grouped from registers may use either little-endian or big-endian register order.
 
-.. note:: Each individual 16-bit register, is encoded in big-endian order (assuming the Modbus device abides by the Modbus specification). However, the 32-bit and 64-bit types naming conventions like ABCD or ABCDEFGH, does not take into account the network format byte order of frame. For example: the ABCD prefix for 32-bit values means the common Modbus mapping format and corresponds to the CDAB on network format (order in the frame).
+.. note:: Each individual 16-bit register is encoded in big-endian order (assuming the Modbus device abides by the Modbus specification). However, the 32-bit and 64-bit type naming conventions like ABCD or ABCDEFGH do not take into account the network-format byte order of the frame. For example: the ABCD prefix for 32-bit values means the common Modbus mapping format and corresponds to CDAB on the network format (order in the frame).
 
 Common Data Types Supported By Modbus Vendors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. list-table:: Table 1 basic types used by Modbus vendors
+.. list-table:: Table 1. Basic types used by Modbus vendors
   :widths: 8 3 20
   :header-rows: 1
 
@@ -99,27 +87,27 @@ Common Data Types Supported By Modbus Vendors
     - Stored in one 16-bit register. The values can be stored with AB or BA endianness.
   * - I16 - Signed integer 16-bit type
     - -32768 to 32767 is allowed. 
-    - Stored in one 16-bit register. The values can be stored with AB or BA forendiannessmat.
+    - Stored in one 16-bit register. The values can be stored with AB or BA endianness.
   * - I32 - Signed long integer 32-bit type
     - -2147483648 to 2147483647 is allowed. 
-    - Stored in two consecutive 16-bit register. The values can be stored with ABCD - DCBA endianness (see below).
+    - Stored in two consecutive 16-bit registers. The values can be stored with ABCD - DCBA endianness (see below).
   * - U32 - Unsigned long integer 32-bit type
     - 0 to 4294967295 is allowed. 
-    - Stored in two consecutive 16-bit register. The values can be stored with ABCD - DCBA endianness.
-  * - U64 Unsigned Long long integers (Unsigned integer 64)
+    - Stored in two consecutive 16-bit registers. The values can be stored with ABCD - DCBA endianness.
+  * - U64 - Unsigned Long long integers (Unsigned integer 64)
     - 0 to 18446744073709551615 is allowed. 
-    - Stored in four consecutive 16-bit register. The values can be stored with ABCDEFGH - BADCFEHG endianness.
-  * - I64 Signed Long long integers (Signed integer 64)
+    - Stored in four consecutive 16-bit registers. The values can be stored with ABCDEFGH - BADCFEHG endianness.
+  * - I64 - Signed Long long integers (Signed integer 64)
     - -9223372036854775808 to 9223372036854775807 is allowed. 
-    - Stored in four consecutive 16-bit register. The values can be stored with ABCDEFGH - BADCFEHG endianness.
+    - Stored in four consecutive 16-bit registers. The values can be stored with ABCDEFGH - BADCFEHG endianness.
   * - Floating point single precision 32-bit
     - 1.17549435E-38 to 3.40282347E+38 is allowed.
-    - Stored in two consecutive 16-bit register per IEEE754. The values can be stored with ABCD - DCBA endianness.
+    - Stored in two consecutive 16-bit registers per IEEE754. The values can be stored with ABCD - DCBA endianness.
   * - Floating point double precision 64-bit
     - +/-5.0E-324 to +/-1.7E+308 is allowed.
-    - Stored in four consecutive 16-bit register per IEEE754. The values can be stored with ABCDEFGH - BADCFEHG endianness.
+    - Stored in four consecutive 16-bit registers per IEEE754. The values can be stored with ABCDEFGH - BADCFEHG endianness.
 
-As showed in the table above the float and double types do not fit to the 16-bit register and require several consecutive registers be used to store the value. However, different manufacturers store the consecutive bytes in different order (not standardized). For example: The DCBA prefix means inversed Modbus format (BADC order on network format).
+As shown in the table above, the float and double types do not fit in a 16-bit register and require several consecutive registers to be used to store the value. However, different manufacturers store the consecutive bytes in different order (not standardized). For example: The DCBA prefix means inverted Modbus format (BADC order on network format).
 
 .. list-table:: Table 2 Modbus byte order for extended types
   :widths: 3 28
@@ -136,7 +124,7 @@ As showed in the table above the float and double types do not fit to the 16-bit
   * - DCBA
     - Little endian (Low order byte first)
 
-The extended data types are used to define all possible combinations of grouped values are represented below and correspond to ``param_type`` field of the data dictionary as described in the table below:
+The extended data types that define all possible combinations of grouped values are represented below and correspond to the ``param_type`` field of the data dictionary as described in the table below:
 
 .. list-table:: Table 3 Modbus extended data types of characteristics
   :widths: 6 28 10
@@ -146,7 +134,7 @@ The extended data types are used to define all possible combinations of grouped 
     - Format type description (common format)
     - Format type (network format)
   * - :cpp:enumerator:`PARAM_TYPE_U8`
-    - compatibility type corresponds to :cpp:enumerator:`PARAM_TYPE_U8_A`
+    - Compatibility type that corresponds to :cpp:enumerator:`PARAM_TYPE_U8_A`
     - Unsigned integer 8 bit type
   * - :cpp:enumerator:`PARAM_TYPE_U16`
     - Unsigned integer 16 bit type, corresponds to :cpp:enumerator:`PARAM_TYPE_U16_AB`
@@ -173,7 +161,7 @@ The extended data types are used to define all possible combinations of grouped 
     - U8 unsigned integer written to low byte of register, high byte is zero
     - U8 unsigned integer LO
   * - :cpp:enumerator:`PARAM_TYPE_U8_B`
-    - U8 unsigned integer written to hi byte of register, low byte is zero
+    - U8 unsigned integer written to high byte of register, low byte is zero
     - U8 unsigned integer HI
   * - :cpp:enumerator:`PARAM_TYPE_I16_AB`
     - I16 signed integer, big endian
@@ -260,7 +248,7 @@ The extended data types are used to define all possible combinations of grouped 
     - Double BADCFEHG floating point, little endian, reversed register order
     - Little endian
     
-.. note:: The support for the extended data types should be enabled using the option ``CONFIG_FMB_EXT_TYPE_SUPPORT`` in kconfig menu.
+.. note:: The support for the extended data types should be enabled using the option ``CONFIG_FMB_EXT_TYPE_SUPPORT`` in the Kconfig menu.
 
 The below diagrams show how the extended data types appear on network layer.
 
@@ -274,18 +262,18 @@ The below diagrams show how the extended data types appear on network layer.
     :caption: Modbus frame packaging examples (16-bit, 32-bit, 64-bit data)
     :align: center
 
-The approach showed above can be used to pack the data into MBAP frames used by Modbus TCP as well as for other types with similar size.
+The approach shown above can be used to pack the data into MBAP frames used by Modbus TCP as well as for other types of similar size.
 
 .. _modbus_master_slave_configuration_aspects:
 
 Important Configuration Aspects
 -------------------------------
 
-The slave and its behavior has some dependency with the master and its options. The master uses a timeout to determine if a slave is responding in a timely manner. This timeout is configured on the master side, not used by the slave. If the slave's response is not received within this timeout period, the master will consider the request a failure.
+The slave's behavior depends on the master and its options. The master uses a timeout to determine if a slave is responding in a timely manner. This timeout is configured on the master side, not used by the slave. If the slave's response is not received within this timeout period, the master will consider the request a failure.
 
     * Master Timeout (``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND``): This is the duration a master will wait for a response from the slave. The default value set by the ``CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND`` kconfig option on the master side can be overridden for the concrete master instance in its communication options structure. 
 
-    * Slave Behavior: The slave itself does not use this timeout for its internal operations. Instead, it measures its request processing time, which is the time from receiving a master's request to sending the slave's response. If this processing time exceeds the master's configured timeout because the master sends a new request while the previous one is under processing, the slave will log a warning.
+    * Slave Behavior: The slave itself does not use this timeout for its internal operations. Instead, it measures its request processing time, which is the time from receiving a master's request to sending the slave's response. If this processing time exceeds the master's configured timeout because the master sends a new request while the previous one is being processed, the slave will log a warning.
 
 The Race Condition
 ~~~~~~~~~~~~~~~~~~
@@ -344,8 +332,8 @@ The Modbus TCP slave supports multiple connections from external master nodes. T
 
 .. note:: Each additional master connection can increase the Request Processing Time on the slave. This, in turn, impacts the overall Round-Trip Time (RTT), which is the total time for a request to travel to the slave and a response to return to the master.
 
-The following sections give an overview of how to use the ESP_Modbus component found under `components/esp-modbus`. The sections cover initialization of a Modbus port, and the setup a master or slave device accordingly:
+The following sections give an overview of how to use the ESP_Modbus component found under `components/esp-modbus`. They cover how to set up a master or slave:
 
-- :ref:`modbus_api_port_initialization`
+- :doc:`Overview and Get Started <overview_and_get_started>`
 - :ref:`modbus_api_slave_overview`
 - :ref:`modbus_api_master_overview`
