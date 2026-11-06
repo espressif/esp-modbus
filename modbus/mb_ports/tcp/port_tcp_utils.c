@@ -678,8 +678,7 @@ esp_err_t port_start_mdns_service(char **dns_name, bool is_master, int uid, void
     }
     // Check if the default mdns name is defined in the configuration
     if (dns_name && *dns_name && (strlen(*dns_name) >= MB_MDNS_STR_MIN_LENGTH)) {
-        strncpy(temp_str, *dns_name, strlen(*dns_name));
-        *dns_name[strlen(*dns_name)] = '\0';
+        strlcpy(temp_str, *dns_name, sizeof(temp_str));
     } else {
         if (snprintf(temp_str, sizeof(temp_str), "%s_%02x", MB_MDNS_INST_NAME(is_master), uid) <= 0) {
             return ESP_ERR_INVALID_STATE;
