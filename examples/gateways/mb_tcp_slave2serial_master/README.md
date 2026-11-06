@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | --------- |
 
 # Modbus TCP-to-SERIAL Gateway Example
 
@@ -93,15 +93,15 @@ Use one ESP32 board as the gateway and one or more Modbus (RTU/ASCII) slaves on 
 Default RS485 pins for serial slave board:
 
 ```
-  ------------------------------------------------------------------------------------------------------------------------------
-  |  UART Interface       | #define            | Default pins for      | Default pins for          | External RS485 Driver Pin |
-  |                       |                    | ESP32 (C6)            | ESP32-S2 (S3, C3, C2, H2) |                           |
-  | ----------------------|--------------------|-----------------------|---------------------------|---------------------------|
-  | Transmit Data (TxD)   | CONFIG_MB_UART_TXD | GPIO23                | GPIO9                     | DI                        |
-  | Receive Data (RxD)    | CONFIG_MB_UART_RXD | GPIO22                | GPIO8                     | RO                        |
-  | Request To Send (RTS) | CONFIG_MB_UART_RTS | GPIO18                | GPIO10                    | ~RE/DE                    |
-  | Ground                | n/a                | GND                   | GND                       | GND                       |
-  ------------------------------------------------------------------------------------------------------------------------------
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------
+  |  UART Interface       | #define            | Default pins for                                 | Default pins for              | External RS485 Driver Pin |
+  |                       |                    | ESP32 (C6, P4, S31)                              | ESP32-S2 (S3, C3, C2, C5, H2) |                           |
+  | ----------------------|--------------------|--------------------------------------------------|-------------------------------|---------------------------|
+  | Transmit Data (TxD)   | CONFIG_MB_UART_TXD | GPIO23                                           | GPIO9                         | DI                        |
+  | Receive Data (RxD)    | CONFIG_MB_UART_RXD | GPIO22                                           | GPIO8                         | RO                        |
+  | Request To Send (RTS) | CONFIG_MB_UART_RTS | GPIO18 (GPIO20 on ESP32-P4, GPIO21 on ESP32-S31) | GPIO10                        | ~RE/DE                    |
+  | Ground                | n/a                | GND                                              | GND                           | GND                       |
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 
 Connect RTS to the RS485 transceiver `DE` and `/RE` pins.

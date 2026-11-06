@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | --------- |
 
 # ESP-Modbus Slave Basic Example
 
@@ -235,12 +235,12 @@ For serial communication, after enabling RTU or ASCII, configure the UART pins a
 
 **UART Pin Reference Table:**
 
-| UART Interface        | Kconfig     | Default pins for ESP32 (C6) | Default pins for ESP32-S2 (S3, C3, C2, H2) | External RS485 Driver Pin |
-| --------------------- | ----------- | --------------------------- | ----------------------------------------- | ------------------------- |
-| Transmit Data (TxD)   | MB_UART_TXD | GPIO23                      | GPIO9                                     | DI                        |
-| Receive Data (RxD)    | MB_UART_RXD | GPIO22                      | GPIO8                                     | RO                        |
-| Request To Send (RTS) | MB_UART_RTS | GPIO18                      | GPIO10                                    | ~RE/DE                    |
-| Ground                | n/a         | GND                         | GND                                       | GND                       |
+| UART Interface        | Kconfig     | Default pins for ESP32 (C6, P4, S31)                 | Default pins for ESP32-S2 (S3, C3, C2, C5, H2) | External RS485 Driver Pin |
+| --------------------- | ----------- | -------------------------------------------------------- | ------------------------------------------ | ------------------------- |
+| Transmit Data (TxD)   | MB_UART_TXD | GPIO23                                                   | GPIO9                                      | DI                        |
+| Receive Data (RxD)    | MB_UART_RXD | GPIO22                                                   | GPIO8                                      | RO                        |
+| Request To Send (RTS) | MB_UART_RTS | GPIO18 (GPIO20 on ESP32-P4, GPIO21 on ESP32-S31)         | GPIO10                                     | ~RE/DE                    |
+| Ground                | n/a         | GND                                                      | GND                                        | GND                       |
 
 **Note:** Each target chip has different GPIO pins available. Refer to the UART documentation for your selected target for more information.
 

@@ -70,7 +70,8 @@ menu "Modbus TCP to Serial Gateway Configuration"
         range 0 23 if IDF_TARGET_ESP32C6
         range 0 56 if IDF_TARGET_ESP32P4
         range 0 28 if IDF_TARGET_ESP32C5
-        default 22 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4
+        range 0 61 if IDF_TARGET_ESP32S31
+        default 22 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31
         range 0 46 if IDF_TARGET_ESP32S2
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
@@ -81,7 +82,8 @@ menu "Modbus TCP to Serial Gateway Configuration"
         default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
         default 8 if IDF_TARGET_ESP32C61
         help
-            GPIO number for UART RX pin.
+            GPIO number for UART RX pin. See UART documentation for more information
+            about available pin numbers for UART.
 
     config MB_UART_TXD
         int "UART TXD pin number"
@@ -89,7 +91,8 @@ menu "Modbus TCP to Serial Gateway Configuration"
         range 0 23 if IDF_TARGET_ESP32C6
         range 0 56 if IDF_TARGET_ESP32P4
         range 0 28 if IDF_TARGET_ESP32C5
-        default 23 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4
+        range 0 61 if IDF_TARGET_ESP32S31
+        default 23 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32C6 || IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31
         range 0 46 if IDF_TARGET_ESP32S2
         range 0 47 if IDF_TARGET_ESP32S3
         range 0 19 if IDF_TARGET_ESP32C3
@@ -99,8 +102,10 @@ menu "Modbus TCP to Serial Gateway Configuration"
         default 9 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32H2
         default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
         default 9 if IDF_TARGET_ESP32C61
+
         help
-            GPIO number for UART TX pin.
+            GPIO number for UART TX pin. See UART documentation for more information
+            about available pin numbers for UART.
 
     config MB_UART_RTS
         int "UART RTS pin number"
@@ -116,11 +121,16 @@ menu "Modbus TCP to Serial Gateway Configuration"
         range 0 20 if IDF_TARGET_ESP32C2
         range 0 27 if IDF_TARGET_ESP32H2
         range 0 21 if IDF_TARGET_ESP32C61
+        range 0 61 if IDF_TARGET_ESP32S31
         default 10 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32H2
         default 10 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C2 || IDF_TARGET_ESP32C5
         default 10 if IDF_TARGET_ESP32C61
+        default 21 if IDF_TARGET_ESP32S31
         help
-            GPIO number for UART RTS pin connected to the RS485 transceiver ~RE/DE.
+            GPIO number for UART RTS pin. This pin is connected to
+            ~RE/DE pin of RS485 transceiver to switch direction.
+            See UART documentation for more information about available pin
+            numbers for UART.
 
     choice MB_COMM_MODE
         prompt "Downstream serial Modbus mode"
