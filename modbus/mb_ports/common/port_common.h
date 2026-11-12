@@ -181,6 +181,8 @@ void mb_port_timer_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms
 uint32_t mb_port_timer_get_response_time_ms(mb_port_base_t *inst);
 void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms);
 void mb_port_timer_delete(mb_port_base_t *inst);
+bool mb_port_timer_is_current_task(mb_port_base_t *inst);
+esp_err_t mb_port_timer_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining);
 
 int64_t port_get_timestamp(void);
 

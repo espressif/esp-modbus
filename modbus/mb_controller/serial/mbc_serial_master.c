@@ -23,6 +23,7 @@
 #include "mb_common.h"              // for mb types definition
 #include "mb_config.h"
 #include "mb_proto.h"
+#include "port_serial_common.h"
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
@@ -112,12 +113,16 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
 {
     mbm_controller_iface_t *mbm_iface = MB_MASTER_GET_IFACE(ctx);
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
+    mb_port_base_t *port = mbm_iface->mb_base->port_obj;
     MB_RETURN_ON_FALSE(!xPortInIsrContext() && xTaskGetCurrentTaskHandle() != mbm_opts->task_handle,
                        ESP_ERR_INVALID_STATE, TAG, "mb stack deletion requires another task.");
+    MB_RETURN_ON_FALSE(!(port && port->event_obj && mb_port_ser_is_current_task(port)) &&
+                       !mb_port_timer_is_current_task(port),
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack deletion cannot run from its port callback or task.");
 
-    // Share one timeout between request admission and poll-task shutdown.
+    // Share one timeout between request admission and all producer shutdowns.
     TimeOut_t timeout;
-    TickType_t remaining = pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS);
+    TickType_t remaining = pdMS_TO_TICKS(CONFIG_FMB_SERIAL_MASTER_DELETE_TIMEOUT_MS);
     vTaskSetTimeOutState(&timeout);
     if (xSemaphoreTake(mbm_opts->mbm_sema, remaining) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
@@ -127,7 +132,7 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
     mbm_iface->is_active = false;
     xEventGroupSetBits(mbm_opts->event_group_handle, MB_EVENT_SERIAL_MASTER_CLOSING);
     xEventGroupClearBits(mbm_opts->event_group_handle, MB_EVENT_STACK_STARTED);
-    mb_port_event_wake_poll(mbm_iface->mb_base->port_obj);
+    mb_port_event_wake_poll(port);
     (void)xTaskCheckForTimeOut(&timeout, &remaining);
     EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
                                            MB_EVENT_SERIAL_MASTER_PARKED,
@@ -143,7 +148,22 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
         vTaskDelay(1);
     }
 
-    // Wait for the poll task before disabling or freeing its transport.
+    // UART and timer producers must leave the event queue before it is freed.
+    if (port && port->event_obj) {
+        result = mb_port_ser_quiesce(port, &timeout, &remaining);
+        if (result != ESP_OK) {
+            goto retained;
+        }
+    }
+    result = mb_port_timer_quiesce(port, &timeout, &remaining);
+    if (result != ESP_OK) {
+        if (result != ESP_ERR_TIMEOUT) {
+            ESP_LOGE(TAG, "mb timer shutdown failed (0x%x).", (unsigned)result);
+            result = ESP_ERR_INVALID_STATE;
+        }
+        goto retained;
+    }
+
     result = ESP_ERR_INVALID_STATE;
     if (mbm_iface->mb_base->disable(mbm_iface->mb_base) != MB_ENOERR ||
             mbm_iface->mb_base->delete (mbm_iface->mb_base) != MB_ENOERR) {
