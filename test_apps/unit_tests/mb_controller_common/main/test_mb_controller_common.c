@@ -153,6 +153,53 @@ TEST(unit_test_controller, test_setup_destroy_master_serial)
     ESP_LOGI(TAG, "Test passed successfully.");
 }
 
+static SemaphoreHandle_t poll_entered;
+static SemaphoreHandle_t poll_release;
+
+static mb_err_enum_t blocked_serial_master_poll(mb_base_t *base)
+{
+    CRITICAL_SECTION(base->lock) {
+        xSemaphoreGive(poll_entered);
+        xSemaphoreTake(poll_release, portMAX_DELAY);
+    }
+    return MB_ENOERR;
+}
+
+TEST(unit_test_controller, test_serial_master_delete_waits_for_poll)
+{
+    mb_communication_info_t master_config = {
+        .ser_opts.port = TEST_SER_PORT_NUM,
+        .ser_opts.mode = MB_RTU,
+        .ser_opts.baudrate = 115200,
+        .ser_opts.data_bits = UART_DATA_8_BITS,
+        .ser_opts.stop_bits = UART_STOP_BITS_1,
+        .ser_opts.parity = UART_PARITY_DISABLE,
+        .ser_opts.response_tout_ms = TEST_MASTER_RESPOND_TOUT_MS
+    };
+    void *mbm_handle = NULL;
+    mb_base_t *mb_base = NULL;
+    TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
+    mb_base->poll = blocked_serial_master_poll;
+    poll_entered = xSemaphoreCreateBinary();
+    poll_release = xSemaphoreCreateBinary();
+    TEST_ASSERT_NOT_NULL(poll_entered);
+    TEST_ASSERT_NOT_NULL(poll_release);
+
+    mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
+    mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
+    TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
+    TEST_ESP_OK(mbc_master_set_descriptor(mbm_handle, descriptors, num_descriptors));
+    TEST_ESP_OK(mbc_master_start(mbm_handle));
+    TEST_ASSERT_EQUAL(pdTRUE, xSemaphoreTake(poll_entered, pdMS_TO_TICKS(TEST_TASK_TIMEOUT_MS)));
+
+    TEST_ESP_ERR(ESP_ERR_TIMEOUT, mbc_master_delete(mbm_handle));
+    TEST_ESP_ERR(ESP_ERR_INVALID_STATE, mbc_master_start(mbm_handle));
+    xSemaphoreGive(poll_release);
+    TEST_ESP_OK(mbc_master_delete(mbm_handle));
+    vSemaphoreDelete(poll_release);
+    vSemaphoreDelete(poll_entered);
+}
+
 TEST(unit_test_controller, test_setup_destroy_slave_serial)
 {
     // Initialize and start Modbus controller
@@ -200,9 +247,10 @@ esp_err_t test_master_registers(int par_index, mb_err_enum_t mb_err)
     };
     mb_base_t *mb_base = NULL; // fake mb_base handle
     void *mbm_handle = NULL;
+    mb_port_base_t port = {0};
 
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
-    mb_base->port_obj = (mb_port_base_t *)0x44556677;
+    mb_base->port_obj = &port;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
@@ -292,6 +340,7 @@ TEST_GROUP_RUNNER(unit_test_controller)
 
 #if (CONFIG_FMB_COMM_MODE_RTU_EN || CONFIG_FMB_COMM_MODE_ASCII_EN)
     RUN_TEST_CASE(unit_test_controller, test_setup_destroy_master_serial);
+    RUN_TEST_CASE(unit_test_controller, test_serial_master_delete_waits_for_poll);
     RUN_TEST_CASE(unit_test_controller, test_setup_destroy_slave_serial);
     RUN_TEST_CASE(unit_test_controller, test_master_send_request_serial);
 #endif
