@@ -226,11 +226,18 @@ esp_err_t mbc_master_create_serial(mb_communication_info_t *config, void **ctx);
 /**
  * @brief Deletes Modbus controller and stack engine
  *
+ * Serialize calls to this function with other operations on the same handle.
+ * If deletion of a serial controller fails, retain the handle and retry
+ * deletion. The serial controller may already be closing.
+ * Serial deletion waits for the poll and UART tasks. On ESP-IDF versions
+ * providing esp_timer_stop_blocking(), it also waits for timer callbacks.
+ *
  * @param[in] ctx context pointer of the initialized modbus interface
  *
  * @return
  *     - ESP_OK   Success
- *     - ESP_ERR_INVALID_STATE Parameter error
+ *     - ESP_ERR_INVALID_STATE Invalid controller, calling context or shutdown state
+ *     - ESP_ERR_TIMEOUT Serial master request, worker or timer did not finish in time
  */
 esp_err_t mbc_master_delete(void *ctx);
 

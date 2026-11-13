@@ -25,6 +25,10 @@ struct mb_port_timer_t {
     _Atomic(uint32_t) response_time_ms;
     _Atomic(bool) timer_state;
     _Atomic(uint16_t) timer_mode;
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    _Atomic(bool) closing;
+    _Atomic(TaskHandle_t) callback_task;
+#endif
 };
 
 /* ----------------------- Static variables ---------------------------------*/
@@ -41,11 +45,29 @@ mb_timer_mode_enum_t mb_port_get_cur_timer_mode(mb_port_base_t *inst);
 static void IRAM_ATTR timer_alarm_cb(void *param)
 {
     mb_port_base_t *inst = (mb_port_base_t *)param;
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    mb_port_timer_t *timer = inst->timer_obj;
+    const bool task_context = !xPortInIsrContext();
+    if (task_context) {
+        atomic_store(&timer->callback_task, xTaskGetCurrentTaskHandle());
+    }
+    if (atomic_load(&timer->closing)) {
+        if (task_context) {
+            atomic_store(&timer->callback_task, NULL);
+        }
+        return;
+    }
+#endif
     if (inst->cb.tmr_expired && inst->arg) {
         inst->cb.tmr_expired(inst->arg); // Timer expired callback function
     }
     atomic_store(&(inst->timer_obj->timer_state), true);
     ESP_EARLY_LOGD(TAG, "timer mode: (%d) triggered", mb_port_get_cur_timer_mode(inst));
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    if (task_context) {
+        atomic_store(&timer->callback_task, NULL);
+    }
+#endif
 }
 
 mb_err_enum_t mb_port_timer_create(mb_port_base_t *inst, uint16_t t35_timer_ticks)
@@ -60,6 +82,10 @@ mb_err_enum_t mb_port_timer_create(mb_port_base_t *inst, uint16_t t35_timer_tick
     inst->timer_obj->timer_handle = NULL;
     atomic_init(&(inst->timer_obj->timer_mode), MB_TMODE_T35);
     atomic_init(&(inst->timer_obj->timer_state), false);
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    atomic_init(&inst->timer_obj->closing, false);
+    atomic_init(&inst->timer_obj->callback_task, NULL);
+#endif
     // Set default response time according to kconfig
     atomic_init(&(inst->timer_obj->response_time_ms), MB_MASTER_TIMEOUT_MS_RESPOND);
     // Save timer reload value for Modbus T35 period
@@ -89,6 +115,51 @@ error:
     return ret;
 }
 
+bool mb_port_timer_is_current_task(mb_port_base_t *inst)
+{
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    return inst && inst->timer_obj &&
+           atomic_load(&inst->timer_obj->callback_task) == xTaskGetCurrentTaskHandle();
+#else
+    (void)inst;
+    return false;
+#endif
+}
+
+esp_err_t mb_port_timer_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining)
+{
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    if (!inst || !inst->timer_obj || !inst->timer_obj->timer_handle) {
+        return ESP_OK;
+    }
+    mb_port_timer_t *timer = inst->timer_obj;
+    atomic_store(&timer->closing, true);
+    // Join callbacks that the SDK has selected, including those yet to enter.
+    (void)xTaskCheckForTimeOut(timeout, remaining);
+    esp_err_t result = esp_timer_stop_blocking(timer->timer_handle, *remaining);
+    if (result != ESP_OK) {
+        return result;
+    }
+    // The first join completes any callback which passed the closing check
+    // before rearming. Disarm again and join any resulting late dispatch.
+    (void)xTaskCheckForTimeOut(timeout, remaining);
+    result = esp_timer_stop_blocking(timer->timer_handle, *remaining);
+    if (result == ESP_OK) {
+        result = esp_timer_delete(timer->timer_handle);
+        if (result == ESP_OK) {
+            timer->timer_handle = NULL;
+        }
+    }
+    return result;
+#else
+    // Older SDKs do not provide a barrier for a selected callback.
+    (void)inst;
+    (void)timeout;
+    (void)remaining;
+    return ESP_OK;
+#endif
+}
+
 void mb_port_timer_delete(mb_port_base_t *inst)
 {
     // Delete active timer
@@ -105,6 +176,11 @@ void mb_port_timer_delete(mb_port_base_t *inst)
 void mb_port_timer_us(mb_port_base_t *inst, uint64_t timeout_us)
 {
     MB_RETURN_ON_FALSE((inst && inst->timer_obj->timer_handle), ;, TAG, "timer is not initialized.");
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    if (atomic_load(&inst->timer_obj->closing)) {
+        return;
+    }
+#endif
     MB_RETURN_ON_FALSE((timeout_us > 0), ;, TAG,
                        "%s, incorrect tick value for timer = (%" PRId64 ").", inst->descr.parent_name, timeout_us);
     esp_timer_stop(inst->timer_obj->timer_handle);
@@ -162,6 +238,11 @@ void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms)
 
 void mb_port_timer_disable(mb_port_base_t *inst)
 {
+#ifdef MB_HAVE_ESP_TIMER_STOP_BLOCKING
+    if (!inst->timer_obj->timer_handle) {
+        return;
+    }
+#endif
     // Disable timer alarm
     esp_err_t err = esp_timer_stop(inst->timer_obj->timer_handle);
     if (err != ESP_OK) {

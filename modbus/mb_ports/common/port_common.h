@@ -159,6 +159,7 @@ struct mb_port_base_t {
 mb_err_enum_t mb_port_event_create(mb_port_base_t *inst);
 bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event);
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event);
+void mb_port_event_wake_poll(mb_port_base_t *inst);
 bool mb_port_event_res_take(mb_port_base_t *inst, uint32_t timeout);
 void mb_port_event_res_release(mb_port_base_t *inst);
 void mb_port_event_set_resp_flag(mb_port_base_t *inst, mb_err_event_t event_mask);
@@ -180,6 +181,8 @@ void mb_port_timer_set_response_time(mb_port_base_t *inst, uint32_t resp_time_ms
 uint32_t mb_port_timer_get_response_time_ms(mb_port_base_t *inst);
 void mb_port_timer_delay(mb_port_base_t *inst, uint16_t timeout_ms);
 void mb_port_timer_delete(mb_port_base_t *inst);
+bool mb_port_timer_is_current_task(mb_port_base_t *inst);
+esp_err_t mb_port_timer_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining);
 
 int64_t port_get_timestamp(void);
 

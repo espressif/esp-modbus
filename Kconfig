@@ -129,6 +129,17 @@ menu "Modbus configuration"
                 This API blocking time was intentionally separated from master timeout = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND
                 to prevent possible misconfiguration and the value must be higher than the master timeout.
 
+    config FMB_SERIAL_MASTER_DELETE_TIMEOUT_MS
+        int "Serial master deletion timeout (ms)"
+        depends on FMB_COMM_MODE_RTU_EN || FMB_COMM_MODE_ASCII_EN
+        range 100 200000
+        default FMB_MASTER_MAX_API_BLOCKING_TIME_MS
+        help
+                Total time to acquire the controller request semaphore and wait
+                for serial master workers and supported timer callbacks to finish.
+                Set this below the application's watchdog interval if needed.
+                This does not change the timeout for Modbus requests.
+
     config FMB_MASTER_TIMEOUT_COOLDOWN_MS
         int "Modbus master cooldown time after response timeout (ms)"
         range 0 30000
