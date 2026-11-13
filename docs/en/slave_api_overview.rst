@@ -7,19 +7,18 @@ Modbus Slave API Overview
 
 The sections below represent typical programming workflow for the slave API which should be called in following order:
 
-1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface using communication options.
+1. :doc:`Overview and Get Started <overview_and_get_started>` - Initialize the Modbus controller and set communication options for the selected port.
 2. :ref:`modbus_api_slave_configure_descriptor` - Configure data descriptors to access slave parameters.
 3. :ref:`modbus_api_slave_handler_customization` - Customization of Modbus function handling in slave object.
-4. :ref:`modbus_api_slave_setup_communication_options` - Allows to setup communication options for selected port.
-5. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
-6. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
+4. :ref:`modbus_api_slave_communication` - Start stack and sending / receiving data. Filter events when master accesses the register areas.
+5. :ref:`modbus_api_slave_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_slave_configure_descriptor:
 
 Configuring Slave Data Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The following functions must be called when the Modbus controller slave port is already initialized. Refer to :ref:`modbus_api_port_initialization`.
+The following functions must be called when the Modbus controller slave port is already initialized. Refer to the :doc:`Overview and Get Started <overview_and_get_started>` guide.
 
 The slave stack requires the user to define structures (memory storage areas) that store the Modbus parameters accessed by stack. These structures should be prepared by the user and be assigned to the Modbus controller interface using :cpp:func:`mbc_slave_set_descriptor` API call before the start of communication. The slave task can call the :cpp:func:`mbc_slave_check_event` function which will block until the Modbus master access the slave. The slave task can then get information about the data being accessed.
 

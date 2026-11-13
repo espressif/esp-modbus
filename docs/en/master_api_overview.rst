@@ -7,12 +7,11 @@ Modbus Master API Overview
 
 The following overview describes how to setup Modbus master communication. The overview reflects a typical programming workflow and is broken down into the sections provided below:
 
-1. :ref:`modbus_api_port_initialization` - Initialization of Modbus controller interface for the selected port.
+1. :doc:`Overview and Get Started <overview_and_get_started>` - Initialize the Modbus controller and set communication options for the selected port.
 2. :ref:`modbus_api_master_configure_descriptor` - Configure data descriptors to access slave parameters.
 3. :ref:`modbus_api_master_handler_customization` - Customization of Modbus function handling.
-4. :ref:`modbus_api_master_setup_communication_options` - Allows to setup communication options for selected port.
-5. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
-6. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
+4. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
+5. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
 
 .. _modbus_api_master_configure_descriptor:
 
