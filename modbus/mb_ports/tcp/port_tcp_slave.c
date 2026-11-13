@@ -439,9 +439,22 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                 msg.msg_id = frame_entry.tid;
                 msg.node_id = pnode->index;
                 msg.pnode = pnode;
-                // Enqueue the transaction, keep time of receiving.
-                item = transaction_enqueue(port_obj->transaction, &msg, (transaction_tick_t)port_get_timestamp());
-                pnode->tid_counter = tid_counter; // assign the TID from frame to use it on send
+                // Discard foreign UnitIDs before taking the transaction resource.
+#if MB_TCP_UID_ENABLED
+                uint8_t uid = frame_entry.buf[MB_TCP_UID];
+                if ((drv_obj->uid != MB_ADDRESS_BROADCAST) &&
+                    (uid != drv_obj->uid) &&
+                    (uid != MB_ADDRESS_BROADCAST) &&
+                    (uid != MB_TCP_PSEUDO_ADDRESS)) {
+                    ESP_LOGD(TAG, "Ignore request for UID %u (configured UID %u).", uid, drv_obj->uid);
+                    free(frame_entry.buf);
+                } else
+#endif
+                {
+                    // Enqueue the transaction, keep time of receiving.
+                    item = transaction_enqueue(port_obj->transaction, &msg, (transaction_tick_t)port_get_timestamp());
+                    pnode->tid_counter = tid_counter;
+                }
                 mb_drv_unlock(drv_obj);
             }
         }
