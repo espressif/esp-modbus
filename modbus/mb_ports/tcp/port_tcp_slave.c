@@ -453,7 +453,7 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
                 {
                     // Enqueue the transaction, keep time of receiving.
                     item = transaction_enqueue(port_obj->transaction, &msg, (transaction_tick_t)port_get_timestamp());
-                    pnode->tid_counter = tid_counter;
+                    pnode->tid_counter = tid_counter; // assign the TID from frame to use it on send
                 }
                 mb_drv_unlock(drv_obj);
             }
