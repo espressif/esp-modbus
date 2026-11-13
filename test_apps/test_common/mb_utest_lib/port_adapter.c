@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdatomic.h>
+#include <sys/lock.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -62,6 +63,9 @@ static const char *TAG = "mb_port.test_adapter";
 
 static LIST_HEAD(mb_port_inst, _mb_adapter_port_entry) s_port_list = LIST_HEAD_INITIALIZER(s_port_list);
 static uint32_t s_port_list_counter = 0; /*!< port registered instance counter */
+// The ports are created and deleted from different tasks, the lock protects the list, the counter
+// and the shared receive task and queue set, which the last deleted port must destroy only once
+static _lock_t s_port_list_lock;
 
 // The queue set for the receive task
 static QueueSetHandle_t queue_set = NULL;
@@ -168,6 +172,19 @@ uint16_t mb_port_adapter_wait_flag(mb_port_base_t *inst, uint16_t mask, uint32_t
     return (uint16_t)bits;
 }
 
+// A TCP master has its own connection to each slave, so a request reaches only the slave with
+// the unit ID of the request (the broadcast and pseudo addresses reach all the slaves).
+static bool mb_port_adapter_is_addressed(const mb_port_adapter_t *src, const mb_port_adapter_t *dst,
+                                         const uint8_t *frame, int length)
+{
+    if ((src->addr_info.proto == MB_TCP) && src->base.descr.is_master
+            && !dst->base.descr.is_master && dst->addr_info.uid && (length > MB_TCP_UID)) {
+        uint8_t uid = frame[MB_TCP_UID];
+        return (uid == dst->addr_info.uid) || (uid == MB_ADDRESS_BROADCAST) || (uid == MB_TCP_PSEUDO_ADDRESS);
+    }
+    return true;
+}
+
 // Timer task to send notification on timeout expiration
 IRAM_ATTR
 static void mb_port_adapter_timer_cb(void *param)
@@ -183,7 +200,8 @@ static void mb_port_adapter_timer_cb(void *param)
             if (it && (it != port_obj) &&
                     (port_obj->addr_info.port == it->addr_info.port) && (sz != -1)
                     && (port_obj->addr_info.proto == it->addr_info.proto)
-                    && (!port_obj->addr_info.uid || !it->addr_info.uid)) {
+                    && (!port_obj->addr_info.uid || !it->addr_info.uid)
+                    && mb_port_adapter_is_addressed(port_obj, it, temp_buffer, sz)) {
                 // Send the data to all ports with the same communication port setting except itself
                 queue_push(it->rx_queue, (void *)&temp_buffer[0], sz, NULL);
                 mb_port_adapter_set_flag(&port_obj->base, MB_QUEUE_FLAG_SENT);
@@ -283,6 +301,7 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
 {
     mb_port_adapter_t *adapter_obj = NULL;
     mb_err_enum_t ret = MB_EILLSTATE;
+    bool is_list_locked = false;
     adapter_obj = (mb_port_adapter_t *)calloc(1, sizeof(mb_port_adapter_t));
 
     MB_GOTO_ON_FALSE((adapter_obj && addr_info && in_out_obj), MB_EILLSTATE, error, TAG, "mb serial port creation error.");
@@ -309,6 +328,8 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     MB_GOTO_ON_FALSE((adapter_obj->event_group_handle), MB_EILLSTATE, error, TAG,
                      "%p, event group create error.", *in_out_obj);
 
+    _lock_acquire_recursive(&s_port_list_lock);
+    is_list_locked = true;
     if (!s_port_list_counter) {
         // Create a task to handle UART events
         BaseType_t status = xTaskCreatePinnedToCore(mb_port_adapter_task, "adapt_rx_task",
@@ -337,6 +358,8 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
     // register new port instance in the list
     LIST_INSERT_HEAD(&s_port_list, adapter_obj, entries);
     s_port_list_counter++;
+    is_list_locked = false;
+    _lock_release_recursive(&s_port_list_lock);
     char *string_ptr;
     int res = asprintf(&string_ptr, "%d;%s;%u", (unsigned)addr_info->uid,
                        adapter_obj->base.descr.parent_name, (unsigned)addr_info->port);
@@ -358,6 +381,9 @@ mb_err_enum_t mb_port_adapter_create(mb_uid_info_t *addr_info, mb_port_base_t **
 error:
     if (adapter_obj) {
         mb_port_adapter_delete(&adapter_obj->base);
+    }
+    if (is_list_locked) {
+        _lock_release_recursive(&s_port_list_lock);
     }
     return ret;
 }
@@ -486,9 +512,10 @@ void mb_port_adapter_delete(mb_port_base_t *inst)
         port_obj->timer_handle = NULL;
     }
     CRITICAL_SECTION_CLOSE(inst->lock);
+    _lock_acquire_recursive(&s_port_list_lock);
     LIST_REMOVE(port_obj, entries);
     if (s_port_list_counter) {
-        atomic_store(&(s_port_list_counter), (s_port_list_counter - 1));
+        s_port_list_counter--;
         if (queue_set && port_obj && port_obj->rx_queue) {
             xQueueRemoveFromSet(port_obj->rx_queue, queue_set);
         }
@@ -501,9 +528,12 @@ void mb_port_adapter_delete(mb_port_base_t *inst)
             vTaskDelete(adapter_task_handle);
             adapter_task_handle = NULL;
         }
-        vQueueDelete(queue_set);
-        queue_set = NULL;
+        if (queue_set) {
+            vQueueDelete(queue_set);
+            queue_set = NULL;
+        }
     }
+    _lock_release_recursive(&s_port_list_lock);
     if (port_obj && port_obj->rx_queue && port_obj->tx_queue) {
         queue_delete(port_obj->rx_queue);
         queue_delete(port_obj->tx_queue);
