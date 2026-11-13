@@ -443,9 +443,9 @@ MB_EVENT_HANDLER(mbs_on_recv_data)
 #if MB_TCP_UID_ENABLED
                 uint8_t uid = frame_entry.buf[MB_TCP_UID];
                 if ((drv_obj->uid != MB_ADDRESS_BROADCAST) &&
-                    (uid != drv_obj->uid) &&
-                    (uid != MB_ADDRESS_BROADCAST) &&
-                    (uid != MB_TCP_PSEUDO_ADDRESS)) {
+                        (uid != drv_obj->uid) &&
+                        (uid != MB_ADDRESS_BROADCAST) &&
+                        (uid != MB_TCP_PSEUDO_ADDRESS)) {
                     ESP_LOGD(TAG, "Ignore request for UID %u (configured UID %u).", uid, drv_obj->uid);
                     free(frame_entry.buf);
                 } else
