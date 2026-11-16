@@ -18,6 +18,7 @@
 #define _Atomic(T) std::atomic<T>
 #define atomic_int int
 #else
+#include <assert.h>
 #include <stdatomic.h>
 #endif
 
