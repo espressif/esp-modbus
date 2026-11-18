@@ -1,494 +1,307 @@
 .. _modbus_api_master_overview:
 
-.. _modbus_api_master_communication_options:
-
 Modbus Master API Overview
 --------------------------
 
-The following overview describes how to setup Modbus master communication. The overview reflects a typical programming workflow and is broken down into the sections provided below:
+The following overview describes how to set up Modbus master communication. The overview reflects a typical programming workflow and is broken down into the sections provided below:
 
-1. :doc:`Overview and Get Started <overview_and_get_started>` - Initialize the Modbus controller and set communication options for the selected port.
+1. :ref:`modbus_api_master_communication_options` - Initialization of the master and setup of the communication.
 2. :ref:`modbus_api_master_configure_descriptor` - Configure data descriptors to access slave parameters.
-3. :ref:`modbus_api_master_handler_customization` - Customization of Modbus function handling.
-4. :ref:`modbus_api_master_start_communication` - Start stack and sending / receiving data.
-5. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
+3. :ref:`modbus_api_master_descriptor_initialization` - Associate the data dictionary with the master instance.
+4. :ref:`modbus_api_master_start_communication` - Start the Modbus master stack.
+5. :ref:`modbus_api_master_communication` - Sending / receiving data using CID parameters.
+6. :ref:`modbus_api_master_legacy_communication` - Legacy Modbus request API.
+7. :ref:`modbus_api_master_destroy` - Destroy Modbus controller and its resources.
+
+See more:
+
+* :ref:`modbus_api_master_handler_customization` - Customization of Modbus function handling.
+
+.. _modbus_api_master_communication_options:
+
+Master Create and Communication Options
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The configuration structure specifies the type of object being initialized and defines its user-specific options, the structure is provided as a parameter and is different for serial and TCP communication modes.
+
+An example of initialization for a Modbus serial master is below:
+
+.. code:: c
+
+    static void *master_handle = NULL;
+    ....
+    mb_communication_info_t comm = {
+        .ser_opts.port = CONFIG_MB_UART_PORT_NUM,
+        .ser_opts.mode = MB_RTU,                // communication mode - MB_ASCII or MB_RTU
+        .ser_opts.baudrate = CONFIG_MB_UART_BAUD_RATE,
+        .ser_opts.parity = MB_PARITY_NONE,
+        .ser_opts.uid = 0,                      // unused for master
+        .ser_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
+        .ser_opts.data_bits = UART_DATA_8_BITS,
+        .ser_opts.stop_bits = UART_STOP_BITS_1
+    };
+    esp_err_t err = mbc_master_create_serial(&comm, &master_handle);
+    if (master_handle == NULL || err != ESP_OK) {
+        ESP_LOGE(TAG, "mb controller initialization fail.");
+    }
+
+.. note:: RS485 communication requires a call to UART-specific APIs to set up the communication mode and pins. Refer to the UART initialization code in the `basic master example <https://github.com/espressif/esp-modbus/blob/main/examples/get_started/basic_master/main/basic_master.c>`__.
+
+Modbus TCP Master
+~~~~~~~~~~~~~~~~~
+
+The Modbus TCP master requires a slave IP address table. Each entry maps a short slave address (Unit Identifier, UID) to a host and port. The stack uses this table to connect and to reconnect when a connection is broken.
+
+Each entry follows the notation ``UID;slave_host_ip_or_dns_name;port_number``. Host names, IPv4 addresses, and IPv6 addresses are all valid, as shown below. The table must be ``NULL``-terminated.
+
+The table can be filled in the following ways:
+
+1. **Hardcoded in source code**
+
+   Edit ``slave_ip_address_table`` in the master application. This is the most direct way to define slaves when addresses are known at build time.
+
+2. **mDNS discovery (automatic)**
+
+   Use an mDNS host name in the table (for example ``mb_slave_tcp_01``) instead of a numeric IP address. The library resolves those names when ``CONFIG_FMB_MDNS_INTEGRATION_ENABLE`` is set (enabled by default). Disable this option to use only numeric IP addresses, or to resolve names in the application instead of in the stack.
+
+   If mDNS is disabled but the table still contains host names, the stack logs an error such as: ``E (20127) mb_port.tcp.master: 0x3ffc9ff0, slave: 2, IP:mb_slave_tcp_01, mdns service is not supported.``
+
+   Examples can also enable ``CONFIG_MB_MDNS_IP_RESOLVER`` so the master queries for Modbus services advertised by slaves. Each slave must enable the same option and use a unique Modbus slave address.
+
+3. **Manual input via stdin**
+
+   Examples can fill the table at run time. Enable ``CONFIG_MB_SLAVE_IP_FROM_STDIN`` and ``CONFIG_MB_CONSOLE_HELPER_ENABLED``, then enter addresses when prompted with ``Waiting IP<N> from stdin:``. Use the format ``IP <N>=<IP_ADDRESS>;<PORT>``, where ``N = (configured slave address - 1)``.
+
+   Example: ``IP 0=192.168.1.21;1502``
+
+.. note:: Match the address family to the connection option selected in the example: ``EXAMPLE_CONNECT_IPV4`` or ``EXAMPLE_CONNECT_IPV6``.
+
+An example of initialization for a Modbus TCP master is below.
+
+.. code:: c
+
+    // All the slave devices being accessed by master.
+    enum {
+        MB_SLAVE_ADDR1 = 1,  // Add other slave addresses here.
+        MB_SLAVE_ADDR2 = 35,
+        MB_SLAVE_ADDR3 = 12,
+        MB_DEVICE_COUNT = 4  // Equal to the number of registered slaves + 1
+    };
+
+    // Table to resolve slave addresses and reconnect when connection is broken
+    static char *slave_ip_address_table[] = {
+        "01;mb_slave_tcp_01;502",       // Slave using mDNS host name ("mb_slave_tcp_01"), UID = 01, port 502
+        "35;192.168.32.54;1502",        // Slave with static IPv4 address, UID = 35, port 1502
+        "12;2001:0db8:85a3:0000:0000:8a2e:0370:7334;502",  // Slave with static IPv6 address, UID = 12, port 502
+        NULL                            // End of table (must be included)
+    };
+
+.. code:: c
+
+    static void *master_handle = NULL;
+    mb_tcp_addr_type_t ip_addr_type = MB_IPV4;
+    ....
+    // Setup of network
+    init_services(ip_addr_type);
+
+    mb_communication_info_t tcp_master_config = {
+        .tcp_opts.port = CONFIG_FMB_TCP_PORT_DEFAULT,
+        .tcp_opts.mode = MB_TCP,
+        .tcp_opts.addr_type = ip_addr_type,
+        .tcp_opts.ip_addr_table = (void *)slave_ip_address_table,
+        .tcp_opts.uid = 0,
+        .tcp_opts.start_disconnected = false,
+        .tcp_opts.response_tout_ms = CONFIG_FMB_MASTER_TIMEOUT_MS_RESPOND,
+        .tcp_opts.ip_netif_ptr = (void *)get_example_netif()
+    };
+    esp_err_t err = mbc_master_create_tcp(&tcp_master_config, &master_handle);
+    if (master_handle == NULL || err != ESP_OK) {
+        ESP_LOGE(TAG, "mb controller initialization fail.");
+    }
+
+.. note:: ``init_services()`` is required only for TCP masters and must be called before :cpp:func:`mbc_master_create_tcp`. For more information on how the code is used, see the `basic master example <https://github.com/espressif/esp-modbus/blob/main/examples/get_started/basic_master/main/basic_master.c>`__.
+
+Refer to :ref:`example TCP master <example_mb_tcp_master>` and :ref:`example TCP slave <example_mb_tcp_slave>` for complete examples of mDNS and stdin-based address configuration.
 
 .. _modbus_api_master_configure_descriptor:
 
 Configuring Master Data Access
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The architectural approach of ESP_Modbus includes one level above standard Modbus IO driver. The additional layer is called Modbus controller and its goal is to add an abstraction such as CID - characteristic identifier. The CID is linked to a corresponding Modbus registers through the table called Data Dictionary and represents device physical parameter (such as temperature, humidity, etc.) in specific Modbus slave device. This approach allows the upper layer (e.g., MESH or MQTT) to be isolated from Modbus specifics thus simplify Modbus integration with other protocols/networks.
+The ESP implementation of Modbus includes an abstraction layer called the Modbus Controller, which introduces several key concepts:
 
-The Data Dictionary is the list in the Modbus master which shall be defined by user to link each CID to its corresponding Modbus registers representation using Register Mapping table of the Modbus slave being used.
-Each element in this data dictionary is of type :cpp:type:`mb_parameter_descriptor_t` and represents the description of one physical characteristic:
+Characteristic
+~~~~~~~~~~~~~~~
 
-.. list-table:: Table 1 Modbus master Data Dictionary description
-  :widths: 8 10 82
+A characteristic represents specific Modbus register(s) to be read or written on a slave device. It is accessed using its characteristic identifier (CID) and encapsulates all necessary metadata about the register.
+
+Data Dictionary
+~~~~~~~~~~~~~~~
+
+The data dictionary is a parameter description table that defines all Modbus registers the master will access on slave devices in the network. Each entry is a characteristic identified by a characteristic ID (CID), which represents a specific piece of data such as temperature, voltage, or a configuration value, and maps it to the corresponding Modbus registers on the slave. This abstraction simplifies the handling of register addresses, data formats, and function codes.
+
+.. note:: The data dictionary can be initialized from an SD card, MQTT, or another source before the stack is started.
+
+The master must define a data dictionary. Each characteristic includes the following fields:
+
+.. list-table::
   :header-rows: 1
+  :widths: 30 70
 
-  * - Field 
+  * - Field
     - Description
-    - Detailed information
   * - ``cid``
-    - Characteristic ID         
-    - The identifier of characteristic (must be unique).
+    - Unique CID number representing the parameter (used as an index in the data dictionary)
   * - ``param_key``
-    - Characteristic Name
-    - String description of the characteristic.
+    - Description of the characteristic (must be unique)
   * - ``param_units``
-    - Characteristic Units
-    - Physical Units of the characteristic.
+    - Description of measurement units
   * - ``mb_slave_addr``
-    - Modbus Slave Address
-    - The short address of the device with correspond parameter UID.
+    - Slave device short address (unit ID)
+  * - **Register Location (Slave)**
+    -
   * - ``mb_param_type``
-    - Modbus Register Type
-    - Type of Modbus register area. 
-      :cpp:enumerator:`MB_PARAM_INPUT`, :cpp:enumerator:`MB_PARAM_HOLDING`, :cpp:enumerator:`MB_PARAM_COIL`, :cpp:enumerator:`MB_PARAM_DISCRETE`  - represents Input , Holding, Coil and Discrete input register area accordingly;
+    - Modbus register type (:cpp:enumerator:`MB_PARAM_INPUT`, :cpp:enumerator:`MB_PARAM_HOLDING`, :cpp:enumerator:`MB_PARAM_COIL`, :cpp:enumerator:`MB_PARAM_DISCRETE`)
   * - ``mb_reg_start``
-    - Modbus Register Start
-    - Relative register address of the characteristic in the register area.  
+    - Starting register address in the slave
   * - ``mb_size``
-    - Modbus Register Size
-    - Length of characteristic in registers (two bytes).
+    - Size in registers (2 bytes for INPUT and HOLDING, 1 bit for COIL and DISCRETE)
+  * - **Data Storage (Master)**
+    -
   * - ``param_offset``
-    - Instance Offset
-    - Offset to instance of the characteristic in bytes. It is used to calculate the absolute address to the characteristic in the storage structure.
-      It is optional field and can be set to zero if the parameter is not used in the application.
+    - Offset of the start address
   * - ``param_type``
-    - Data Type
-    - Specifies type of the characteristic. Possible types are described in the section :ref:`modbus_mapping_complex_data_types`.
+    - Data type (Float, U8, U16, U32, ASCII, and so on). See types in :ref:`modbus_mapping_complex_data_types`.
   * - ``param_size``
-    - Data Size
-    - The storage size of the characteristic (in bytes) describes the size of data to keep into data instance during mapping. For the :ref:`modbus_mapping_complex_data_types` this allows to define the data container of the corresponded type.
+    - Number of bytes to store
+  * - **Access Control**
+    -
   * - ``param_opts``
-    - Parameter Options
-    - Limits, options of characteristic used during processing of alarm in user application (optional)
+    - Options for limits or alarm states
   * - ``access``
-    - Parameter access type
-    - Can be used in user application to define the behavior of the characteristic during processing of data in user application;
-      :cpp:enumerator:`PAR_PERMS_READ_WRITE_TRIGGER`, :cpp:enumerator:`PAR_PERMS_READ`, :cpp:enumerator:`PAR_PERMS_READ_WRITE_TRIGGER`;
+    - Permissions (read, write, trigger, and so on): :cpp:enumerator:`PAR_PERMS_READ`, :cpp:enumerator:`PAR_PERMS_WRITE`, :cpp:enumerator:`PAR_PERMS_READ_WRITE_TRIGGER`, :cpp:enumerator:`PAR_PERMS_CUST_CMD`
 
-.. note:: The ``cid`` and ``param_key`` have to be unique. Please use the prefix to the parameter key if you have several similar parameters in your register map table.
-
-Examples Of Mapping
-@@@@@@@@@@@@@@@@@@@
-
-Please refer to section :ref:`modbus_mapping_complex_data_types` for more information about used data types.
-
-Example 1: Configure access to legacy parameter types is described below.
-
-.. list-table:: Table 2 Example Register mapping table of Modbus slave
-  :widths: 5 5 2 10 5 5 68
-  :header-rows: 1
-  
-  * - CID
-    - Register
-    - Length
-    - Range
-    - Type
-    - Units
-    - Description
-  * - 0
-    - 30000
-    - 4
-    - MAX_UINT
-    - U32
-    - Not defined
-    - Serial number of device (4 bytes) read-only
-  * - 1
-    - 30002
-    - 2
-    - MAX_UINT
-    - U16
-    - Not defined
-    - Software version (4 bytes) read-only
-  * - 2
-    - 40000
-    - 4
-    - -20..40
-    - FLOAT
-    - DegC
-    - Room temperature in DegC. Writing a temperature value to this register for single point calibration.
-  * - 3
-    - 40002
-    - 16
-    - 1..100 bytes
-    - ASCII or binary array
-    - Not defined
-    - Device name (16 bytes) ASCII string. The type of `PARAM_TYPE_ASCII` allows to read/write complex parameter (string or binary data) that corresponds to one CID.
+**Example entry:**
 
 .. code:: c
 
-    // Enumeration of modbus slave addresses accessed by master device
-    enum {
-        MB_DEVICE_ADDR1 = 1,
-        MB_DEVICE_ADDR2,
-        MB_SLAVE_COUNT
-    };
-
-    // Enumeration of all supported CIDs for device
-    enum {
-        CID_SER_NUM1 = 0,
-        CID_SW_VER1,
-        CID_DEV_NAME1,
-        CID_TEMP_DATA_1,
-        CID_SER_NUM2,
-        CID_SW_VER2,
-        CID_DEV_NAME2,
-        CID_TEMP_DATA_2
-    };
-
-    // Example Data Dictionary for Modbus parameters in 2 slaves in the segment
-    mb_parameter_descriptor_t device_parameters[] = {
-        // CID, Name, Units, Modbus addr, register type, Modbus Reg Start Addr, Modbus Reg read length, 
-        // Instance offset (NA), Instance type, Instance length (bytes), Options (NA), Permissions
-        { CID_SER_NUM1, STR("Serial_number_1"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 0, 2,
-                        0, PARAM_TYPE_U32, 4, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_SW_VER1, STR("Software_version_1"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_INPUT, 2, 1,
-                        0, PARAM_TYPE_U16, 2, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_DEV_NAME1, STR("Device name"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 8,
-                        0, PARAM_TYPE_ASCII, 16, OPTS( 0, 0, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_TEMP_DATA_1, STR("Temperature_1"), STR("C"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 2,
-                        0, PARAM_TYPE_FLOAT, 4, OPTS( 16, 30, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_SER_NUM2, STR("Serial_number_2"), STR("--"), MB_DEVICE_ADDR2, MB_PARAM_INPUT, 0, 2,
-                        0, PARAM_TYPE_U32, 4, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_SW_VER2, STR("Software_version_2"), STR("--"), MB_DEVICE_ADDR2, MB_PARAM_INPUT, 2, 1,
-                        0, PARAM_TYPE_U16, 2, OPTS( 0,0,0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_DEV_NAME2, STR("Device name"), STR("__"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 2, 8,
-                        0, PARAM_TYPE_ASCII, 16, OPTS( 0, 0, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_TEMP_DATA_2, STR("Temperature_2"), STR("C"), MB_DEVICE_ADDR2, MB_PARAM_HOLDING, 0, 2,
-                        0, PARAM_TYPE_FLOAT, 4, OPTS( 20, 30, 1 ), PAR_PERMS_READ_WRITE_TRIGGER },
-    };
-    // Calculate number of parameters in the table
-    uint16_t num_device_parameters = (sizeof(device_parameters) / sizeof(device_parameters[0]));
-
-Example 2: Configure access using extended parameter types for third-party devices.
-
-.. list-table:: Table 3 Example Register mapping table of Modbus slave
-  :widths: 2 4 2 10 3 68
-  :header-rows: 1
-  
-  * - CID
-    - Register
-    - Length
-    - Range
-    - Units
-    - Description
-  * - 0
-    - 40000
-    - 4
-    - 0 ... 255
-    - No units
-    - :cpp:enumerator:`PARAM_TYPE_U8_A` - unsigned integer 8-bit
-  * - 1
-    - 40002
-    - 4
-    - 0 ... 65535
-    - No Units
-    - :cpp:enumerator:`PARAM_TYPE_U16_AB` uinsigned integer 16-bit
-  * - 3
-    - 40004
-    - 8
-    - 0 ... Unsigned integer 32-bit range
-    - No units
-    - :cpp:enumerator:`PARAM_TYPE_U32_ABCD` - unsigned integer 32-bit in ABCD format
-  * - 4
-    - 40008
-    - 8
-    - 0 ... Unsigned integer 32-bit range
-    - No units
-    - :cpp:enumerator:`PARAM_TYPE_FLOAT_CDAB` - FLOAT 32-bit value in CDAB format
-  * - 5
-    - 400012
-    - 16
-    - 0 ... Unsigned integer 64-bit range
-    - No units
-    - :cpp:enumerator:`PARAM_TYPE_U64_ABCDEFGH` - Unsigned integer 64-bit value in ABCDEFGH format
-  * - 6
-    - 400020
-    - 16
-    - 0 ... Unsigned integer 64-bit range
-    - No units
-    - :cpp:enumerator:`PARAM_TYPE_DOUBLE_HGFEDCBA` - Double precision 64-bit value in HGFEDCBA format
-
-.. code:: c
-
-    #include "limits.h"
-    #include "mbcontroller.h"
-    
-    #define HOLD_OFFSET(field) ((uint16_t)(offsetof(holding_reg_params_t, field) + 1))
-    #define HOLD_REG_START(field) (HOLD_OFFSET(field) >> 1)
-    #define HOLD_REG_SIZE(field) (sizeof(((holding_reg_params_t *)0)->field) >> 1)
-
-    #pragma pack(push, 1)
-    // Example structure that contains parameter arrays of different types
-    // with different options of endianness.
-    typedef struct
+    const mb_parameter_descriptor_t device_parameters[] = {
     {
-        uint16_t holding_u8_a[2];
-        uint16_t holding_u16_ab[2];
-        uint32_t holding_uint32_abcd[2];
-        float holding_float_cdab[2];
-        double holding_uint64_abcdefgh[2];
-        double holding_double_hgfedcba[2];
-    } holding_reg_params_t;
-    #pragma pack(pop)
-
-    // Enumeration of modbus slave addresses accessed by master device
-    enum {
-        MB_DEVICE_ADDR1 = 1, // Short address of Modbus slave device
-        MB_SLAVE_COUNT
+        CID_EX_0,                           // CID number
+        "Example_register",                 // Description
+        "-",                                // Units (extra description)
+        MB_SLAVE_ADDR1,                     // Slave address
+        MB_PARAM_HOLDING,                   // Register area type
+        0,                                  // Start address in slave register area
+        1,                                  // Size in registers
+        0,                                  // Offset start address
+        PARAM_TYPE_U16,                     // Data type
+        PARAM_SIZE_U16,                     // Size in bytes
+        OPTS(0, 0, 0),                      // Options
+        PAR_PERMS_READ_WRITE_TRIGGER        // Permissions
+    }
     };
 
-  // Enumeration of all supported CIDs for device (used in parameter definition table)
-    enum {
-        CID_HOLD_U8_A = 0,
-        CID_HOLD_U16_AB,
-        CID_HOLD_UINT32_ABCD,
-        CID_HOLD_FLOAT_CDAB,
-        CID_HOLD_UINT64_ABCDEFGH,
-        CID_HOLD_DOUBLE_HGFEDCBA,
-        CID_COUNT
-    };
-
-    // Example Data Dictionary for to address parameters from slaves with different options of endianness
-    mb_parameter_descriptor_t device_parameters[] = {
-        // CID, Name, Units, Modbus addr, register type, Modbus Reg Start Addr, Modbus Reg read length, 
-        // Instance offset (NA), Instance type, Instance length (bytes), Options (NA), Permissions
-        { CID_HOLD_U8_A, STR("U8_A"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-                HOLD_REG_START(holding_u8_a), HOLD_REG_SIZE(holding_u8_a),
-                HOLD_OFFSET(holding_u8_a), PARAM_TYPE_U8_A, (HOLD_REG_SIZE(holding_u8_a) << 1), 
-                OPTS( 0, UCHAR_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_HOLD_U16_AB, STR("U16_AB"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-                HOLD_REG_START(holding_u16_ab), HOLD_REG_SIZE(holding_u16_ab),
-                HOLD_OFFSET(holding_u16_ab), PARAM_TYPE_U16_AB, (HOLD_REG_SIZE(holding_u16_ab) << 1), 
-                OPTS( 0, USHRT_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_HOLD_UINT32_ABCD, STR("UINT32_ABCD"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 
-                HOLD_REG_START(holding_uint32_abcd), HOLD_REG_SIZE(holding_uint32_abcd),
-                HOLD_OFFSET(holding_uint32_abcd), PARAM_TYPE_U32_ABCD, (HOLD_REG_SIZE(holding_uint32_abcd) << 1), 
-                OPTS( 0, ULONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_HOLD_FLOAT_CDAB, STR("FLOAT_CDAB"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-                HOLD_REG_START(holding_float_cdab), HOLD_REG_SIZE(holding_float_cdab),
-                HOLD_OFFSET(holding_float_cdab), PARAM_TYPE_FLOAT_CDAB, (HOLD_REG_SIZE(holding_float_cdab) << 1), 
-                OPTS( 0, ULONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_HOLD_UINT64_ABCDEFGH, STR("UINT64_ABCDEFGH"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-                HOLD_REG_START(holding_uint64_abcdefgh), HOLD_REG_SIZE(holding_uint64_abcdefgh),
-                HOLD_OFFSET(holding_uint64_abcdefgh), PARAM_TYPE_UINT64_ABCDEFGH, (HOLD_REG_SIZE(holding_uint64_abcdefgh) << 1), 
-                OPTS( 0, ULLONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER },
-        { CID_HOLD_DOUBLE_HGFEDCBA, STR("DOUBLE_HGFEDCBA"), STR("--"), MB_DEVICE_ADDR1, MB_PARAM_HOLDING,
-                HOLD_REG_START(holding_double_hgfedcba), HOLD_REG_SIZE(holding_double_hgfedcba),
-                HOLD_OFFSET(holding_double_hgfedcba), PARAM_TYPE_DOUBLE_HGFEDCBA, (HOLD_REG_SIZE(holding_double_hgfedcba) << 1), 
-                OPTS( 0, ULLONG_MAX, 0 ), PAR_PERMS_READ_WRITE_TRIGGER }
-    };
-    uint16_t num_device_parameters = (sizeof(device_parameters) / sizeof(device_parameters[0]));
-
-The example above describes the definition of just several extended types. The types described in the :ref:`modbus_mapping_complex_data_types` allow to address the most useful value formats from devices of known third-party vendors.
-Once the type of characteristic is defined in data dictionary the stack is responsible for conversion of values to/from the corresponding type option into the format recognizable by compiler.
-
-.. note:: Please refer to your vendor device manual and its mapping table to select the types suitable for your device.
-
-The Modbus stack contains also the :ref:`modbus_api_endianness_conversion` - endianness conversion API functions that allow to convert values from/to each extended type into compiler representation.
-
-During initialization of the Modbus stack, a pointer to the Data Dictionary (called descriptor) must be provided as the parameter of the function below. 
+The types described in :ref:`modbus_mapping_complex_data_types` can represent value formats used by known third-party devices.
+Once a CID type is defined in the data dictionary, the stack converts values to and from the corresponding type into a format the compiler can use.
 
 .. _modbus_api_master_descriptor_initialization:
 
-Descriptor Initialization
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Master Descriptor Initialization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:cpp:func:`mbc_master_set_descriptor`:
+In order to associate the data dictionary with the master instance, the function below must be used, and a pointer to the data dictionary (called the descriptor) must be provided as a parameter:
 
-Initialization of master descriptor. The descriptor represents an array of type :cpp:type:`mb_parameter_descriptor_t` and describes all the characteristics accessed by master.
+:cpp:func:`mbc_master_set_descriptor`
 
 .. code:: c
 
-    static void *master_handle = NULL; // Must exist in the module and be initialized prior to call
+    static void *master_handle = NULL; // Must exist in the module and be initialized prior to the call
     ....
     // Set master data dictionary for initialized master instance - master_handle
     ESP_ERROR_CHECK(mbc_master_set_descriptor(master_handle, &device_parameters[0], num_device_parameters));
 
-The Data Dictionary can be initialized from SD card, MQTT or other source before start of stack. Once the initialization and setup is done, the Modbus controller allows the reading of complex parameters from any slave included in descriptor table using its CID.
-Refer to :ref:`example TCP master <example_mb_tcp_master>`, :ref:`example Serial master <example_mb_master>` for more information.
-
-The Data Dictionary and related API functions (:cpp:func:`mbc_master_get_parameter`, :cpp:func:`mbc_master_set_parameter`) support custom commands to be defined for read and write operations separately. In this case, the first two options (``param_opts.cust_cmd_read`` and ``param_opts.cust_cmd_write``) are treated as read/write Modbus commands accordingly if the :cpp:enumerator:`PAR_PERMS_CUST_CMD` flag is set in the ``access`` field for the characteristic.
-
-.. note:: Please make sure that the required commands are configured correctly in Modbus master and slave before using this feature. Refer to :ref:`modbus_api_master_handler_customization` for more information.
-
-The below example explains this use case:
-
-.. code:: c
-
-    enum {
-        CID_HOLD_CUSTOM1 = 0
-    };
-    const mb_parameter_descriptor_t device_parameters[] = {
-      // The commands `<0x03 - Read Multiple Holding Registers>`, 
-      // `<0x06 - Write Single Holding Register>` will be used to read/write characteristic data accordingly.
-      { CID_HOLD_CUSTOM1, STR("CustomHoldingRegister"), STR("__"),
-        MB_DEVICE_ADDR1, MB_PARAM_HOLDING, 0, 1,
-        HOLD_OFFSET(custom_holding_reg), PARAM_TYPE_U16, 2,
-        OPTS(0x03, 0x06, 0x5555), PAR_PERMS_READ_WRITE_CUST_CMD },
-      ... // other characteristics in the data dictionary
-    };
-    static void *master_handle = NULL; // Pointer to allocated interface structure
-    ...
-    uint8_t temp_data[4];
-    esp_err_t err = mbc_master_get_parameter(master_handle, CID_HOLD_CUSTOM1, temp_data, &type);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Characteristic read successful.");
-    }
-    err = mbc_master_set_parameter(master_handle, CID_HOLD_CUSTOM1, temp_data, &type);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Set parameter data successfully.");
-    }
-
-.. _modbus_api_master_handler_customization:
-
-Master Customize Function Handlers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The Master object contains the command handling table to define specific handling functionality for each supported Modbus command. The default handling functions in this table support the most common Modbus commands. However, the list of commands can be extended by adding a new command into the handling table with its custom handling behavior. It is also possible to override the function handler for a specific command. The below described API functions allow using this behavior for Master objects.
-
-:cpp:func:`mbc_set_handler`
-
-The function adds new handler for the function or overrides the existing handler for the function.
-
-:cpp:func:`mbc_get_handler`
-
-The function returns the handler for the specified function code from handling table. Allows to keep and use the predefined handlers for standard functions.
-
-:cpp:func:`mbc_delete_handler`
-
-The function allows to delete the handler for specified command and free the handler table entry for this.
-
-:cpp:func:`mbc_get_handler_count`
-
-The function returns the actual number of command handlers registered for the object referred by parameter.
-
-The example code to override the handler routine for the command `<0x04 - Read Input Registers>` is below. This example allows to perform a custom action and then calls the standard handler, which maps the device data to the command buffer from the actual parameter. This is just recommended behavior for handling functions, but users can change the order of the calls if absolutely required. Please refer to the existing handler :cpp:func:`mbm_fn_read_inp_reg` for more information.
-
-.. code:: c
-
-    static void *master_handle = NULL;  // Pointer to allocated interface structure
-    const uint8_t override_command = 0x04;
-    mb_fn_handler_fp pstandard_handler = NULL;
-    ....
-    // This is the custom function handler for the command.
-    // The handler is executed from the context of modbus controller event task and should be as simple as possible.
-    // Parameters: frame_ptr - the pointer to the incoming ADU frame from slave starting from function code,
-    // plen - the pointer to length of the frame. After return from the handler the modbus object will 
-    // handle the end of transaction according to the exception returned.
-    mb_exception_t my_custom_fc04_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
-    {
-        mb_exception_t exception = MB_EX_CRITICAL;
-        MB_RETURN_ON_FALSE(frame_ptr && plen, exception, TAG, "incorrect frame buffer length");
-        // It is the possible place for the custom behavior
-        if (pstandard_handler) {
-            exception = pstandard_handler(pinst, frame_ptr, plen); // invoke standard behavior with mapping
-        }
-        return exception;
-    }
-    ....
-    // Get the standard handler for the command to use it in the handler.
-    err = mbc_get_handler(master_handle, custom_command, &pstandard_handler);
-    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                            "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
-    // This call overrides the handler for the standard command.
-    err = mbc_set_handler(master_handle, override_command, my_custom_fc04_handler);
-    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                        "could not override handler, returned (0x%x).", (int)err);
-
-.. note:: The custom handler set by the function :cpp:func:`mbc_set_handler` should be as short as possible and should contain simple and safe logic to not break the normal functionality of the stack. This is user application responsibility to handle the command appropriately.
-
-The example code to handle custom vendor specific command is below. This example sends the 'Master' string to slave and gets the response from slave with the string being appended from slave. It is just a simple echo example to demonstrate the approach.
-
-.. code:: c
-
-    #define MB_CUST_DATA_LEN 100
-    static char my_custom_data[MB_CUST_DATA_LEN] = {0}; // custom data buffer for the request
-    static void *master_handle = NULL;  // Pointer to allocated interface structure
-
-    // This is the custom function handler to process incoming slave response.
-    // Parameters: frame_ptr: is a pointer to incoming frame buffer, plen: is pointer to length including the function code
-    // In spite of logging showed here, try to use just simple functionality in the handler.
-    mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
-    {
-        MB_RETURN_ON_FALSE((frame_ptr && plen && *plen && *plen < (MB_CUST_DATA_LEN - 1)), MB_EX_ILLEGAL_DATA_VALUE, TAG,
-                                "incorrect custom frame buffer");
-        ESP_LOGI(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *plen);
-        strncpy((char *)&my_custom_data[0], (char *)&frame_ptr[1], MB_CUST_DATA_LEN);
-        ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*plen - 1), ESP_LOG_INFO);
-        return MB_EX_NONE;
-    }
-    ....
-    // The setup of the master object is completed and the master_handle is already actual
-
-    // Add custom command handler
-    const uint8_t custom_command = 0x41; // the function code for the request
-    // Override or add new handler entry.
-    err = mbc_set_handler(master_handle, custom_command, my_custom_fc_handler);
-    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
-                            "could not override handler, returned (0x%x).", (int)err);
-    mb_fn_handler_fp phandler = NULL;
-    // Make sure the handler is updated correctly
-    err = mbc_get_handler(master_handle, custom_command, &phandler);
-    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
-                            "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
-
-    char *pcustom_string = "Master"; // The custom request string that will be sent to the slave
-    mb_param_request_t req = {
-        .slave_addr = MB_DEVICE_ADDR1,              // the slave UID to send the request
-        .command = 0x41,                            // the custom function code,
-        .reg_start = 0,                             // unused,
-        .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
-    };
-
-    // Send the request with custom command (vendor specific)
-    // This function supports sending of even number of bytes
-    // as instructed by req.reg_size (Modbus register = 2 bytes)
-    err = mbc_master_send_request(master_handle, &req, pcustom_string);
-    if (err != ESP_OK) {
-        ESP_LOGE("CUSTOM_DATA", "Send custom request fail.");
-    } else {
-        // The request is processed correctly and the `my_custom_data[]` contains the sent string with appended slave string
-        ...
-    }
-
-Refer to :ref:`example Serial master <example_mb_master>` for more information.
-
 .. _modbus_api_master_start_communication:
 
-Master Communication
-^^^^^^^^^^^^^^^^^^^^
+Master Initialization
+^^^^^^^^^^^^^^^^^^^^^
 
-The starting of the Modbus controller is the final step in enabling communication. This is performed using function below:
+Master stack initialization is the last step before enabling communication. This is performed using the function below:
 
 :cpp:func:`mbc_master_start`
 
 .. code:: c
 
-    static void *master_handle = NULL;  // Pointer to allocated interface structure
+    static void *master_handle = NULL;  // Pointer to master instance
     ....
-    esp_err_t err = mbc_master_start();
+    esp_err_t err = mbc_master_start(master_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "mb controller start fail, err = 0x%x.", (int)err);
     }
-    
-The list of functions below are used by the Modbus master stack from a user's application:
+
+.. _modbus_api_master_communication:
+
+Master Communication
+^^^^^^^^^^^^^^^^^^^^
+
+The common ESP-Modbus communication flow looks like this:
+
+:cpp:func:`mbc_master_get_cid_info`
+
+The function gets information about a characteristic ID (CID) from the data dictionary and returns the CID description in the form of the :cpp:type:`mb_parameter_descriptor_t` structure. Each characteristic is accessed using its CID number.
+
+.. code:: c
+
+    mbc_master_get_cid_info(master_handle, cid, &param_descriptor)
+
+:cpp:func:`mbc_master_get_parameter`
+
+The function reads data from a Modbus slave device based on the characteristic ID (CID) from the data dictionary.
+
+.. code:: c
+
+    mbc_master_get_parameter(master_handle, cid, parameter_value, &type)
+
+:cpp:func:`mbc_master_set_parameter`
+
+The function writes data to a Modbus slave device based on the characteristic ID (CID) from the data dictionary.
+
+.. code:: c
+
+    mbc_master_set_parameter(master_handle, cid, parameter_value, &type)
+
+.. note:: For a complete usage example, refer to :ref:`example Serial master <example_mb_master>`.
+
+:cpp:func:`mbc_master_get_parameter_with`
+
+The function reads data from a Modbus slave addressed by UID (slave address), based on the characteristic ID (CID) from the data dictionary. The ``mb_slave_addr`` field of the CID entry in :cpp:type:`mb_parameter_descriptor_t` must be equal to ``MB_SLAVE_ADDR_PLACEHOLDER``. For TCP communication, the connection phase must be completed before calling this function.
+
+.. code:: c
+
+    mbc_master_get_parameter_with(master_handle, cid, MB_DEVICE_ADDR1, parameter_value, &type)
+
+:cpp:func:`mbc_master_set_parameter_with`
+
+The function is similar to the previous one, but writes data to any slave device addressed by UID (slave address) instead of using the ``mb_slave_addr`` field defined in the data dictionary. The corresponding ``mb_slave_addr`` field for the CID entry in the data dictionary must be defined as ``MB_SLAVE_ADDR_PLACEHOLDER``.
+
+.. code:: c
+
+    mbc_master_set_parameter_with(master_handle, cid, MB_DEVICE_ADDR1, parameter_value, &type)
+
+.. note:: When TCP communication is used, the functions above also check the connection state of the accessed slave and return an error if the slave is not connected.
 
 .. _modbus_api_master_legacy_communication:
 
-:cpp:func:`mbc_master_send_request`:
+Legacy Modbus Communication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This function executes a blocking Modbus request. The master sends a data request (as defined in parameter request structure :cpp:type:`mb_param_request_t`) and then blocks until a response from corresponding slave and returns the status of command execution. This function provides a standard way for read/write access to Modbus devices in the network.
+:cpp:func:`mbc_master_send_request`
 
-.. note:: The function can be used to form the custom request with non-standard commands to resolve compatibility issues with the custom slaves. If it is not the case the regular API should be used: :cpp:func:`mbc_master_set_parameter`, :cpp:func:`mbc_master_get_parameter`.
+This function executes a blocking Modbus request. The master sends a data request (as defined in the parameter request structure :cpp:type:`mb_param_request_t`) and then blocks until a response from the corresponding slave is received, and returns the status of command execution. This function provides a standard way for read/write access to Modbus devices in the network.
 
-The master supports the <0x11 - Report Slave ID> Modbus command to read vendor specific information from the slave. It uses the :cpp:func:`mbc_master_send_request` function to send request.
+.. note:: The function can be used to form a custom request with non-standard commands to resolve compatibility issues with custom slaves. If that is not the case, the regular API should be used: :cpp:func:`mbc_master_set_parameter`, :cpp:func:`mbc_master_get_parameter`.
 
-The example to retrieve the slave identificator from slave:
+The following example shows how to use the Modbus command ``<0x11 - Report Slave ID>`` to read vendor-specific information from the slave. It uses :cpp:func:`mbc_master_send_request` to send the request.
 
 .. code:: c
 
@@ -512,9 +325,9 @@ The example to retrieve the slave identificator from slave:
         ESP_LOG_BUFFER_HEX_LEVEL("SLAVE_INFO", (void*)info_buf, sizeof(info_buf), ESP_LOG_WARN);
     }
 
-The following example shows how to use the extra fields of :cpp:type:`mb_param_request_t` for command ``0x17`` (23 -- Read/Write Multiple Registers). It writes 3 ``float`` holding values (6 registers, starting at field ``holding_data0``) and reads 1 ``float`` holding value (2 registers, starting at field ``holding_data2``) of the saving structure ``holding_reg_params_t`` in the same transaction.
+The following example shows how to use the extra fields of :cpp:type:`mb_param_request_t` for command ``0x17`` (23 -- Read/Write Multiple Registers). It writes 3 ``float`` holding values (6 registers, starting at field ``holding_data0``) and reads 1 ``float`` holding value (2 registers, starting at field ``holding_data2``) of the storage structure ``holding_reg_params_t`` in the same transaction.
 
-.. note:: The storage structure ``holding_reg_params_t`` uses ``float`` (4 bytes) to store the holding registers. Since the Modbus protocol considers one register to be 2 bytes long, both ``reg_size`` (read length) and ``wr_rd_multi_reg_func.wr_reg_size`` (write length) must be expressed in registers -- i.e. twice the number of ``float`` values to transfer. The Macro ``HOLD_REG_START()`` defined in the Esp-Modbus project examples is used to get register offset for the respective field in the storage structure.
+.. note:: The storage structure ``holding_reg_params_t`` uses ``float`` (4 bytes) to store the holding registers. Since the Modbus protocol considers one holding register to be 2 bytes long, both ``reg_size`` (read length) and ``wr_rd_multi_reg_func.wr_reg_size`` (write length) must be expressed in registers -- i.e. twice the number of ``float`` values to transfer. The macro ``HOLD_REG_START()`` defined in the ESP-Modbus project examples is used to get the register offset for the respective field in the storage structure.
 
 .. code:: c
 
@@ -541,93 +354,147 @@ The following example shows how to use the extra fields of :cpp:type:`mb_param_r
           ESP_LOGI("MASTER_COMMAND_0x17", "Read and write of multiple holding registers success. Value read: %f", read_write_holding_buffer[0]);
       }
 
-
-.. _modbus_api_master_communication:
-
-Reading and Writing Parameters
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-:cpp:func:`mbc_master_get_cid_info`:
-
-The function gets information about each characteristic supported in the data dictionary and returns the characteristic's description in the form of the :cpp:type:`mb_parameter_descriptor_t` structure. Each characteristic is accessed using its CID.
-
-:cpp:func:`mbc_master_get_parameter`
-
-The function reads the data of a characteristic defined in the parameters of a Modbus slave device. The additional data for request is taken from parameter description table.
-
-:cpp:func:`mbc_master_get_parameter_with`
-
-The function allows to read the data of a characteristic from any slave device addressed by `uid` parameter of the function instead of slave address defined in the data dictionary. In this case the ``mb_slave_addr`` field of the parameter descriptor :cpp:type:`mb_parameter_descriptor_t` shall be equal to ``MB_SLAVE_ADDR_PLACEHOLDER``. In case of TCP type of communication the connection phase should be completed prior call of this function.
-
-Example: 
-
-.. code:: c
-
-    static void *master_handle = NULL;
-    ....
-    const mb_parameter_descriptor_t* param_descriptor = NULL;
-    uint8_t temp_data[4] = {0}; // temporary buffer to hold maximum CID size
-    uint8_t type = 0;
-    ....
-    // Get the information for characteristic cid from data dictionary
-    esp_err_t err = mbc_master_get_cid_info(cid, &param_descriptor);
-    if ((err != ESP_ERR_NOT_FOUND) && (param_descriptor != NULL)) {
-        err = mbc_master_get_parameter(master_handle, param_descriptor->cid, (uint8_t*)temp_data, &type);
-        if (err == ESP_OK) {
-            ESP_LOGI(TAG, "Characteristic #%d %s (%s) value = (0x%" PRIx32 ") read successful.",
-                             param_descriptor->cid,
-                             param_descriptor->param_key,
-                             param_descriptor->param_units,
-                             *(uint32_t*)temp_data);
-        } else {
-            ESP_LOGE(TAG, "Characteristic #%d (%s) read fail, err = 0x%x (%s).",
-                            param_descriptor->cid,
-                            param_descriptor->param_key,
-                            (int)err,
-                            (char*)esp_err_to_name(err));
-        }
-    } else {
-        ESP_LOGE(TAG, "Could not get information for characteristic %d.", cid);
-    }
-
-:cpp:func:`mbc_master_set_parameter`
-
-The function writes characteristic's value defined as `cid` parameter in corresponded slave device. The additional data for parameter request is taken from master parameter description table.
-
-:cpp:func:`mbc_master_set_parameter_with`
-
-The function is similar to previous function but allows to set the data of a characteristic in any slave device addressed by `uid` parameter of the function instead of the slave address ``mb_slave_addr`` field defined in the data dictionary. The corresponded ``mb_slave_addr`` field for the characteristic in the object dictionary shall be defined as ``MB_SLAVE_ADDR_PLACEHOLDER``. 
-
-.. note:: When the TCP mode of communication is used the functions above additionally check the connection state of the slave being accessed and return error if the slave connection is not actual.
-
-.. code:: c
-
-    static void *master_handle = NULL;
-    ....
-    uint8_t type = 0;                   // Type of parameter
-    uint8_t temp_data[4] = {0};         // temporary buffer
-    // Read the characteristic from slave and save the data to temp_data instance
-    esp_err_t err = mbc_master_set_parameter(master_handle, CID_TEMP_DATA_2, (uint8_t*)temp_data, &type);
-    if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Set parameter data successfully.");
-    } else {
-        ESP_LOGE(TAG, "Set data fail, err = 0x%x (%s).", (int)err, (char*)esp_err_to_name(err));
-    }
-
 .. note:: Please refer to :ref:`modbus_master_slave_configuration_aspects` for proper configuration.
+
+.. _modbus_api_master_handler_customization:
+
+Master Customize Function Handlers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Master object contains the command handling table to define specific handling functionality for each supported Modbus command. The default handling functions in this table support the most common Modbus commands. However, the list of commands can be extended by adding a new command into the handling table with its custom handling behavior. It is also possible to override the function handler for a specific command. The API functions described below allow using this behavior for Master objects.
+
+:cpp:func:`mbc_set_handler`
+
+The function adds a new handler for the function code or overrides the existing handler.
+
+.. note:: The custom handler set by :cpp:func:`mbc_set_handler` should be as short as possible and should contain simple, safe logic so that it does not break the normal functionality of the stack. It is the user application's responsibility to handle the command appropriately.
+
+:cpp:func:`mbc_get_handler`
+
+The function returns the handler for the specified function code from the handling table. This allows keeping and using the predefined handlers for standard functions.
+
+:cpp:func:`mbc_delete_handler`
+
+The function deletes the handler for the specified command and frees the handler table entry.
+
+:cpp:func:`mbc_get_handler_count`
+
+The function returns the actual number of command handlers registered for the object referred to by its parameter.
+
+The example code to override the handler routine for the command ``<0x04 - Read Input Registers>`` is below. This example performs a custom action and then calls the standard handler, which maps the device data to the command buffer from the actual parameter. This is the recommended behavior for handling functions, but users can change the order of the calls if absolutely required. Please refer to the existing handler `mbm_fn_read_inp_reg <https://github.com/espressif/esp-modbus/blob/main/modbus/mb_objects/functions/mbfuncinput_master.c#L103>`__ for more information.
+
+.. code:: c
+
+    static void *master_handle = NULL;
+    const uint8_t command  = 0x04;
+    mb_fn_handler_fp pstandard_handler = NULL;
+    ....
+    // This is the custom function handler for the command.
+    // The handler is executed from the context of modbus controller event task and should be as simple as possible.
+    //
+    // Parameters:
+    // pinst - pointer to the Modbus instance (mb_base_t),
+    // frame_ptr - the pointer to the incoming ADU frame from the slave starting from the function code,
+    // plen - the pointer to the length of the frame.
+    //
+    // After return from the handler, the modbus object will
+    // handle the end of transaction according to the exception returned.
+    mb_exception_t my_custom_fc04_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        mb_exception_t exception = MB_EX_CRITICAL;
+        ESP_RETURN_ON_FALSE(frame_ptr && plen, exception, TAG, "incorrect frame buffer length");
+        // It is the possible place for the custom behavior
+        if (pstandard_handler) {
+            exception = pstandard_handler(pinst, frame_ptr, plen); // invoke standard behavior with mapping
+        }
+        return exception;
+    }
+    ....
+    // Get the standard handler for the command to use it in the custom handler.
+    err = mbc_get_handler(master_handle, command , &pstandard_handler);
+    ESP_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                            "could not get handler for command %d, returned (0x%x).", (int)command , (int)err);
+    // This call overrides the handler for the standard command.
+    err = mbc_set_handler(master_handle, command , my_custom_fc04_handler);
+    ESP_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                        "could not override handler, returned (0x%x).", (int)err);
+
+The following example handles a custom vendor-specific command. This example sends the "Master" string to the slave and gets the response with text appended to the sent string. It is a simple echo example to demonstrate the functionality.
+
+.. code:: c
+
+    #define MB_CUST_DATA_LEN 100
+    static char my_custom_data[MB_CUST_DATA_LEN] = {0}; // custom data buffer for the request
+    static void *master_handle = NULL;  // Pointer to Master instance
+
+    // This is the custom function handler to process the incoming slave response.
+    // Parameters:
+    // pinst - pointer to the Modbus instance (mb_base_t),
+    // frame_ptr - the pointer to the incoming ADU frame from the slave starting from the function code,
+    // plen - the pointer to the length of the frame.
+    //
+    // Despite the logging shown here, try to use only simple functionality in the handler.
+    mb_exception_t my_custom_fc_handler(void *pinst, uint8_t *frame_ptr, uint16_t *plen)
+    {
+        MB_RETURN_ON_FALSE((frame_ptr && plen && *plen && *plen < (MB_CUST_DATA_LEN - 1)), MB_EX_ILLEGAL_DATA_VALUE, TAG,
+                                "incorrect custom frame buffer");
+        ESP_LOGI(TAG, "Custom handler, Frame ptr: %p, len: %u", frame_ptr, *plen);
+        strncpy((char *)&my_custom_data[0], (char *)&frame_ptr[1], MB_CUST_DATA_LEN);
+        ESP_LOG_BUFFER_HEXDUMP("CUSTOM_DATA", &my_custom_data[0], (*plen - 1), ESP_LOG_INFO);
+        return MB_EX_NONE;
+    }
+    ....
+    // The setup of the master object is completed and the master_handle is already initialized
+
+    // Add custom command handler
+    const uint8_t custom_command = 0x41; // the function code for the request
+    // Override or add new handler entry.
+    err = mbc_set_handler(master_handle, custom_command, my_custom_fc_handler);
+    MB_RETURN_ON_FALSE((err == ESP_OK), ESP_ERR_INVALID_STATE, TAG,
+                            "could not override handler, returned (0x%x).", (int)err);
+    mb_fn_handler_fp phandler = NULL;
+    // Make sure the handler is updated correctly
+    err = mbc_get_handler(master_handle, custom_command, &phandler);
+    MB_RETURN_ON_FALSE((err == ESP_OK && phandler == my_custom_fc_handler), ESP_ERR_INVALID_STATE, TAG,
+                            "could not get handler for command %d, returned (0x%x).", (int)custom_command, (int)err);
+
+    char *pcustom_string = "Master"; // The custom request string that will be sent to the slave
+    mb_param_request_t req = {
+        .slave_addr = MB_DEVICE_ADDR1,              // the slave UID to send the request
+        .command = custom_command,                  // the custom function code,
+        .reg_start = 0,                             // unused,
+        .reg_size = (strlen(pcustom_string) >> 1)   // length of the data to send (registers)
+    };
+
+    // Send the request with custom command (vendor specific)
+    // This function supports sending of even number of bytes
+    // as instructed by req.reg_size (Modbus register = 2 bytes)
+    err = mbc_master_send_request(master_handle, &req, pcustom_string);
+    if (err != ESP_OK) {
+        ESP_LOGE("CUSTOM_DATA", "Send custom request fail.");
+    } else {
+        // The request is processed correctly and the `my_custom_data[]` contains the sent string with appended slave string
+        ...
+    }
+
+Refer to :ref:`example Serial master <example_mb_master>` for more information.
 
 .. _modbus_api_master_destroy:
 
 Modbus Master Teardown
 ^^^^^^^^^^^^^^^^^^^^^^
 
-This function stops Modbus communication stack and destroys controller interface and free all used active objects.  
+This function stops the Modbus communication stack, destroys the controller interface, and frees all used active objects.
 
-:cpp:func:`mbc_master_destroy`
+:cpp:func:`mbc_master_delete`
 
 .. code:: c
 
-    // Pointer to allocated interface structure, must be initialized by constructor
+    // Pointer to master instance, must be initialized by constructor
     static void *master_handle = NULL;
     ...
-    ESP_ERROR_CHECK(mbc_master_destroy(master_handle));
+    ESP_ERROR_CHECK(mbc_master_delete(master_handle));
+    // Necessary extra step for TCP instances, it pairs with init_services()
+    destroy_services();
+
+.. note:: ``destroy_services()`` is required only for TCP masters and must be called after :cpp:func:`mbc_master_delete`. For more information on how the code is used, see the `basic master example <https://github.com/espressif/esp-modbus/blob/main/examples/get_started/basic_master/main/basic_master.c>`__.
