@@ -122,6 +122,15 @@ bool mb_port_event_post(mb_port_base_t *inst, mb_event_t event)
     return true;
 }
 
+void mb_port_event_wake_poll(mb_port_base_t *inst)
+{
+    if (inst && inst->event_obj && inst->event_obj->event_hdl) {
+        mb_event_t wake = EVENT(EV_READY);
+        // A full queue already has work for the poll task. Do not wait or reset it.
+        (void)xQueueSend(inst->event_obj->event_hdl, &wake, 0);
+    }
+}
+
 bool mb_port_event_get(mb_port_base_t *inst, mb_event_t *event)
 {
     MB_RETURN_ON_FALSE((inst && event && inst->event_obj && inst->event_obj->event_hdl), false, TAG,
