@@ -192,7 +192,8 @@ static esp_err_t test_master_read_req(int par_index, mb_err_enum_t mb_err)
     void *mbm_handle = NULL;
 
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
-    mb_base->port_obj = (mb_port_base_t *)0x44556677;
+    mb_port_base_t port = {0};
+    mb_base->port_obj = &port;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
@@ -283,7 +284,8 @@ static esp_err_t test_master_write_req(int par_index, mb_err_enum_t mb_err)
     void *mbm_handle = NULL;
 
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
-    mb_base->port_obj = (mb_port_base_t *)0x44556677;
+    mb_port_base_t port = {0};
+    mb_base->port_obj = &port;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));
@@ -368,7 +370,8 @@ static esp_err_t test_master_check_callback(int par_index, mb_err_enum_t mb_err)
     void *mbm_handle = NULL;
 
     TEST_ESP_ERR(MB_ENOERR, mb_stub_serial_create(&master_config.ser_opts, (void *)&mb_base));
-    mb_base->port_obj = (mb_port_base_t *)0x44556677;
+    mb_port_base_t port = {0};
+    mb_base->port_obj = &port;
     mbm_rtu_create_ExpectAnyArgsAndReturn(MB_ENOERR);
     mbm_rtu_create_ReturnThruPtr_in_out_obj((void **)&mb_base);
     TEST_ESP_OK(mbc_master_create_serial(&master_config, &mbm_handle));

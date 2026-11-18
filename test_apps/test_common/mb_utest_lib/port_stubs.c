@@ -69,6 +69,21 @@ void __wrap_mb_port_ser_disable(mb_port_base_t *inst)
     mb_port_adapter_disable(inst);
 }
 
+bool __wrap_mb_port_ser_is_current_task(mb_port_base_t *inst)
+{
+    (void)inst;
+    return false;
+}
+
+esp_err_t __wrap_mb_port_ser_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining)
+{
+    // The adapter uses a shared event task and has no per-port UART worker.
+    (void)inst;
+    (void)timeout;
+    (void)remaining;
+    return ESP_OK;
+}
+
 #endif
 
 IRAM_ATTR

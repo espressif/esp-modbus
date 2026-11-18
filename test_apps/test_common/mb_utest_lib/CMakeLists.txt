@@ -62,6 +62,8 @@ if(CONFIG_MB_PORT_ADAPTER_EN)
         mb_port_ser_send_data
         mb_port_ser_enable
         mb_port_ser_disable
+        mb_port_ser_is_current_task
+        mb_port_ser_quiesce
         mb_port_ser_delete
     )
 

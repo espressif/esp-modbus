@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "mb_config.h"
 #include "mb_types.h"
 #include "mb_frame.h"
@@ -28,6 +30,8 @@ bool mb_port_ser_recv_data(mb_port_base_t *inst, uint8_t **ser_frame, uint16_t *
 bool mb_port_ser_send_data(mb_port_base_t *inst, uint8_t *p_ser_frame, uint16_t ser_length);
 void mb_port_ser_enable(mb_port_base_t *inst);
 void mb_port_ser_disable(mb_port_base_t *inst);
+bool mb_port_ser_is_current_task(mb_port_base_t *inst);
+esp_err_t mb_port_ser_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining);
 void mb_port_ser_delete(mb_port_base_t *inst);
 
 #endif

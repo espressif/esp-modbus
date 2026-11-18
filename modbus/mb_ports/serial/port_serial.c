@@ -36,6 +36,8 @@ typedef struct {
     int64_t recv_time_stamp;
     uint32_t flags;
     _Atomic(bool) enabled;
+    _Atomic(bool) closing;
+    _Atomic(bool) parked;
     QueueHandle_t uart_queue;           // A queue to handle UART event.
     TaskHandle_t  task_handle;          // UART task to handle UART event.
     SemaphoreHandle_t bus_sema_handle;   // Rx blocking semaphore handle
@@ -119,6 +121,9 @@ bool mb_port_flush_rx(mb_port_base_t *inst)
 void mb_port_ser_enable(mb_port_base_t *inst)
 {
     mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
+    if (atomic_load(&port_obj->closing)) {
+        return;
+    }
     CRITICAL_SECTION (port_obj->base.lock) {
         atomic_store(&(port_obj->enabled), true);
         mb_port_ser_bus_sema_release(inst);
@@ -145,13 +150,19 @@ static void mb_port_ser_task(void *p_args)
     uart_event_t event;
     MB_RETURN_ON_FALSE(port_obj, ;, TAG, "%s, get serial instance fail.", port_obj->base.descr.parent_name);
     (void)mb_port_ser_rx_flush(&port_obj->base);
-    while (1) {
+    while (!atomic_load(&port_obj->closing)) {
         // Workaround to suspend task from known place to avoid dead lock when resume
-        while (!atomic_load(&(port_obj->enabled))) {
+        while (!atomic_load(&port_obj->enabled) && !atomic_load(&port_obj->closing)) {
             ESP_LOGI(TAG, "%s, suspend port from task.", port_obj->base.descr.parent_name);
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         }
+        if (atomic_load(&port_obj->closing)) {
+            break;
+        }
         if (xQueueReceive(port_obj->uart_queue, (void *)&event, MB_SERIAL_RX_TOUT_TICKS)) {
+            if (atomic_load(&port_obj->closing)) {
+                break;
+            }
             ESP_LOGD(TAG, "%s, UART[%d] event:", port_obj->base.descr.parent_name, port_obj->ser_opts.port);
             switch (event.type) {
             case UART_DATA:
@@ -205,7 +216,11 @@ static void mb_port_ser_task(void *p_args)
             }
         }
     }
-    vTaskDelete(NULL);
+    // The last UART event has finished and no driver or event queue is in use.
+    atomic_store(&port_obj->parked, true);
+    for (;;) {
+        vTaskSuspend(NULL);
+    }
 }
 
 mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in_out_obj)
@@ -254,7 +269,9 @@ mb_err_enum_t mb_port_ser_create(mb_serial_opts_t *ser_opts, mb_port_base_t **in
     MB_GOTO_ON_FALSE((mb_port_ser_bus_sema_init(&ser_port->base)), MB_EILLSTATE, error, TAG,
                      "%s, mb serial bus semaphore create fail.", ser_port->base.descr.parent_name);
     // Suspend task on start and then resume when initialization is completed
-    atomic_store(&(ser_port->enabled), false);
+    atomic_init(&ser_port->enabled, false);
+    atomic_init(&ser_port->closing, false);
+    atomic_init(&ser_port->parked, false);
     // Create a task to handle UART events
     BaseType_t status = xTaskCreatePinnedToCore(mb_port_ser_task, "port_serial_task",
                         MB_SERIAL_TASK_STACK_SIZE,
@@ -279,6 +296,28 @@ error:
     }
     free(ser_port);
     return MB_EILLSTATE;
+}
+
+bool mb_port_ser_is_current_task(mb_port_base_t *inst)
+{
+    mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
+    return port_obj->task_handle == xTaskGetCurrentTaskHandle();
+}
+
+esp_err_t mb_port_ser_quiesce(mb_port_base_t *inst, TimeOut_t *timeout, TickType_t *remaining)
+{
+    mb_ser_port_t *port_obj = __containerof(inst, mb_ser_port_t, base);
+    atomic_store(&port_obj->closing, true);
+    atomic_store(&port_obj->enabled, false);
+    // Wake the disabled-task wait. Any in-progress UART queue wait is bounded.
+    xTaskNotifyGive(port_obj->task_handle);
+    while (!atomic_load(&port_obj->parked) || eTaskGetState(port_obj->task_handle) != eSuspended) {
+        if (xTaskCheckForTimeOut(timeout, remaining) != pdFALSE) {
+            return ESP_ERR_TIMEOUT;
+        }
+        vTaskDelay(1);
+    }
+    return ESP_OK;
 }
 
 void mb_port_ser_delete(mb_port_base_t *inst)

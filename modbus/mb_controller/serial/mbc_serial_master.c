@@ -23,12 +23,17 @@
 #include "mb_common.h"              // for mb types definition
 #include "mb_config.h"
 #include "mb_proto.h"
+#include "port_serial_common.h"
 
 #if (CONFIG_FMB_COMM_MODE_ASCII_EN || CONFIG_FMB_COMM_MODE_RTU_EN)
 
 /*-----------------------Master mode use these variables----------------------*/
 
 static const char *TAG = "mbc_serial.master";
+
+// Private bits in the serial master controller event group.
+#define MB_EVENT_SERIAL_MASTER_CLOSING BIT0
+#define MB_EVENT_SERIAL_MASTER_PARKED  BIT1
 
 // Modbus event processing task
 static void mbc_ser_master_task(void *param)
@@ -40,10 +45,17 @@ static void mbc_ser_master_task(void *param)
     for (;;) {
         // Wait for poll events
         EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
-                             (EventBits_t)(MB_EVENT_STACK_STARTED),
+                             MB_EVENT_STACK_STARTED | MB_EVENT_SERIAL_MASTER_CLOSING,
                              pdFALSE,
                              pdFALSE,
                              portMAX_DELAY);
+        if (status & MB_EVENT_SERIAL_MASTER_CLOSING) {
+            // The poll has returned and can no longer own a transport lock.
+            xEventGroupSetBits(mbm_opts->event_group_handle, MB_EVENT_SERIAL_MASTER_PARKED);
+            for (;;) {
+                vTaskSuspend(NULL);
+            }
+        }
         // Check if stack started then poll for data
         if (status & MB_EVENT_STACK_STARTED) {
             (void)mbm_iface->mb_base->poll(mbm_iface->mb_base);
@@ -57,6 +69,8 @@ static esp_err_t mbc_serial_master_start(void *ctx)
     mbm_controller_iface_t *mbm_iface = MB_MASTER_GET_IFACE(ctx);
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
     mb_err_enum_t status = MB_EIO;
+    MB_RETURN_ON_FALSE(!(xEventGroupGetBits(mbm_opts->event_group_handle) & MB_EVENT_SERIAL_MASTER_CLOSING),
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack deletion in progress.");
     mbm_iface->mb_base->descr.parent = ctx;
     MB_RETURN_ON_FALSE((mbm_opts->mbm_param_descriptor_size >= 1),
                        ESP_ERR_INVALID_ARG, TAG, "mb descriptor table size is incorrect.");
@@ -78,6 +92,8 @@ static esp_err_t mbc_serial_master_stop(void *ctx)
     mbm_controller_iface_t *mbm_iface = MB_MASTER_GET_IFACE(ctx);
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
     mb_err_enum_t status = MB_EIO;
+    MB_RETURN_ON_FALSE(!(xEventGroupGetBits(mbm_opts->event_group_handle) & MB_EVENT_SERIAL_MASTER_CLOSING),
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack deletion in progress.");
     mbm_iface->mb_base->descr.parent = ctx;
 
     // Set the mbcontroller start flag
@@ -97,37 +113,73 @@ static esp_err_t mbc_serial_master_delete(void *ctx)
 {
     mbm_controller_iface_t *mbm_iface = MB_MASTER_GET_IFACE(ctx);
     mb_master_options_t *mbm_opts = MB_MASTER_GET_OPTS(ctx);
-    mb_err_enum_t mb_error = MB_ENOERR;
+    mb_port_base_t *port = mbm_iface->mb_base->port_obj;
+    MB_RETURN_ON_FALSE(!xPortInIsrContext() && xTaskGetCurrentTaskHandle() != mbm_opts->task_handle,
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack deletion requires another task.");
+    MB_RETURN_ON_FALSE(!(port && port->event_obj && mb_port_ser_is_current_task(port)) &&
+                       !mb_port_timer_is_current_task(port),
+                       ESP_ERR_INVALID_STATE, TAG, "mb stack deletion cannot run from its port callback or task.");
 
-    // Check the stack started bit
-    EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
-                         (EventBits_t)(MB_EVENT_STACK_STARTED),
-                         pdFALSE,
-                         pdFALSE,
-                         pdMS_TO_TICKS(MB_MASTER_TIMEOUT_MS_RESPOND));
-    if (mbm_iface->is_active || (status & MB_EVENT_STACK_STARTED)) {
-        ESP_LOGV(TAG, "mb stack is active, try to disable.");
-        MB_RETURN_ON_FALSE((mbc_serial_master_stop(ctx) == ESP_OK),
-                           ESP_ERR_INVALID_STATE, TAG, "mb stack stop failure.");
+    // Share one timeout between request admission and all producer shutdowns.
+    TimeOut_t timeout;
+    TickType_t remaining = pdMS_TO_TICKS(CONFIG_FMB_SERIAL_MASTER_DELETE_TIMEOUT_MS);
+    vTaskSetTimeOutState(&timeout);
+    if (xSemaphoreTake(mbm_opts->mbm_sema, remaining) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
     }
 
+    esp_err_t result = ESP_ERR_TIMEOUT;
     mbm_iface->is_active = false;
-    vTaskDelete(mbm_opts->task_handle);
-    mbm_opts->task_handle = NULL;
-    vEventGroupDelete(mbm_opts->event_group_handle);
-    mbm_opts->event_group_handle = NULL;
-    if (xSemaphoreTake(mbm_opts->mbm_sema, pdMS_TO_TICKS(MB_MIN_RESP_DELAY_MS)) == pdTRUE) {
-        (void)xSemaphoreGive(mbm_opts->mbm_sema);
+    xEventGroupSetBits(mbm_opts->event_group_handle, MB_EVENT_SERIAL_MASTER_CLOSING);
+    xEventGroupClearBits(mbm_opts->event_group_handle, MB_EVENT_STACK_STARTED);
+    mb_port_event_wake_poll(port);
+    (void)xTaskCheckForTimeOut(&timeout, &remaining);
+    EventBits_t status = xEventGroupWaitBits(mbm_opts->event_group_handle,
+                                           MB_EVENT_SERIAL_MASTER_PARKED,
+                                           pdFALSE, pdTRUE, remaining);
+    if (!(status & MB_EVENT_SERIAL_MASTER_PARKED)) {
+        goto retained;
     }
-    vSemaphoreDelete(mbm_opts->mbm_sema);
-    mbm_opts->mbm_sema = NULL;
-    // delete mb_base instance and all its allocations
-    mb_error = mbm_iface->mb_base->delete (mbm_iface->mb_base);
-    MB_RETURN_ON_FALSE((mb_error == MB_ENOERR), ESP_ERR_INVALID_STATE, TAG,
-                       "mb stack delete failure, returned (0x%x).", (int)mb_error);
+    // The acknowledgement can wake us before xEventGroupSetBits has returned.
+    while (eTaskGetState(mbm_opts->task_handle) != eSuspended) {
+        if (xTaskCheckForTimeOut(&timeout, &remaining) != pdFALSE) {
+            goto retained;
+        }
+        vTaskDelay(1);
+    }
+
+    // UART and timer producers must leave the event queue before it is freed.
+    if (port && port->event_obj) {
+        result = mb_port_ser_quiesce(port, &timeout, &remaining);
+        if (result != ESP_OK) {
+            goto retained;
+        }
+    }
+    result = mb_port_timer_quiesce(port, &timeout, &remaining);
+    if (result != ESP_OK) {
+        if (result != ESP_ERR_TIMEOUT) {
+            ESP_LOGE(TAG, "mb timer shutdown failed (0x%x).", (unsigned)result);
+            result = ESP_ERR_INVALID_STATE;
+        }
+        goto retained;
+    }
+
+    result = ESP_ERR_INVALID_STATE;
+    if (mbm_iface->mb_base->disable(mbm_iface->mb_base) != MB_ENOERR ||
+            mbm_iface->mb_base->delete (mbm_iface->mb_base) != MB_ENOERR) {
+        goto retained;
+    }
     mbm_iface->mb_base = NULL;
-    free(mbm_iface); // free the memory allocated
+    vTaskDelete(mbm_opts->task_handle);
+    vEventGroupDelete(mbm_opts->event_group_handle);
+    vSemaphoreDelete(mbm_opts->mbm_sema);
+    free(mbm_iface);
     return ESP_OK;
+
+retained:
+    // The caller still owns the handle and can retry deletion.
+    (void)xSemaphoreGive(mbm_opts->mbm_sema);
+    return result;
 }
 
 // Set Modbus parameter description table
@@ -163,6 +215,10 @@ static esp_err_t mbc_serial_master_send_request(void *ctx, mb_param_request_t *r
     mb_err_enum_t mb_error = MB_EBUSY;
 
     if (xSemaphoreTake(mbm_opts->mbm_sema, pdMS_TO_TICKS(MB_MAX_RESP_DELAY_MS)) == pdTRUE) {
+        if (xEventGroupGetBits(mbm_opts->event_group_handle) & MB_EVENT_SERIAL_MASTER_CLOSING) {
+            (void)xSemaphoreGive(mbm_opts->mbm_sema);
+            return ESP_ERR_INVALID_STATE;
+        }
         uint8_t mb_slave_addr = request->slave_addr;
         uint8_t mb_command = request->command;
         uint16_t mb_offset = request->reg_start;

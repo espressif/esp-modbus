@@ -80,6 +80,20 @@ idf_component_register(SRCS "${srcs}"
                         PRIV_REQUIRES ${priv_requires}
                         LDFRAGMENTS linker.lf)
 
+# Detect the callback barrier in the selected SDK, including patch-release backports.
+if(CONFIG_FMB_COMM_MODE_RTU_EN OR CONFIG_FMB_COMM_MODE_ASCII_EN)
+    idf_component_get_property(esp_timer_dir esp_timer COMPONENT_DIR)
+    set(esp_timer_header "${esp_timer_dir}/include/esp_timer.h")
+    if(EXISTS "${esp_timer_header}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${esp_timer_header}")
+        file(STRINGS "${esp_timer_header}" esp_timer_stop_blocking_decl
+             REGEX "^[ \t]*esp_err_t[ \t]+esp_timer_stop_blocking[ \t]*\\(")
+        if(esp_timer_stop_blocking_decl)
+            target_compile_definitions(${COMPONENT_LIB} PRIVATE MB_HAVE_ESP_TIMER_STOP_BLOCKING=1)
+        endif()
+    endif()
+endif()
+
 # This is an alternative of macro `idf_component_optional_requires(PUBLIC mdns)` to support all versions of esp-idf
 if(CONFIG_FMB_MDNS_INTEGRATION_ENABLE)
     set(optional_reqs mdns espressif__mdns)
