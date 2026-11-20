@@ -37,6 +37,7 @@ MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = YES
 PREDEFINED             = \
     $(ENV_DOXYGEN_DEFINES) \
+    CONFIG_FMB_CONTROLLER_SLAVE_ID_SUPPORT=1
 
 ## Do not complain about not having dot
 ##

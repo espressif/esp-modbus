@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2023 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -220,18 +220,20 @@ esp_err_t mbc_slave_set_descriptor(void *ctx, mb_register_area_descriptor_t desc
  */
 esp_err_t mbc_set_slave_id(void *ctx, uint8_t uid, bool is_running, uint8_t const *data_ptr, uint8_t data_len);
 
-/*! \brief Get slave identificator from the modbus object.
+/**
+ * @brief Get slave identificator from the modbus object.
  *
  * This function is used to get the Slave ID array for modbus object.
  *
- * \param ctx - context pointer of the initialized modbus interface
- * \param data_ptr - the pointer to store object ID array from the modbus object
- * \param[in/out] data_len - in: length of the allocated data_ptr array,
- *                            out: returns the actual length of object id.
- * returns the modbus error code = ESP_OK, if set correctly,
- *           ESP_ERR_INVALID_RESPONSE - if the object ID is not set,
- *           ESP_ERR_INVALID_STATE - no space to store object ID in the data_ptr buffer,
- *           or incorrect arguments are provided
+ * @param[in] ctx - context pointer of the initialized modbus interface
+ * @param[out] data_ptr - the pointer to store object ID array from the modbus object
+ * @param[out] data_len - length of object id.
+ *
+ * @return
+        - ESP_OK: The appropriate identificator is set
+ *      - ESP_ERR_INVALID_RESPONSE: The object ID is not defined
+ *      - ESP_ERR_INVALID_STATE: no space to store object ID in the data_ptr buffer or incorrect arguments are provided
+ *
  */
 esp_err_t mbc_get_slave_id(void *ctx, uint8_t const *data_ptr, uint8_t *data_len);
 #endif
